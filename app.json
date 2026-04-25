@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "MyDrama",
+    "slug": "dramabox-vip",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.takaduarr.mydrama",
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#000000"
+      },
+      "usesCleartextTraffic": true
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-video"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "a12e763e-fbed-4ba5-8854-a73daade4a48"
+      }
+    }
+  }
+}
