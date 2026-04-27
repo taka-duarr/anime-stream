@@ -8,6 +8,7 @@ import {
   FlatList,
   ActivityIndicator,
   BackHandler,
+  Platform,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
@@ -193,6 +194,21 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
   useEffect(() => {
     resetAutoHideTimer();
 
+    if (Platform.OS === "web") {
+      const handleMouseMove = () => {
+        resetAutoHideTimer();
+      };
+      // @ts-ignore
+      window.addEventListener("mousemove", handleMouseMove);
+      return () => {
+        // @ts-ignore
+        window.removeEventListener("mousemove", handleMouseMove);
+        if (hideControlsTimeout.current) {
+          clearTimeout(hideControlsTimeout.current);
+        }
+      };
+    }
+
     return () => {
       if (hideControlsTimeout.current) {
         clearTimeout(hideControlsTimeout.current);
@@ -253,48 +269,134 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
     })();
   `;
 
+  const renderControls = () => {
+    if (!showControls) return null;
+    return (
+      <>
+        {/* TOP CONTROLS */}
+        <View style={styles.topControls}>
+          <Text style={styles.episodeTitle} numberOfLines={1}>
+            {episodeDetail?.title || currentEpisode.chapterName}
+          </Text>
+
+          <TouchableOpacity
+            style={styles.closePageButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="close" size={28} color="white" />
+          </TouchableOpacity>
+        </View>
+
+        {/* RIGHT SIDE BUTTONS */}
+        <View style={styles.rightButtons}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => {
+              setShowQualityModal(true);
+              resetAutoHideTimer();
+            }}
+          >
+            <Ionicons name="settings" size={28} color="white" />
+            <Text style={styles.iconText}>{selectedQuality}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => {
+              setShowEpisodeList(true);
+              resetAutoHideTimer();
+            }}
+          >
+            <Ionicons name="list" size={30} color="white" />
+            <Text style={styles.iconText}>EP</Text>
+          </TouchableOpacity>
+
+          {/* PREV EPISODE */}
+          {episodes.findIndex(
+            (ep) => ep.chapterId === currentEpisode.chapterId,
+          ) > 0 && (
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={playPreviousEpisode}
+            >
+              <Ionicons name="play-skip-back" size={28} color="white" />
+              <Text style={styles.iconText}>Prev</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* NEXT EPISODE */}
+          {episodes.findIndex(
+            (ep) => ep.chapterId === currentEpisode.chapterId,
+          ) <
+            episodes.length - 1 && (
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={playNextEpisode}
+            >
+              <Ionicons name="play-skip-forward" size={28} color="white" />
+              <Text style={styles.iconText}>Next</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </>
+    );
+  };
+
+
   return (
     <View style={styles.container}>
       <StatusBar hidden />
 
       {/* WEBVIEW FOR VIDEO */}
       {currentVideoUrl ? (
-        <WebView
-          ref={webViewRef}
-          source={{ uri: currentVideoUrl }}
-          style={styles.webview}
-          allowsFullscreenVideo={true}
-          allowsInlineMediaPlayback={true}
-          mediaPlaybackRequiresUserAction={false}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          injectedJavaScript={injectedJavaScript}
-          onLoadStart={() => setLoadingVideo(true)}
-          onLoadEnd={() => {
-            setLoadingVideo(false);
-            // Show tap to play hint after 2 seconds if video hasn't started
-            setTimeout(() => setShowTapToPlay(true), 2000);
-          }}
-          onMessage={(event) => {
-            try {
-              const data = JSON.parse(event.nativeEvent.data);
-              if (data.type === "videoPlaying") {
-                setShowTapToPlay(false);
-                console.log("[WEBVIEW] Video is playing");
-              } else if (data.type === "autoplayBlocked") {
-                setShowTapToPlay(true);
-                console.log("[WEBVIEW] Autoplay blocked, showing tap hint");
+        Platform.OS === "web" ? (
+          <iframe
+            src={currentVideoUrl}
+            style={{ width: "100%", height: "100%", position: "absolute", border: "none", backgroundColor: "black", zIndex: 1 }}
+            allowFullScreen
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+            referrerPolicy="no-referrer"
+            onLoad={() => setLoadingVideo(false)}
+          />
+        ) : (
+          <WebView
+            ref={webViewRef}
+            source={{ uri: currentVideoUrl }}
+            style={styles.webview}
+            allowsFullscreenVideo={true}
+            allowsInlineMediaPlayback={true}
+            mediaPlaybackRequiresUserAction={false}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            injectedJavaScript={injectedJavaScript}
+            onLoadStart={() => setLoadingVideo(true)}
+            onLoadEnd={() => {
+              setLoadingVideo(false);
+              // Show tap to play hint after 2 seconds if video hasn't started
+              setTimeout(() => setShowTapToPlay(true), 2000);
+            }}
+            onMessage={(event) => {
+              try {
+                const data = JSON.parse(event.nativeEvent.data);
+                if (data.type === "videoPlaying") {
+                  setShowTapToPlay(false);
+                  console.log("[WEBVIEW] Video is playing");
+                } else if (data.type === "autoplayBlocked") {
+                  setShowTapToPlay(true);
+                  console.log("[WEBVIEW] Autoplay blocked, showing tap hint");
+                }
+              } catch (e) {
+                // Ignore parse errors
               }
-            } catch (e) {
-              // Ignore parse errors
-            }
-          }}
-          onError={(syntheticEvent) => {
-            const { nativeEvent } = syntheticEvent;
-            console.error("[WEBVIEW ERROR]", nativeEvent);
-            setLoadingVideo(false);
-          }}
-        />
+            }}
+            onError={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              console.error("[WEBVIEW ERROR]", nativeEvent);
+              setLoadingVideo(false);
+            }}
+          />
+        )
       ) : null}
 
       {/* LOADING INDICATOR */}
@@ -357,82 +459,22 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
       )}
 
       {/* CONTROLS OVERLAY */}
-      <TouchableOpacity
-        style={styles.controlsOverlay}
-        activeOpacity={1}
-        onPress={handleScreenTap}
-      >
-        {showControls && (
-          <>
-            {/* TOP CONTROLS */}
-            <View style={styles.topControls}>
-              <Text style={styles.episodeTitle} numberOfLines={1}>
-                {episodeDetail?.title || currentEpisode.chapterName}
-              </Text>
-
-              <TouchableOpacity
-                style={styles.closePageButton}
-                onPress={() => navigation.goBack()}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="close" size={28} color="white" />
-              </TouchableOpacity>
-            </View>
-
-            {/* RIGHT SIDE BUTTONS */}
-            <View style={styles.rightButtons}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => {
-                  setShowQualityModal(true);
-                  resetAutoHideTimer();
-                }}
-              >
-                <Ionicons name="settings" size={28} color="white" />
-                <Text style={styles.iconText}>{selectedQuality}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => {
-                  setShowEpisodeList(true);
-                  resetAutoHideTimer();
-                }}
-              >
-                <Ionicons name="list" size={30} color="white" />
-                <Text style={styles.iconText}>EP</Text>
-              </TouchableOpacity>
-
-              {/* PREV EPISODE */}
-              {episodes.findIndex(
-                (ep) => ep.chapterId === currentEpisode.chapterId,
-              ) > 0 && (
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={playPreviousEpisode}
-                >
-                  <Ionicons name="play-skip-back" size={28} color="white" />
-                  <Text style={styles.iconText}>Prev</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* NEXT EPISODE */}
-              {episodes.findIndex(
-                (ep) => ep.chapterId === currentEpisode.chapterId,
-              ) <
-                episodes.length - 1 && (
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={playNextEpisode}
-                >
-                  <Ionicons name="play-skip-forward" size={28} color="white" />
-                  <Text style={styles.iconText}>Next</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </>
-        )}
-      </TouchableOpacity>
+      {Platform.OS === "web" ? (
+        <View
+          style={[styles.controlsOverlay, { zIndex: 10 }]}
+          pointerEvents="box-none"
+        >
+          {renderControls()}
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.controlsOverlay}
+          activeOpacity={1}
+          onPress={handleScreenTap}
+        >
+          {renderControls()}
+        </TouchableOpacity>
+      )}
 
       {/* EPISODE MODAL */}
       <Modal
