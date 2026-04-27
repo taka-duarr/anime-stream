@@ -9,19 +9,16 @@ import {
   ScrollView,
   RefreshControl,
   Platform,
-  TextInput,
   useWindowDimensions,
   DimensionValue,
 } from "react-native";
 import { Image } from "expo-image";
 import {
-  getVipDrama,
-  getLatestDrama,
-  getTrendingDrama,
-  getForYouDrama,
-  getNetshortForYou,
+  getHomeData,
+  getOngoingAnime,
+  getCompleteAnime,
 } from "../services/api";
-import { Drama } from "../types/drama";
+import { Anime } from "../types/drama";
 import { StatusBar } from "expo-status-bar";
 import Swiper from "react-native-swiper";
 import { useTheme } from "../context/ThemeContext";
@@ -29,31 +26,27 @@ import { Ionicons } from "@expo/vector-icons";
 
 const isWeb = Platform.OS === "web";
 
-type TabType = "vip" | "latest" | "trending" | "foryou" | "allvideo";
+type TabType = "ongoing" | "completed";
 
-// Helper fungsi diekstraksi ke luar agar hemat memori (tidak di-recreate tiap render)
-const safeS2Cover = (url?: string) => {
-  const enc = (url || "").replace(/比/g, "%E6%AF%94");
-  return enc.includes("awscover.netshort.com")
-    ? `https://wsrv.nl/?url=${enc.replace(/^https?:\/\//, "")}`
-    : enc;
-};
+// Helper fungsi untuk mapping anime data ke format lama (backward compatibility)
+const mapAnimeToDrama = (anime: any) => ({
+  animeId: anime.animeId,
+  title: anime.title,
+  poster: anime.poster,
+  score: anime.score,
+  type: anime.type,
+  status: anime.status,
+  totalEpisodes: anime.totalEpisodes || 0,
+  href: anime.href,
+  otakudesuUrl: anime.otakudesuUrl,
+});
 
 const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, isDark, toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<TabType>("vip");
-  const [trendingDramas, setTrendingDramas] = useState<Drama[]>([]);
-  const [forYouDramas, setForYouDramas] = useState<Drama[]>([]);
-  const [allVideoDramas, setAllVideoDramas] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<TabType>("ongoing");
+  const [ongoingAnime, setOngoingAnime] = useState<Anime[]>([]);
+  const [completedAnime, setCompletedAnime] = useState<Anime[]>([]);
   const [carouselItems, setCarouselItems] = useState<any[]>([]);
-  const [loadingForYou, setLoadingForYou] = useState(false);
-  const [loadingTrending, setLoadingTrending] = useState(false);
-  const [loadingAllVideo, setLoadingAllVideo] = useState(false);
-  const [allVideoPage, setAllVideoPage] = useState(1);
-  const [allVideoIsFetchingMore, setAllVideoIsFetchingMore] = useState(false);
-  const [allVideoHasMore, setAllVideoHasMore] = useState(true);
-  const [vipDramas, setVipDramas] = useState<Drama[]>([]);
-  const [latestDramas, setLatestDramas] = useState<Drama[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { width } = useWindowDimensions();
@@ -63,206 +56,71 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     try {
       setLoading(true);
 
-      const [vipRes, latestRes] = await Promise.all([
-        getVipDrama(),
-        getLatestDrama(),
-      ]);
+      const homeData = await getHomeData();
 
-      const vipBooks = vipRes.columnVoList.flatMap((c: any) => c.bookList);
-      const latestBooks = latestRes;
+      console.log("[DEBUG] Home Data:", JSON.stringify(homeData, null, 2));
 
-      setVipDramas(vipBooks);
-      setLatestDramas(latestBooks);
-    } catch (e) {
+      // Data should already be in correct format from api.ts
+      if (homeData && homeData.ongoingAnime && homeData.completeAnime) {
+        console.log("[DEBUG] Valid home data structure");
+
+        // Map anime data ke format lama untuk backward compatibility
+        const ongoing = homeData.ongoingAnime.map(mapAnimeToDrama);
+        const completed = homeData.completeAnime.map(mapAnimeToDrama);
+
+        setOngoingAnime(ongoing);
+        setCompletedAnime(completed);
+
+        // Setup carousel dari ongoing anime (top 6)
+        const carouselData = homeData.ongoingAnime
+          .slice(0, 6)
+          .map((anime: any) => ({
+            id: anime.animeId,
+            cover: anime.poster,
+            title: anime.title,
+            meta: `${anime.episodes || anime.totalEpisodes || "?"} Episode`,
+            description: anime.synopsis?.paragraphs?.[0] || "",
+            label: "ONGOING",
+            labelColor: "#FF4757",
+            navTarget: "Episode",
+            navBookId: anime.animeId,
+          }));
+
+        setCarouselItems(carouselData);
+      } else {
+        console.error("[ERROR] Invalid home data structure:", homeData);
+        // Set empty arrays as fallback
+        setOngoingAnime([]);
+        setCompletedAnime([]);
+        setCarouselItems([]);
+      }
+    } catch (e: any) {
       console.error("Gagal fetch home:", e);
+      console.error("[ERROR STACK]", e?.stack || "No stack trace");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const fetchTrending = async () => {
-    try {
-      setLoadingTrending(true);
-      // Fetch S1 & S2 carousel items secara paralel
-      const [s1Res, s2Res] = await Promise.allSettled([
-        getTrendingDrama(),
-        getNetshortForYou(1),
-      ]);
-
-      const s1Items: any[] = s1Res.status === "fulfilled"
-        ? (s1Res.value as any[]).slice(0, 4).map((d: any) => ({
-            id: d.bookId,
-            cover: d.coverWap,
-            title: d.bookName,
-            meta: `${d.chapterCount} Episode`,
-            description: d.introduction || "",
-            label: "TRENDING",
-            labelColor: "#FF4757",
-            server: 1,
-            navTarget: "Episode",
-            navBookId: d.bookId,
-          }))
-        : [];
-
-      const s2Raw: any[] = s2Res.status === "fulfilled"
-        ? (s2Res.value?.contentInfos || []).slice(0, 4)
-        : [];
-
-      const s2Items: any[] = s2Raw.map((d: any) => ({
-        id: d.shortPlayId,
-        cover: safeS2Cover(d.shortPlayCover),
-        title: d.shortPlayName,
-        meta: d.heatScoreShow ? `${d.heatScoreShow} penonton` : "Server 2",
-        description: d.shotIntroduce || "",
-        label: "ALL VIDEO",
-        labelColor: "#6C63FF",
-        server: 2,
-        navTarget: "Episode2",
-        navBookId: d.shortPlayId,
-      }));
-
-      // Gabungkan: S1, S2, S1, S2 ... hingga max 8 slide
-      const merged: any[] = [];
-      const maxLen = Math.max(s1Items.length, s2Items.length);
-      for (let i = 0; i < maxLen; i++) {
-        if (s1Items[i]) merged.push(s1Items[i]);
-        if (s2Items[i]) merged.push(s2Items[i]);
-      }
-
-      console.log(`[DEBUG] Carousel Berhasil Digabung: ${s1Items.length} (S1) + ${s2Items.length} (S2) = ${merged.length} Slide`);
-      
-      setTrendingDramas(s1Res.status === "fulfilled" ? (s1Res.value as any[]) : []);
-      setCarouselItems(merged);
-    } catch (e) {
-      console.error("Gagal fetch trending:", e);
-    } finally {
-      setLoadingTrending(false);
-    }
-  };
-
-  const fetchForYou = async () => {
-    try {
-      setLoadingForYou(true);
-      const res = await getForYouDrama();
-      setForYouDramas(res);
-    } catch (e) {
-      console.error("Gagal fetch for you:", e);
-    } finally {
-      setLoadingForYou(false);
-    }
-  };
-
-  const fetchAllVideo = async () => {
-    try {
-      setLoadingAllVideo(true);
-      const res = await getNetshortForYou(1);
-      // response: { contentInfos: [...] }
-      setAllVideoDramas(res.contentInfos || []);
-      setAllVideoPage(1);
-      setAllVideoHasMore((res.contentInfos?.length || 0) > 0);
-    } catch (e) {
-      console.error("Gagal fetch All Video (Server 2):", e);
-    } finally {
-      setLoadingAllVideo(false);
-    }
-  };
-
-  const fetchNextPageAllVideo = async () => {
-    if (allVideoIsFetchingMore || !allVideoHasMore || loadingAllVideo) return;
-    try {
-      setAllVideoIsFetchingMore(true);
-      const nextPage = allVideoPage + 1;
-      const res = await getNetshortForYou(nextPage);
-      if (res.contentInfos && res.contentInfos.length > 0) {
-        setAllVideoDramas((prev) => [...prev, ...res.contentInfos]);
-        setAllVideoPage(nextPage);
-      } else {
-        setAllVideoHasMore(false);
-      }
-    } catch (e) {
-      console.error("Gagal fetch next page All Video:", e);
-    } finally {
-      setAllVideoIsFetchingMore(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === "trending" && trendingDramas.length === 0) {
-      fetchTrending();
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (activeTab === "foryou" && forYouDramas.length === 0) {
-      fetchForYou();
-    }
-    if (activeTab === "allvideo" && allVideoDramas.length === 0) {
-      fetchAllVideo();
-    }
-  }, [activeTab]);
-
   useEffect(() => {
     fetchAll();
-    // Memanggil fetchTrending di awal rendering agar Slider selalu terisi data
-    fetchTrending();
   }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchAll();
-    fetchTrending();
-    if (activeTab === "foryou") {
-      fetchForYou();
-    }
-    if (activeTab === "allvideo") {
-      fetchAllVideo();
-    }
   };
 
-  const handleScroll = (event: any) => {
-    if (activeTab !== "allvideo") return;
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    const paddingToBottom = 500;
-    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
-      fetchNextPageAllVideo();
-    }
-  };
-
-  const currentData = (() => {
-    if (activeTab === "allvideo") return []; // pakai allVideoDramas sendiri
-    const raw =
-      activeTab === "vip"
-        ? vipDramas
-        : activeTab === "latest"
-          ? latestDramas
-          : activeTab === "trending"
-            ? trendingDramas
-            : forYouDramas;
-    return raw;
-  })();
+  const currentData = activeTab === "ongoing" ? ongoingAnime : completedAnime;
 
   const currentTabTitle =
-    activeTab === "vip"
-      ? "Eksklusif VIP"
-      : activeTab === "latest"
-        ? "Baru Dirilis"
-        : activeTab === "trending"
-          ? "Sedang Hangat"
-          : activeTab === "allvideo"
-            ? "All Video"
-            : "Pilihan Editor";
+    activeTab === "ongoing" ? "Anime Ongoing" : "Anime Completed";
 
   const currentSubtitle =
-    activeTab === "vip"
-      ? "Akses konten premium tanpa batas hanya untuk Anda"
-      : activeTab === "latest"
-        ? "Jangan lewatkan episode terbaru minggu ini"
-        : activeTab === "trending"
-          ? "Tontonan yang paling banyak dibicarakan saat ini"
-          : activeTab === "allvideo"
-            ? "Koleksi video dari Server 2 — Netshort"
-            : "Koleksi drama terbaik yang dikurasi khusus untuk Anda";
+    activeTab === "ongoing"
+      ? "Anime yang sedang tayang saat ini"
+      : "Anime yang sudah selesai tayang";
 
   if (loading && !refreshing) {
     return (
@@ -273,15 +131,19 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   }
 
   // Grid card ala Epic Games — cover image besar di atas, info di bawah
-  const renderDramaItem = (item: Drama, index: number, cardWidth: DimensionValue) => (
+  const renderAnimeItem = (
+    item: Anime,
+    index: number,
+    cardWidth: DimensionValue,
+  ) => (
     <TouchableOpacity
       style={[styles.card, { backgroundColor: colors.card, width: cardWidth }]}
-      key={item.bookId}
+      key={item.animeId}
       activeOpacity={0.82}
       onPress={() =>
         navigation.navigate("Episode", {
-          bookId: item.bookId,
-          title: item.bookName,
+          bookId: item.animeId,
+          title: item.title,
         })
       }
     >
@@ -289,7 +151,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <View style={styles.cardImageWrap}>
         <Image
           source={{
-            uri: item.coverWap || "https://via.placeholder.com/180x240",
+            uri: item.poster || "https://via.placeholder.com/180x240",
           }}
           style={styles.cardImage}
           contentFit="cover"
@@ -303,13 +165,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           style={[styles.typeBadge, { backgroundColor: "rgba(0,0,0,0.6)" }]}
         >
           <Text style={styles.typeText}>
-            {activeTab === "vip"
-              ? "VIP"
-              : activeTab === "latest"
-                ? "NEW"
-                : activeTab === "trending"
-                  ? "HOT"
-                  : "FOR YOU"}
+            {activeTab === "ongoing" ? "ONGOING" : "COMPLETED"}
           </Text>
         </View>
       </View>
@@ -320,14 +176,14 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           style={[styles.cardTitle, { color: colors.text }]}
           numberOfLines={2}
         >
-          {item.bookName || "Unknown Drama"}
+          {item.title || "Unknown Anime"}
         </Text>
         <View style={styles.cardMeta}>
           <Text style={[styles.cardEpisode, { color: colors.textSecondary }]}>
-            {item.chapterCount || "?"} ep
+            {item.totalEpisodes || "?"} ep
           </Text>
           <Text style={[styles.cardViews, { color: colors.accent }]}>
-            {(Math.random() * 20 + 1).toFixed(1)}M
+            ⭐ {item.score || "N/A"}
           </Text>
         </View>
       </View>
@@ -351,15 +207,40 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         {!isDesktop && (
           <View style={styles.mobileWelcomeRow}>
             <View style={styles.mobileWelcomeTextCol}>
-              <Text style={[styles.mobileWelcomeTitle, { color: colors.text }]}>Halo Hasan</Text>
-              <Text style={[styles.mobileWelcomeSubtitle, { color: colors.textSecondary }]}>Tonton drama favoritmu di Mydrama</Text>
+              <Text style={[styles.mobileWelcomeTitle, { color: colors.text }]}>
+                Halo Hasan
+              </Text>
+              <Text
+                style={[
+                  styles.mobileWelcomeSubtitle,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                Tonton anime favoritmu di MyAnime
+              </Text>
             </View>
             <View style={styles.mobileWelcomeRight}>
-              <TouchableOpacity onPress={toggleTheme} style={styles.mobileThemeBtn} activeOpacity={0.7}>
-                <Ionicons name={isDark ? "sunny" : "moon"} size={22} color={colors.text} />
+              <TouchableOpacity
+                onPress={toggleTheme}
+                style={styles.mobileThemeBtn}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={isDark ? "sunny" : "moon"}
+                  size={22}
+                  color={colors.text}
+                />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => navigation.navigate("ProfileTab")} activeOpacity={0.8}>
-                <View style={[styles.mobileProfileAvatar, { backgroundColor: isDark ? "#2C2C2C" : "#EEE" }]}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("ProfileTab")}
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.mobileProfileAvatar,
+                    { backgroundColor: isDark ? "#2C2C2C" : "#EEE" },
+                  ]}
+                >
                   <Ionicons name="person" size={16} color={colors.accent} />
                 </View>
               </TouchableOpacity>
@@ -374,15 +255,16 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             activeOpacity={0.8}
             onPress={() => navigation.navigate("Search")}
           >
-            <Text style={[styles.searchInput, { color: colors.textMuted, lineHeight: 40 }]}>
-              Cari drama favoritmu...
+            <Text
+              style={[
+                styles.searchInput,
+                { color: colors.textMuted, lineHeight: 40 },
+              ]}
+            >
+              Cari anime favoritmu...
             </Text>
             <View style={styles.searchIconWrap}>
-              <Ionicons
-                name="search"
-                size={18}
-                color={colors.textSecondary}
-              />
+              <Ionicons name="search" size={18} color={colors.textSecondary} />
             </View>
           </TouchableOpacity>
         </View>
@@ -394,8 +276,6 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[1]}
-        onScroll={handleScroll}
-        scrollEventThrottle={400}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -405,7 +285,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           />
         }
       >
-        {/* HERO CAROUSEL — gabungan S1 & S2 */}
+        {/* HERO CAROUSEL */}
         <View style={{ zIndex: 0 }}>
           {carouselItems.length > 0 && (
             <View style={styles.heroContainer}>
@@ -453,7 +333,9 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                       </View>
 
                       <View style={styles.heroInfoPanel}>
-                        <Text style={[styles.heroLabel, { color: item.labelColor }]}>
+                        <Text
+                          style={[styles.heroLabel, { color: item.labelColor }]}
+                        >
                           {item.label}
                         </Text>
 
@@ -464,7 +346,8 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         <Text style={styles.heroEpisodeCount}>{item.meta}</Text>
 
                         <Text style={styles.heroDescription} numberOfLines={2}>
-                          {item.description || "Drama seru yang tak boleh kamu lewatkan."}
+                          {item.description ||
+                            "Anime seru yang tak boleh kamu lewatkan."}
                         </Text>
 
                         <TouchableOpacity
@@ -510,16 +393,17 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           >
             {(
               [
-              { key: "vip", label: "VIP", count: vipDramas.length },
-              { key: "latest", label: "Latest", count: latestDramas.length },
-              {
-                key: "trending",
-                label: "Trending",
-                count: trendingDramas.length,
-              },
-              { key: "foryou", label: "For You", count: forYouDramas.length },
-              { key: "allvideo", label: "All Video", count: allVideoDramas.length },
-            ] as const
+                {
+                  key: "ongoing",
+                  label: "Ongoing",
+                  count: ongoingAnime.length,
+                },
+                {
+                  key: "completed",
+                  label: "Completed",
+                  count: completedAnime.length,
+                },
+              ] as const
             ).map((tab) => {
               const active = activeTab === tab.key;
               return (
@@ -570,124 +454,37 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </Text>
         </View>
 
-        {/* Drama Grid */}
-        {activeTab === "allvideo" ? (
-          // SERVER 2 GRID — format data berbeda
-          <View style={[styles.dramaGrid, { backgroundColor: colors.card }]}>
-            {loadingAllVideo ? (
-              <ActivityIndicator size="large" color={colors.accent} style={{ margin: 40 }} />
-            ) : allVideoDramas.length > 0 ? (
-              <View style={styles.gridRow}>
-                {allVideoDramas.map((item: any, index: number) => {
-                  let numColumns = 2;
-                  if (width >= 1200) numColumns = 5;
-                  else if (width >= 900) numColumns = 4;
-                  else if (width >= 600) numColumns = 3;
-                  const cardWidth = `${100 / numColumns - 2}%` as DimensionValue;
-                  // Sanitize cover URL for Server 2
-                  const rawCover = item.shortPlayCover || "";
-                  const encoded = rawCover.replace(/比/g, "%E6%AF%94");
-                  const cover = encoded.includes("awscover.netshort.com")
-                    ? `https://wsrv.nl/?url=${encoded.replace(/^https?:\/\//, "")}`
-                    : encoded;
-                  return (
-                    <TouchableOpacity
-                      key={item.shortPlayId}
-                      style={[styles.card, { backgroundColor: colors.card, width: cardWidth }]}
-                      activeOpacity={0.82}
-                      onPress={() =>
-                        navigation.navigate("Episode2", {
-                          bookId: item.shortPlayId,
-                          title: item.shortPlayName,
-                        })
-                      }
-                    >
-                      <View style={styles.cardImageWrap}>
-                        <Image
-                          source={{ uri: cover || "https://via.placeholder.com/180x240" }}
-                          style={styles.cardImage}
-                          contentFit="cover"
-                        />
-                        <View style={[styles.rankBadge, { backgroundColor: colors.accent }]}>
-                          <Text style={styles.rankText}>#{index + 1}</Text>
-                        </View>
-                        <View style={[styles.typeBadge, { backgroundColor: "rgba(0,0,0,0.6)" }]}>
-                          <Text style={styles.typeText}>S2</Text>
-                        </View>
-                      </View>
-                      <View style={styles.cardInfo}>
-                        <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
-                          {item.shortPlayName || "Unknown"}
-                        </Text>
-                        <View style={styles.cardMeta}>
-                          <Text style={[styles.cardEpisode, { color: colors.textSecondary }]}>
-                            {item.scriptName || "Drama"}
-                          </Text>
-                          <Text style={[styles.cardViews, { color: colors.accent }]}>
-                            {item.heatScoreShow || ""}
-                          </Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                  Tidak ada video dari Server 2
-                </Text>
-                <TouchableOpacity
-                  onPress={fetchAllVideo}
-                  style={[styles.retryButton, { backgroundColor: colors.accent }]}
-                >
-                  <Text style={styles.retryButtonText}>Refresh</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            {/* Footer loading saat fetch halaman berikutnya */}
-            {allVideoIsFetchingMore && (
-              <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: 16 }} />
-            )}
-            {!allVideoHasMore && allVideoDramas.length > 0 && (
-              <Text style={[styles.totalText, { color: colors.textMuted, textAlign: "center", padding: 16 }]}>
-                Semua video sudah ditampilkan
+        {/* Anime Grid */}
+        <View style={[styles.dramaGrid, { backgroundColor: colors.card }]}>
+          {currentData.length > 0 ? (
+            <View style={styles.gridRow}>
+              {currentData.map((item, index) => {
+                let numColumns = 2;
+                if (width >= 1200) numColumns = 5;
+                else if (width >= 900) numColumns = 4;
+                else if (width >= 600) numColumns = 3;
+                const cardWidth = `${100 / numColumns - 2}%` as DimensionValue;
+                return renderAnimeItem(item, index, cardWidth);
+              })}
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                Tidak ada anime di kategori ini
               </Text>
-            )}
-          </View>
-        ) : (
-          // SERVER 1 GRID
-          <View style={[styles.dramaGrid, { backgroundColor: colors.card }]}>
-            {currentData.length > 0 ? (
-              <View style={styles.gridRow}>
-                {currentData.map((item, index) => {
-                   let numColumns = 2;
-                   if (width >= 1200) numColumns = 5;
-                   else if (width >= 900) numColumns = 4;
-                   else if (width >= 600) numColumns = 3;
-                   const cardWidth = `${100 / numColumns - 2}%` as DimensionValue;
-                   return renderDramaItem(item, index, cardWidth);
-                })}
-              </View>
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                  Tidak ada drama di kategori ini
-                </Text>
-                <TouchableOpacity
-                  onPress={onRefresh}
-                  style={[styles.retryButton, { backgroundColor: colors.accent }]}
-                >
-                  <Text style={styles.retryButtonText}>Refresh</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
+              <TouchableOpacity
+                onPress={onRefresh}
+                style={[styles.retryButton, { backgroundColor: colors.accent }]}
+              >
+                <Text style={styles.retryButtonText}>Refresh</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         <View style={[styles.totalContainer, { borderColor: colors.border }]}>
           <Text style={[styles.totalText, { color: colors.textMuted }]}>
-            Menampilkan {activeTab === "allvideo" ? allVideoDramas.length : currentData.length} drama
+            Menampilkan {currentData.length} anime
           </Text>
         </View>
       </ScrollView>
@@ -729,7 +526,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 14,
     paddingHorizontal: 4,
-    
   },
   mobileWelcomeTextCol: {
     flex: 1,
@@ -810,19 +606,6 @@ const styles = StyleSheet.create({
     height: 2,
     borderRadius: 1,
   },
-  /* kept for compatibility */
-  tabScrollContainer: { maxHeight: 48, paddingVertical: 8 },
-  tabContentContainer: { paddingHorizontal: 12, gap: 8 },
-  tabButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    height: 32,
-    justifyContent: "center",
-  },
-  activeTab: { backgroundColor: "#E63333" },
-  tabText: { fontSize: 12, fontWeight: "600" },
-  activeTabText: { color: "#FFFFFF" },
   scrollView: {
     flex: 1,
   },
@@ -865,7 +648,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: "100%",
     height: "100%",
-    ...(isWeb ? { filter: "blur(10px) brightness(0.9)", transform: [{ scale: 1.1 }] } : {}),
+    ...(isWeb
+      ? { filter: "blur(10px) brightness(0.9)", transform: [{ scale: 1.1 }] }
+      : {}),
   },
   /* Dark overlay gradient */
   heroGradient: {
@@ -945,11 +730,6 @@ const styles = StyleSheet.create({
     lineHeight: isWeb ? 18 : 16,
     marginBottom: 12,
   },
-  heroMeta: {
-    color: "#AAAAAA",
-    fontSize: 12,
-    marginBottom: 14,
-  },
   heroBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -976,56 +756,6 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginHorizontal: 3,
   },
-  heroPagination: {
-    bottom: 10,
-    left: 16,
-    right: "auto",
-    justifyContent: "flex-start",
-  },
-  /* old slider kept for potential reuse */
-  sliderContainer: {
-    height: 320,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 25,
-  },
-  slide: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: "#1A1A1A",
-  },
-  imageWrapper: { flex: 1, justifyContent: "center", alignItems: "center" },
-  slideImgPortrait: { width: "100%", height: "100%", resizeMode: "cover" },
-  slideOverlay: {
-    position: "absolute",
-    bottom: 0,
-    width: "100%",
-    padding: 12,
-    backgroundColor: "rgba(0,0,0,0.6)",
-  },
-  slideTitle: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  slideSubtitle: { color: "#ccc", fontSize: 12 },
-  dot: {
-    backgroundColor: "rgba(255,255,255,0.3)",
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginHorizontal: 3,
-    marginBottom: -20,
-  },
-  activeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginHorizontal: 3,
-    marginBottom: -20,
-  },
 
   /* ─── GRID CARD (Epic Games style) ─── */
   dramaGrid: {
@@ -1044,7 +774,6 @@ const styles = StyleSheet.create({
     width: isWeb ? "23%" : "47%",
     borderRadius: 10,
     overflow: "hidden",
-    // shadow
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -1054,7 +783,7 @@ const styles = StyleSheet.create({
   },
   cardImageWrap: {
     width: "100%",
-    aspectRatio: 3 / 4, // portrait drama poster ratio
+    aspectRatio: 3 / 4,
     backgroundColor: "#1A1A1A",
     position: "relative",
   },
@@ -1142,74 +871,5 @@ const styles = StyleSheet.create({
   },
   totalText: {
     fontSize: 12,
-  },
-  logo: {
-    width: 32,
-    height: 32,
-    marginRight: 10,
-  },
-  logo2: {
-    width: 100,
-    height: 50,
-    marginRight: 10,
-  },
-  creditBadge: {
-    backgroundColor: "rgba(230, 51, 51, 0.12)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(230, 51, 51, 0.35)",
-  },
-  creditText: {
-    color: "#E63333",
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  /* ─── OLD STYLES (slider still uses these) ─── */
-  dramaListContainer: {
-    marginHorizontal: 16,
-    borderRadius: 12,
-    overflow: "hidden",
-    marginBottom: 20,
-    borderWidth: 1,
-  },
-  dramaCard: { paddingVertical: 12, paddingHorizontal: 12 },
-  cardContent: { flexDirection: "row", alignItems: "center" },
-  numberContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  vipNumber: { backgroundColor: "#E63333" },
-  latestNumber: { backgroundColor: "#E63333" },
-  numberText: { color: "#FFF", fontSize: 11, fontWeight: "bold" },
-  coverImage: { width: 56, height: 74, borderRadius: 6, marginRight: 12 },
-  dramaInfo: { flex: 1 },
-  dramaTitle: {
-    color: "#000",
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 4,
-    lineHeight: 20,
-  },
-  badgeContainer: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    alignSelf: "flex-start",
-    marginBottom: 4,
-  },
-  badgeText: { fontSize: 10, fontWeight: "500" },
-  statsContainer: { flexDirection: "row", alignItems: "center" },
-  statsText: { fontSize: 13, fontWeight: "600" },
-  divider: {
-    height: 1,
-    backgroundColor: "#2A2A2A",
-    marginLeft: 36,
-    marginTop: 12,
   },
 });

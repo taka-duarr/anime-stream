@@ -1,30 +1,30 @@
 {
   "expo": {
-    "name": "MyDrama",
-    "slug": "dramabox-vip",
-    "version": "1.0.1",
+    "name": "MyAnime",
+    "slug": "myanime-app",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "android": {
-      "package": "com.takaduarr.mydrama",
-      "versionCode": 2,
+      "package": "com.myanime.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#FF4757"
       },
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.myanime.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      "expo-video"
-    ],
+    "plugins": ["expo-video"],
     "extra": {
       "eas": {
         "projectId": "a12e763e-fbed-4ba5-8854-a73daade4a48"

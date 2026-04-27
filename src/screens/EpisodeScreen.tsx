@@ -12,52 +12,135 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { getAllEpisodes, getDetailDrama } from "../services/api";
+import { getAnimeDetail } from "../services/api";
 import { Episode } from "../types/episode";
+import { AnimeDetail } from "../types/drama";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width, height } = Dimensions.get("window");
+const STORAGE_KEY = "@my_anime_list";
 
 export default function EpisodeScreen({ route, navigation }: any) {
   const { bookId, title } = route.params ?? {};
   const [episodes, setEpisodes] = useState<Episode[]>([]);
-  const [detail, setDetail] = useState<any>(null);
+  const [detail, setDetail] = useState<AnimeDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isBookmarked, setIsBookmarked] = useState(false);
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
 
   useEffect(() => {
     if (!bookId) return;
     fetchData();
+    checkBookmarkStatus();
   }, [bookId]);
+
+  const checkBookmarkStatus = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const list = JSON.parse(stored);
+        const exists = list.some((item: any) => item.animeId === bookId);
+        setIsBookmarked(exists);
+      }
+    } catch (error) {
+      console.error("Failed to check bookmark:", error);
+    }
+  };
+
+  const toggleBookmark = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      let list = stored ? JSON.parse(stored) : [];
+
+      if (isBookmarked) {
+        // Remove from list
+        list = list.filter((item: any) => item.animeId !== bookId);
+      } else {
+        // Add to list
+        const bookmarkData = {
+          animeId: detail?.animeId || bookId,
+          title: detail?.title || title,
+          poster: detail?.poster,
+          score: detail?.score,
+          type: detail?.type,
+          totalEpisodes: detail?.totalEpisodes,
+          addedAt: new Date().toISOString(),
+        };
+        list.unshift(bookmarkData);
+      }
+
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      setIsBookmarked(!isBookmarked);
+    } catch (error) {
+      console.error("Failed to toggle bookmark:", error);
+    }
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [epsData, detailData] = await Promise.all([
-        getAllEpisodes(bookId),
-        getDetailDrama(bookId),
-      ]);
-      setEpisodes(epsData);
-      setDetail(detailData);
+      const animeDetail = await getAnimeDetail(bookId);
+
+      // Map anime detail to episodes format
+      const mappedEpisodes: Episode[] = animeDetail.episodeList.map(
+        (ep: any, index: number) => ({
+          chapterId: ep.episodeId,
+          chapterIndex: index,
+          chapterName: ep.title,
+          isCharge: 0,
+          cdnList: [
+            {
+              cdnDomain: "",
+              isDefault: 1,
+              videoPathList: [
+                {
+                  quality: 720,
+                  videoPath: "",
+                  isDefault: 1,
+                  isVipEquity: 0,
+                },
+              ],
+            },
+          ],
+          chapterImg: animeDetail.poster,
+          duration: animeDetail.duration,
+          releaseTime: ep.date,
+        }),
+      );
+
+      setEpisodes(mappedEpisodes);
+      setDetail(animeDetail);
     } catch (e) {
-      console.error("Gagal memuat detail drama:", e);
+      console.error("Gagal memuat detail anime:", e);
     } finally {
       setLoading(false);
     }
   };
 
-  // Dummy tags jika book api tidak menyediakan tags spesifik
-  const dummyTags = ["Romance", "Fantasy", "Wuxia"];
-
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.bg, justifyContent: "center", alignItems: "center" }]}>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.bg,
+            justifyContent: "center",
+            alignItems: "center",
+          },
+        ]}
+      >
         <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={{ marginTop: 10, color: colors.textSecondary }}>Memuat Detail...</Text>
+        <Text style={{ marginTop: 10, color: colors.textSecondary }}>
+          Memuat Detail...
+        </Text>
       </View>
     );
   }
@@ -67,21 +150,33 @@ export default function EpisodeScreen({ route, navigation }: any) {
       {/* HERO IMAGE & HEADER */}
       <View style={styles.heroContainer}>
         <ImageBackground
-          source={{ uri: detail?.coverWap || "https://via.placeholder.com/400x600" }}
+          source={{
+            uri: detail?.poster || "https://via.placeholder.com/400x600",
+          }}
           style={styles.heroImage}
           resizeMode="cover"
         >
           {/* Top Toolbar */}
           <View style={[styles.toolbar, { paddingTop: insets.top + 10 }]}>
-            <TouchableOpacity style={styles.iconButton} onPress={() => navigation.goBack()}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => navigation.goBack()}
+            >
               <Ionicons name="arrow-back" size={24} color="#FFF" />
             </TouchableOpacity>
             <View style={styles.toolbarRight}>
-              <TouchableOpacity style={styles.iconButton}>
+              <TouchableOpacity style={[styles.iconButton, { marginLeft: 10 }]}>
                 <Ionicons name="share-social-outline" size={22} color="#FFF" />
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.iconButton, { marginLeft: 10 }]}>
-                <Ionicons name="heart-outline" size={22} color="#FFF" />
+              <TouchableOpacity
+                style={[styles.iconButton, { marginLeft: 10 }]}
+                onPress={toggleBookmark}
+              >
+                <Ionicons
+                  name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                  size={22}
+                  color={isBookmarked ? "#FF4757" : "#FFF"}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -100,59 +195,103 @@ export default function EpisodeScreen({ route, navigation }: any) {
 
       {/* DETAIL CONTENT */}
       <View style={[styles.contentContainer, { backgroundColor: colors.bg }]}>
-        
         {/* TITLE */}
-        <Text style={[styles.titleText, { color: colors.text }]}>{detail?.bookName || title}</Text>
-        
-        {/* STATS: Score, Year, Episodes */}
+        <Text style={[styles.titleText, { color: colors.text }]}>
+          {detail?.title || title}
+        </Text>
+
+        {/* STATS: Score, Type, Status, Episodes */}
         <View style={styles.statsRow}>
           <Ionicons name="star" size={16} color={colors.accent} />
-          <Text style={[styles.scoreText, { color: colors.accent }]}>{(Math.random() * 2 + 8).toFixed(1)}</Text>
+          <Text style={[styles.scoreText, { color: colors.accent }]}>
+            {detail?.score || "N/A"}
+          </Text>
           <Text style={styles.dotSeparator}>•</Text>
-          <Text style={[styles.statText, { color: colors.textSecondary }]}>2024</Text>
+          <Text style={[styles.statText, { color: colors.textSecondary }]}>
+            {detail?.type || "TV"}
+          </Text>
           <Text style={styles.dotSeparator}>•</Text>
-          <Text style={[styles.statText, { color: colors.textSecondary }]}>{episodes.length} Episodes</Text>
+          <Text style={[styles.statText, { color: colors.textSecondary }]}>
+            {detail?.status || "Ongoing"}
+          </Text>
+          <Text style={styles.dotSeparator}>•</Text>
+          <Text style={[styles.statText, { color: colors.textSecondary }]}>
+            {episodes.length} Episodes
+          </Text>
         </View>
 
         {/* TAGS */}
         <View style={styles.tagsRow}>
-          {dummyTags.map((tag, i) => (
-            <View key={i} style={[styles.tagBadge, { backgroundColor: isDark ? "rgba(230,51,51,0.15)" : "#FFE5E8" }]}>
-              <Text style={[styles.tagText, { color: colors.accent }]}>{tag}</Text>
+          {detail?.genreList?.slice(0, 5).map((genre, i) => (
+            <View
+              key={i}
+              style={[
+                styles.tagBadge,
+                {
+                  backgroundColor: isDark ? "rgba(230,51,51,0.15)" : "#FFE5E8",
+                },
+              ]}
+            >
+              <Text style={[styles.tagText, { color: colors.accent }]}>
+                {genre.title}
+              </Text>
             </View>
           ))}
         </View>
 
         {/* ACTION BUTTONS */}
         <View style={styles.actionsRow}>
-          <TouchableOpacity 
-            style={[styles.watchButton, { backgroundColor: colors.accent }]} 
+          <TouchableOpacity
+            style={[styles.watchButton, { backgroundColor: colors.accent }]}
             activeOpacity={0.8}
             onPress={() => {
               if (episodes.length > 0) {
-                navigation.navigate("Video", { episode: episodes[0], episodes });
+                navigation.navigate("Video", {
+                  episode: episodes[0],
+                  episodes,
+                  animeId: bookId,
+                });
               }
             }}
           >
-            <Ionicons name="play-circle" size={24} color="#FFF" style={{ marginRight: 8 }} />
+            <Ionicons
+              name="play-circle"
+              size={24}
+              color="#FFF"
+              style={{ marginRight: 8 }}
+            />
             <Text style={styles.watchButtonText}>Watch Now</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.secondaryButton, { backgroundColor: colors.card }]}>
-            <Ionicons name="add-circle-outline" size={24} color={colors.text} />
+          <TouchableOpacity
+            style={[styles.secondaryButton, { backgroundColor: colors.card }]}
+            onPress={toggleBookmark}
+          >
+            <Ionicons
+              name={isBookmarked ? "bookmark" : "bookmark-outline"}
+              size={24}
+              color={isBookmarked ? colors.accent : colors.text}
+            />
           </TouchableOpacity>
         </View>
 
         {/* SYNOPSIS */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Synopsis</Text>
-        <Text style={[styles.synopsisText, { color: colors.textSecondary }]} numberOfLines={5}>
-          {detail?.introduction || 
-           "A low-ranking fairy inadvertently accidentally frees the dreaded Moon Supreme... To regain his freedom he must sacrifice the fairy's soul. However, in the process, the heartless demon finds himself falling for the gentle fairy."}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Synopsis
+        </Text>
+        <Text
+          style={[styles.synopsisText, { color: colors.textSecondary }]}
+          numberOfLines={5}
+        >
+          {detail?.synopsis?.paragraphs?.join("\n\n") ||
+            "No synopsis available."}
         </Text>
 
         {/* EPISODES LIST HEADER */}
         <View style={styles.episodeHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Episodes</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Episodes
+          </Text>
         </View>
       </View>
     </>
@@ -160,8 +299,12 @@ export default function EpisodeScreen({ route, navigation }: any) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <StatusBar style={isDark ? "light" : "dark"} backgroundColor="transparent" translucent />
-      
+      <StatusBar
+        style={isDark ? "light" : "dark"}
+        backgroundColor="transparent"
+        translucent
+      />
+
       {/* 
         FlatList adalah satu-satunya wadah Gulir yang aktif.
         Rancangan ListHeaderComponent mengatur agar elemen Top Bar dan Judul
@@ -176,20 +319,47 @@ export default function EpisodeScreen({ route, navigation }: any) {
         renderItem={({ item, index }) => (
           <View style={styles.listPaddingWrapper}>
             <TouchableOpacity
-              style={[styles.episodeCardVertical, { backgroundColor: colors.card }]}
+              style={[
+                styles.episodeCardVertical,
+                { backgroundColor: colors.card },
+              ]}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate("Video", { episode: item, episodes })}
+              onPress={() =>
+                navigation.navigate("Video", {
+                  episode: item,
+                  episodes,
+                  animeId: bookId,
+                })
+              }
             >
               <View style={styles.episodeImageWrapperVert}>
-                <Image source={{ uri: item.chapterImg || detail?.coverWap }} style={styles.episodeImageVertical} />
+                <Image
+                  source={{ uri: item.chapterImg || detail?.poster }}
+                  style={styles.episodeImageVertical}
+                />
                 <View style={styles.episodeDurationBadge}>
-                  <Text style={styles.episodeDurationText}>02:00</Text>
+                  <Text style={styles.episodeDurationText}>
+                    {item.duration || "N/A"}
+                  </Text>
                 </View>
               </View>
 
               <View style={styles.episodeInfoVert}>
-                <Text style={[styles.episodeCardTitle, { color: colors.text }]} numberOfLines={1}>Episode {index + 1}</Text>
-                <Text style={[styles.episodeCardSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>{item.chapterName}</Text>
+                <Text
+                  style={[styles.episodeCardTitle, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  Episode {index + 1}
+                </Text>
+                <Text
+                  style={[
+                    styles.episodeCardSubtitle,
+                    { color: colors.textSecondary },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {item.chapterName}
+                </Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -206,7 +376,7 @@ const styles = StyleSheet.create({
   },
   heroContainer: {
     width: width,
-    height: height * 0.55, 
+    height: height * 0.55,
   },
   heroImage: {
     width: "100%",
@@ -240,7 +410,7 @@ const styles = StyleSheet.create({
     marginTop: -20, // Menarik konten naik sedikit menyatu dengan gradient
   },
   titleText: {
-    fontFamily:"calibri",
+    fontFamily: "calibri",
     fontSize: 26,
     fontWeight: "800",
     color: "#001F3F", // Warna biru sangat gelap hampir hitam
@@ -326,7 +496,7 @@ const styles = StyleSheet.create({
   },
   synopsisText: {
     fontSize: 14,
-    color: "#4B5563", // Abu-abu tulisan 
+    color: "#4B5563", // Abu-abu tulisan
     lineHeight: 22,
     marginBottom: 24,
   },

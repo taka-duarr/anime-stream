@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { View, Platform, useWindowDimensions, Text, TouchableOpacity, StyleSheet } from "react-native";
+import {
+  View,
+  Platform,
+  useWindowDimensions,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
   NavigationContainer,
@@ -13,11 +20,8 @@ import HomeScreen from "./src/screens/HomeScreen";
 import MyListScreen from "./src/screens/MyListScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import EpisodeScreen from "./src/screens/EpisodeScreen";
-import EpisodeScreen2 from "./src/screens/EpisodeScreen2";
-import VideoScreen from "./src/screens/VideoScreen";
-import VideoScreen2 from "./src/screens/VideoScreen2";
+import VideoScreen from "./src/screens/VideoScreenWebView";
 import SearchScreen from "./src/screens/SearchScreen";
-import SearchScreen2 from "./src/screens/SearchScreen2";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { WebSidebar } from "./src/components/WebSidebar";
 
@@ -44,7 +48,12 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
   if (width >= 768) return <View style={{ height: 0 }} />;
 
   return (
-    <View style={[styles.tabBarContainer, { backgroundColor: colors.sidebar, borderTopColor: colors.border }]}>
+    <View
+      style={[
+        styles.tabBarContainer,
+        { backgroundColor: colors.sidebar, borderTopColor: colors.border },
+      ]}
+    >
       {state.routes.map((route: any, index: number) => {
         const { options } = descriptors[route.key];
         const isFocused = state.index === index;
@@ -63,19 +72,27 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
 
         const getIconName = (routeName: string, focused: boolean) => {
           switch (routeName) {
-            case "HomeTab": return focused ? "film" : "film-outline";
-            case "MyListTab": return focused ? "bookmark" : "bookmark-outline";
-            case "ProfileTab": return focused ? "person" : "person-outline";
-            default: return "help-circle-outline";
+            case "HomeTab":
+              return focused ? "film" : "film-outline";
+            case "MyListTab":
+              return focused ? "bookmark" : "bookmark-outline";
+            case "ProfileTab":
+              return focused ? "person" : "person-outline";
+            default:
+              return "help-circle-outline";
           }
         };
 
         const getLabel = (routeName: string) => {
           switch (routeName) {
-            case "HomeTab": return "Home";
-            case "MyListTab": return "My List";
-            case "ProfileTab": return "Profile";
-            default: return "";
+            case "HomeTab":
+              return "Home";
+            case "MyListTab":
+              return "My List";
+            case "ProfileTab":
+              return "Profile";
+            default:
+              return "";
           }
         };
 
@@ -93,10 +110,31 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
             style={styles.tabButton}
             activeOpacity={0.8}
           >
-            <View style={[styles.iconWrap, isFocused && { backgroundColor: isDark ? "rgba(255,71,87,0.18)" : "rgba(255,71,87,0.12)" }]}>
-              <Ionicons name={iconName as any} size={22} color={isFocused ? colors.accent : colors.textSecondary} />
+            <View
+              style={[
+                styles.iconWrap,
+                isFocused && {
+                  backgroundColor: isDark
+                    ? "rgba(255,71,87,0.18)"
+                    : "rgba(255,71,87,0.12)",
+                },
+              ]}
+            >
+              <Ionicons
+                name={iconName as any}
+                size={22}
+                color={isFocused ? colors.accent : colors.textSecondary}
+              />
             </View>
-            <Text style={[styles.tabLabel, { color: isFocused ? colors.accent : colors.textSecondary, fontWeight: isFocused ? "700" : "500" }]}>
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: isFocused ? colors.accent : colors.textSecondary,
+                  fontWeight: isFocused ? "700" : "500",
+                },
+              ]}
+            >
               {label}
             </Text>
           </TouchableOpacity>
@@ -122,11 +160,8 @@ const AppNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Main" component={MainTabNavigator} />
     <Stack.Screen name="Search" component={SearchScreen} />
-    <Stack.Screen name="Search2" component={SearchScreen2} />
     <Stack.Screen name="Episode" component={EpisodeScreen} />
-    <Stack.Screen name="Episode2" component={EpisodeScreen2} />
     <Stack.Screen name="Video" component={VideoScreen} />
-    <Stack.Screen name="Video2" component={VideoScreen2} />
   </Stack.Navigator>
 );
 
@@ -143,7 +178,7 @@ const WebLayout = () => {
         CommonActions.reset({
           index: 0,
           routes: [{ name: "Main", params: { screen: name } }],
-        })
+        }),
       );
       setCurrentRoute(name);
     }
@@ -185,9 +220,7 @@ const MobileLayout = () => (
 
 export default function App() {
   return (
-    <ThemeProvider>
-      {isWeb ? <WebLayout /> : <MobileLayout />}
-    </ThemeProvider>
+    <ThemeProvider>{isWeb ? <WebLayout /> : <MobileLayout />}</ThemeProvider>
   );
 }
 
@@ -196,7 +229,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     height: 64,
     borderTopWidth: 1,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 6,
+    paddingBottom: Platform.OS === "ios" ? 12 : 6,
     paddingTop: 6,
     elevation: 10,
     shadowColor: "#000",

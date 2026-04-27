@@ -15,89 +15,187 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { RouteProp } from "@react-navigation/native";
 import { Episode } from "../types/episode";
+import { EpisodeDetail, ServerQuality, StreamingServer } from "../types/drama";
 import { StatusBar } from "expo-status-bar";
 import { useNavigation } from "@react-navigation/native";
 import { useKeepAwake } from "expo-keep-awake";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEvent } from "expo";
 import { useTheme } from "../context/ThemeContext";
-import { API_BASE_URL } from "../services/api";
+import { getEpisodeDetail, getServerStreamingUrl } from "../services/api";
+
+// Declare window for web platform
+declare const window: any;
+
 const { width, height } = Dimensions.get("window");
+
 const VideoScreen = ({ route }: { route: RouteProp<any, any> }) => {
   useKeepAwake();
   const navigation = useNavigation();
 
-  const { episode, episodes } = route.params as {
+  const { episode, episodes, animeId } = route.params as {
     episode: Episode;
     episodes: Episode[];
+    animeId?: string;
   };
-const [selectedQuality, setSelectedQuality] = useState<number>(720);
-const [showQualityModal, setShowQualityModal] = useState(false);
+
+  const [episodeDetail, setEpisodeDetail] = useState<EpisodeDetail | null>(
+    null,
+  );
+  const [selectedQuality, setSelectedQuality] = useState<string>("720p");
+  const [selectedServer, setSelectedServer] = useState<StreamingServer | null>(
+    null,
+  );
+  const [showQualityModal, setShowQualityModal] = useState(false);
+  const [currentVideoUrl, setCurrentVideoUrl] = useState<string>("");
+  const [loadingVideo, setLoadingVideo] = useState(true);
 
   const [currentEpisode, setCurrentEpisode] = useState<Episode>(episode);
   const [showEpisodeList, setShowEpisodeList] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [showControls, setShowControls] = useState(true); 
+  const [showControls, setShowControls] = useState(true);
   const { colors } = useTheme();
 
   const hideControlsTimeout = useRef<NodeJS.Timeout | null>(null);
   const progressBarRef = useRef<View>(null);
   const lastTapRef = useRef<number>(0);
 
-  const currentVideo =
-    currentEpisode.cdnList[0].videoPathList.find(
-      (v) => v.quality === selectedQuality
-    ) ?? currentEpisode.cdnList[0].videoPathList[0];
-
-  const decryptedVideoUrl = `${API_BASE_URL}/dramabox/decrypt-stream?url=${encodeURIComponent(currentVideo.videoPath)}`;
-
+  // Fetch episode detail when episode changes
   useEffect(() => {
-    console.log("[DEBUG] Memuat Video Server 1:", decryptedVideoUrl);
-  }, [decryptedVideoUrl]);
+    fetchEpisodeDetail();
+  }, [currentEpisode.chapterId]);
 
-  // Header spoofing untuk menghindari blokir CDN di production APK
-  const playerHeaders = {
-    "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36",
-    "Referer": "https://www.dramabox.com/",
+  const fetchEpisodeDetail = async () => {
+    try {
+      setLoadingVideo(true);
+      console.log("[VIDEO] Fetching episode detail:", currentEpisode.chapterId);
+
+      const detail = await getEpisodeDetail(currentEpisode.chapterId);
+      console.log(
+        "[VIDEO] Episode detail received:",
+        JSON.stringify(detail, null, 2),
+      );
+
+      setEpisodeDetail(detail);
+
+      // Use default streaming URL if available
+      if (detail.defaultStreamingUrl) {
+        console.log(
+          "[VIDEO] Using default streaming URL:",
+          detail.defaultStreamingUrl,
+        );
+        setCurrentVideoUrl(detail.defaultStreamingUrl);
+        setLoadingVideo(false);
+      } else {
+        console.log(
+          "[VIDEO] No default streaming URL, checking serverqualities...",
+        );
+
+        // Otherwise, select first available server
+        if (detail.serverqualities && detail.serverqualities.length > 0) {
+          const firstQuality = detail.serverqualities[0];
+          console.log("[VIDEO] First quality:", firstQuality.title);
+          setSelectedQuality(firstQuality.title);
+
+          if (firstQuality.serverList && firstQuality.serverList.length > 0) {
+            const firstServer = firstQuality.serverList[0];
+            console.log(
+              "[VIDEO] First server:",
+              firstServer.title,
+              firstServer.serverId,
+            );
+            setSelectedServer(firstServer);
+            await loadServerUrl(firstServer.serverId);
+          } else {
+            console.error(
+              "[VIDEO ERROR] No servers available in quality group",
+            );
+            setLoadingVideo(false);
+          }
+        } else {
+          console.error("[VIDEO ERROR] No serverqualities available");
+          setLoadingVideo(false);
+        }
+      }
+    } catch (error) {
+      console.error("[VIDEO ERROR] Failed to fetch episode detail:", error);
+      setLoadingVideo(false);
+    }
   };
 
-  // Inisialisasi Player Video Modern tanpa Rerender Ulang Objek
-  const player = useVideoPlayer({ 
-    uri: decryptedVideoUrl, 
-    headers: playerHeaders 
-  }, (player) => {
-    player.loop = false;
-    player.muted = false;
-    player.volume = 1.0;
-    player.play();
+  const loadServerUrl = async (serverId: string) => {
+    try {
+      setLoadingVideo(true);
+      console.log("[VIDEO] Loading server URL for:", serverId);
+
+      const serverData = await getServerStreamingUrl(serverId);
+      console.log(
+        "[VIDEO] Server data received:",
+        JSON.stringify(serverData, null, 2),
+      );
+
+      if (serverData && serverData.streamingUrl) {
+        console.log("[VIDEO] Setting streaming URL:", serverData.streamingUrl);
+        setCurrentVideoUrl(serverData.streamingUrl);
+      } else {
+        console.error("[VIDEO ERROR] No streaming URL in server data");
+      }
+      setLoadingVideo(false);
+    } catch (error) {
+      console.error("[VIDEO ERROR] Failed to load server URL:", error);
+      setLoadingVideo(false);
+    }
+  };
+
+  // Change quality and server
+  const changeQualityAndServer = async (
+    quality: string,
+    server: StreamingServer,
+  ) => {
+    setSelectedQuality(quality);
+    setSelectedServer(server);
+    await loadServerUrl(server.serverId);
+  };
+
+  // Inisialisasi Player Video Modern
+  const player = useVideoPlayer(
+    {
+      uri: currentVideoUrl || "https://via.placeholder.com/1920x1080.mp4",
+    },
+    (player) => {
+      player.loop = false;
+      player.muted = false;
+      player.volume = 1.0;
+      if (currentVideoUrl) {
+        player.play();
+      }
+    },
+  );
+
+  // Saat video URL berubah, gunakan replace() agar Native Object tidak hancur
+  useEffect(() => {
+    if (currentVideoUrl && player) {
+      const backupPos = player.currentTime;
+      player.replaceAsync({ uri: currentVideoUrl });
+
+      if (backupPos > 0) {
+        player.currentTime = backupPos;
+      }
+
+      player.muted = false;
+      player.volume = 1.0;
+      player.play();
+    }
+  }, [currentVideoUrl]);
+
+  // Event Listener Real-Time
+  const { isPlaying: playerIsPlaying } = useEvent(player, "playingChange", {
+    isPlaying: player.playing,
+  });
+  const { status: playerStatus } = useEvent(player, "statusChange", {
+    status: player.status,
   });
 
-  // Saat kualitas berubah atau episode beda, gunakan replace() agar Native Object tidak hancur
-  useEffect(() => {
-    const backupPos = player.currentTime; // Simpan durasi terakhir sebelum ditarik
-    player.replaceAsync({ 
-      uri: decryptedVideoUrl, 
-      headers: playerHeaders 
-    }); // Secara ajaib load Source tanpa membunuh Player secara asinkron
-    
-    // Geser instan kembali ke menit terakhir secara aman
-    if (backupPos > 0) {
-       player.currentTime = backupPos;
-    }
-    
-    // Paksa nyalakan ulang suara yang kerap direset oleh modul Native pasca Replace!
-    player.muted = false;
-    player.volume = 1.0;
-
-    player.play();
-  }, [currentVideo.videoPath]);
-
-  // Event Listener Real-Time tanpa Lag/Buffering berat (expo terbaru)
-  const { isPlaying: playerIsPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
-  const { status: playerStatus } = useEvent(player, 'statusChange', { status: player.status });
-  
-  // Karena hook event native tidak me-Rerender State UI setiap detik (hanya trigger under-the-hood expo)
-  // Kita hubungkan ke State lokal dengan interval saat video Play
   const [positionMillis, setPositionMillis] = useState<number>(0);
   const [durationMillis, setDurationMillis] = useState<number>(0);
 
@@ -107,29 +205,26 @@ const [showQualityModal, setShowQualityModal] = useState(false);
       interval = setInterval(() => {
         setPositionMillis(player.currentTime);
         setDurationMillis(player.duration || 0);
-      }, 500); // UI Rerender setiap 500ms agar bar maju mulus
+      }, 500);
     }
     return () => clearInterval(interval);
   }, [isPlaying, player]);
-  
-  // Hitung persentase progress
+
   const progress = durationMillis > 0 ? positionMillis / durationMillis : 0;
-  const currentTime = formatTime(positionMillis * 1000); // fungsi kita butuh hitungan ms
+  const currentTime = formatTime(positionMillis * 1000);
   const totalTime = formatTime(durationMillis * 1000);
 
-  // Status sinkron PlayPause ke state lokal
   useEffect(() => {
     setIsPlaying(playerIsPlaying);
   }, [playerIsPlaying]);
 
-  // Efek ganti episode saat duration mentok selesai (End of video)
+  // Auto-play next episode when current ends
   useEffect(() => {
-    if (durationMillis > 0 && positionMillis >= durationMillis - 0.5) { // toleransi milisekon kecil
-        playNextEpisode();
+    if (durationMillis > 0 && positionMillis >= durationMillis - 0.5) {
+      playNextEpisode();
     }
   }, [positionMillis, durationMillis]);
 
-  // Format waktu
   function formatTime(millis: number) {
     if (!millis || millis < 0) return "0:00";
     const totalSeconds = Math.floor(millis / 1000);
@@ -138,16 +233,14 @@ const [showQualityModal, setShowQualityModal] = useState(false);
     return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
   }
 
-  // Fungsi untuk reset timer auto-hide
   const resetAutoHideTimer = () => {
     setShowControls(true);
     if (hideControlsTimeout.current) clearTimeout(hideControlsTimeout.current);
     hideControlsTimeout.current = setTimeout(() => {
       setShowControls(false);
-    }, 4000); // 4 detik 
+    }, 4000);
   };
 
-  // Toggle play/pause
   const togglePlayPause = () => {
     if (player.playing) {
       player.pause();
@@ -157,12 +250,13 @@ const [showQualityModal, setShowQualityModal] = useState(false);
     resetAutoHideTimer();
   };
 
-  // Web Only: Global Keyboard Shortcuts (Space, ArrowLeft, ArrowRight)
+  // Web Only: Global Keyboard Shortcuts
   useEffect(() => {
     if (Platform.OS !== "web") return;
 
-    const keyHandler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    const keyHandler = (e: any) => {
+      if (e.target?.tagName === "INPUT" || e.target?.tagName === "TEXTAREA")
+        return;
 
       if (e.key === " " || e.key === "Spacebar") {
         e.preventDefault();
@@ -170,7 +264,8 @@ const [showQualityModal, setShowQualityModal] = useState(false);
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
         const dest = player.currentTime + 10;
-        player.currentTime = (durationMillis > 0 && dest > durationMillis) ? durationMillis : dest;
+        player.currentTime =
+          durationMillis > 0 && dest > durationMillis ? durationMillis : dest;
         resetAutoHideTimer();
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
@@ -179,45 +274,40 @@ const [showQualityModal, setShowQualityModal] = useState(false);
       }
     };
 
-    window.addEventListener("keydown", keyHandler);
-    return () => {
-      window.removeEventListener("keydown", keyHandler);
-    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("keydown", keyHandler);
+      return () => {
+        window.removeEventListener("keydown", keyHandler);
+      };
+    }
   }, [player, durationMillis]);
 
-  // Handler untuk tap di progress bar
   const handleProgressBarTap = (event: any) => {
     if (progressBarRef.current && durationMillis > 0) {
       progressBarRef.current.measure(
         (x, y, barWidth, barHeight, pageX, pageY) => {
           const tapX = event.nativeEvent.pageX - pageX;
           const progressPercentage = Math.max(0, Math.min(1, tapX / barWidth));
-          const seekTime = progressPercentage * durationMillis; // hitungan satuan second (s)
+          const seekTime = progressPercentage * durationMillis;
 
-          // Seek video instan dari modul modern
           player.currentTime = seekTime;
           resetAutoHideTimer();
-        }
+        },
       );
     }
   };
 
   const playNextEpisode = () => {
     const currentIndex = episodes.findIndex(
-      (ep) => ep.chapterId === currentEpisode.chapterId
+      (ep) => ep.chapterId === currentEpisode.chapterId,
     );
 
-    // Kalau masih ada episode berikutnya
     if (currentIndex !== -1 && currentIndex < episodes.length - 1) {
       const nextEpisode = episodes[currentIndex + 1];
-
       setCurrentEpisode(nextEpisode);
-
-      // Reset auto-play next episode (player will reactive immediately due to mount effect)
       setPositionMillis(0);
       resetAutoHideTimer();
     } else {
-      // Episode terakhir
       player.pause();
       setShowControls(true);
     }
@@ -225,10 +315,9 @@ const [showQualityModal, setShowQualityModal] = useState(false);
 
   const playPreviousEpisode = () => {
     const currentIndex = episodes.findIndex(
-      (ep) => ep.chapterId === currentEpisode.chapterId
+      (ep) => ep.chapterId === currentEpisode.chapterId,
     );
 
-    // Kalau ada episode sebelumnya
     if (currentIndex > 0) {
       const prevEpisode = episodes[currentIndex - 1];
       setCurrentEpisode(prevEpisode);
@@ -237,48 +326,45 @@ const [showQualityModal, setShowQualityModal] = useState(false);
     }
   };
 
-  // TikTok-style Swipe Gesture (Up = Next, Down = Prev)
-  const panResponder = useMemo(() =>
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        // Hanya respons jika swipe vertikal cukup kuat (mencegah klik biasa tertangkap)
-        return Math.abs(gestureState.dy) > 30 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 2;
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        if (gestureState.dy < -60) {
-          // Swipe Naik -> Episode Selanjutnya
-          playNextEpisode();
-        } else if (gestureState.dy > 60) {
-          // Swipe Turun -> Episode Sebelumnya
-          playPreviousEpisode();
-        }
-      },
-    }),
-    [currentEpisode] // Rekreasi PanResponder tiap episode ganti supaya closure state tidak basi
+  // TikTok-style Swipe Gesture
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (evt, gestureState) => {
+          return (
+            Math.abs(gestureState.dy) > 30 &&
+            Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 2
+          );
+        },
+        onPanResponderRelease: (evt, gestureState) => {
+          if (gestureState.dy < -60) {
+            playNextEpisode();
+          } else if (gestureState.dy > 60) {
+            playPreviousEpisode();
+          }
+        },
+      }),
+    [currentEpisode],
   );
 
-  // Handler untuk tap di layar (Single Tap & Double Tap Seek)
   const handleScreenTap = (event: any) => {
     const now = Date.now();
     const DOUBLE_TAP_DELAY = 300;
     const tapX = event.nativeEvent.pageX;
 
     if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-      // DOUBLE TAP: Cek sisi mana layar ditekan
       if (tapX < width / 2) {
-        // Sisi Kiri -> Mundur 10 detik
         player.currentTime = Math.max(0, player.currentTime - 10);
       } else {
-        // Sisi Kanan -> Maju 10 detik
         const dest = player.currentTime + 10;
-        player.currentTime = (durationMillis > 0 && dest > durationMillis) ? durationMillis : dest;
+        player.currentTime =
+          durationMillis > 0 && dest > durationMillis ? durationMillis : dest;
       }
-      lastTapRef.current = 0; // reset hitungan
+      lastTapRef.current = 0;
       setShowControls(true);
       resetAutoHideTimer();
     } else {
-      // SINGLE TAP
       lastTapRef.current = now;
       if (!showControls) {
         setShowControls(true);
@@ -289,9 +375,7 @@ const [showQualityModal, setShowQualityModal] = useState(false);
     }
   };
 
-  // Cleanup timeout saat komponen unmount
   useEffect(() => {
-    // Set timeout awal saat komponen mount
     resetAutoHideTimer();
 
     return () => {
@@ -301,7 +385,6 @@ const [showQualityModal, setShowQualityModal] = useState(false);
     };
   }, []);
 
-  // Auto-hide ketika video sedang diputar
   useEffect(() => {
     if (isPlaying && showControls) {
       resetAutoHideTimer();
@@ -312,175 +395,176 @@ const [showQualityModal, setShowQualityModal] = useState(false);
     <View style={styles.container}>
       <StatusBar hidden />
 
-      {/* NATIVE VIDEO KINERJA TINGGI DARI EXPO-VIDEO */}
       <VideoView
         style={styles.video}
         player={player}
         nativeControls={false}
-        allowsFullscreen={false} // Atur true jika Anda butuh modal fullscreen native (fitur OS)
+        allowsFullscreen={false}
         allowsPictureInPicture={false}
         contentFit="contain"
       />
 
-      {/* INDIKATOR LOADING / BUFFERING */}
-      {playerStatus === 'loading' && (
-         <View style={styles.centerOverlay}>
-           <ActivityIndicator size="large" color="#FF4757" />
-           <Text style={styles.bufferingText}>Memuat Video...</Text>
-         </View>
+      {/* LOADING INDICATOR */}
+      {(loadingVideo || playerStatus === "loading") && (
+        <View style={styles.centerOverlay}>
+          <ActivityIndicator size="large" color="#FF4757" />
+          <Text style={styles.bufferingText}>Memuat Video...</Text>
+        </View>
       )}
 
-      {/* INDIKATOR ERROR & RETRY (TOKEN EXPIRED/URL BLOCKED) */}
-      {playerStatus === 'error' && (
-         <View style={styles.centerOverlay}>
-           <Ionicons name="warning" size={40} color="#FF4757" style={{ marginBottom: 10 }} />
-           <Text style={[styles.bufferingText, { color: '#FFF', textAlign: 'center', marginHorizontal: 20 }]}>
-             Gagal Memutar Video. Server menolak koneksi atau sesi habis.
-           </Text>
-           <TouchableOpacity
-             style={styles.retryButton}
-             onPress={async () => {
-                const retryDecryptedUrl = `${API_BASE_URL}/dramabox/decrypt-stream?url=${encodeURIComponent(currentVideo.videoPath)}`;
-                await player.replaceAsync({ 
-                   uri: retryDecryptedUrl, 
-                   headers: playerHeaders 
-                });
-                player.play();
-             }}
-           >
-             <Text style={styles.retryButtonText}>Coba Ulang Server</Text>
-           </TouchableOpacity>
-         </View>
+      {/* ERROR INDICATOR */}
+      {playerStatus === "error" && (
+        <View style={styles.centerOverlay}>
+          <Ionicons
+            name="warning"
+            size={40}
+            color="#FF4757"
+            style={{ marginBottom: 10 }}
+          />
+          <Text
+            style={[
+              styles.bufferingText,
+              { color: "#FFF", textAlign: "center", marginHorizontal: 20 },
+            ]}
+          >
+            Gagal Memutar Video. Server menolak koneksi atau sesi habis.
+          </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => fetchEpisodeDetail()}
+          >
+            <Text style={styles.retryButtonText}>Coba Ulang</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* TIKTOK SWIPE GESTURE WRAPPER */}
-      <View style={[StyleSheet.absoluteFillObject, { zIndex: 10 }]} {...panResponder.panHandlers}>
-        {/* FULL SCREEN TOUCH AREA - untuk mendeteksi tap */}
+      <View
+        style={[StyleSheet.absoluteFillObject, { zIndex: 10 }]}
+        {...panResponder.panHandlers}
+      >
         <TouchableOpacity
           style={styles.fullScreenTouchable}
-        activeOpacity={1}
-        onPress={handleScreenTap}
-        delayPressIn={0}
-      >
-        {/* OVERLAY KONTROL - hanya muncul jika showControls true */}
-        {showControls && (
-          <>
-            {/* TOP CONTROLS - Judul Episode */}
-            <View style={styles.topControls}>
-              {/* TITLE */}
-              <Text style={styles.episodeTitle} numberOfLines={1}>
-                {currentEpisode.chapterName}
-              </Text>
+          activeOpacity={1}
+          onPress={handleScreenTap}
+          delayPressIn={0}
+        >
+          {showControls && (
+            <>
+              {/* TOP CONTROLS */}
+              <View style={styles.topControls}>
+                <Text style={styles.episodeTitle} numberOfLines={1}>
+                  {episodeDetail?.title || currentEpisode.chapterName}
+                </Text>
 
-              {/* CLOSE BUTTON (X) */}
-              <TouchableOpacity
-                style={styles.closePageButton}
-                onPress={() => navigation.goBack()}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="close" size={28} color="white" />
-              </TouchableOpacity>
-            </View>
-
-            {/* PLAY/PAUSE BUTTON DI TENGAH - hanya muncul saat pause */}
-            {!isPlaying && (
-              <TouchableOpacity
-                style={styles.centerPlayButton}
-                onPress={togglePlayPause}
-                activeOpacity={0.8}
-              >
-                <View style={styles.playButtonCircle}>
-                  <Ionicons
-                    name="play"
-                    size={60}
-                    color="rgba(255,255,255,0.9)"
-                  />
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {/* PROGRESS BAR DAN WAKTU DI BAWAH */}
-            <View style={styles.progressContainer}>
-              {/* Waktu saat ini */}
-              <Text style={styles.timeText}>{currentTime}</Text>
-
-              {/* Progress Bar Container */}
-              <View ref={progressBarRef} style={styles.progressBarWrapper}>
                 <TouchableOpacity
-                  style={styles.progressBarTouchable}
-                  activeOpacity={1}
-                  onPress={handleProgressBarTap}
+                  style={styles.closePageButton}
+                  onPress={() => navigation.goBack()}
+                  activeOpacity={0.7}
                 >
-                  <View style={styles.progressBarBackground}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        { width: `${progress * 100}%`, backgroundColor: colors.accent },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.progressThumb,
-                        {
-                          left: `${progress * 100}%`,
-                          backgroundColor: colors.accent,
-                        },
-                      ]}
-                    />
-                  </View>
+                  <Ionicons name="close" size={28} color="white" />
                 </TouchableOpacity>
               </View>
 
-              {/* Total waktu */}
-              <Text style={styles.timeText}>{totalTime}</Text>
-            </View>
+              {/* PLAY/PAUSE BUTTON */}
+              {!isPlaying && (
+                <TouchableOpacity
+                  style={styles.centerPlayButton}
+                  onPress={togglePlayPause}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.playButtonCircle}>
+                    <Ionicons
+                      name="play"
+                      size={60}
+                      color="rgba(255,255,255,0.9)"
+                    />
+                  </View>
+                </TouchableOpacity>
+              )}
 
-            {/* BOTTOM CONTROL BUTTONS */}
-            <View style={styles.bottomControls}>
+              {/* PROGRESS BAR */}
+              <View style={styles.progressContainer}>
+                <Text style={styles.timeText}>{currentTime}</Text>
+
+                <View ref={progressBarRef} style={styles.progressBarWrapper}>
+                  <TouchableOpacity
+                    style={styles.progressBarTouchable}
+                    activeOpacity={1}
+                    onPress={handleProgressBarTap}
+                  >
+                    <View style={styles.progressBarBackground}>
+                      <View
+                        style={[
+                          styles.progressBarFill,
+                          {
+                            width: `${progress * 100}%`,
+                            backgroundColor: colors.accent,
+                          },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.progressThumb,
+                          {
+                            left: `${progress * 100}%`,
+                            backgroundColor: colors.accent,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.timeText}>{totalTime}</Text>
+              </View>
+
+              {/* BOTTOM CONTROLS */}
+              <View style={styles.bottomControls}>
+                <TouchableOpacity
+                  style={styles.controlButton}
+                  onPress={togglePlayPause}
+                >
+                  <Ionicons
+                    name={isPlaying ? "pause" : "play"}
+                    size={28}
+                    color="white"
+                  />
+                  <Text style={styles.controlButtonText}>
+                    {isPlaying ? "Pause" : "Play"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {/* RIGHT SIDE BUTTONS */}
+          {showControls && (
+            <View style={styles.rightButtons}>
               <TouchableOpacity
-                style={styles.controlButton}
-                onPress={togglePlayPause}
+                style={styles.iconButton}
+                onPress={() => {
+                  setShowQualityModal(true);
+                  resetAutoHideTimer();
+                }}
               >
-                <Ionicons
-                  name={isPlaying ? "pause" : "play"}
-                  size={28}
-                  color="white"
-                />
-                <Text style={styles.controlButtonText}>
-                  {isPlaying ? "Pause" : "Play"}
-                </Text>
+                <Ionicons name="settings" size={28} color="white" />
+                <Text style={styles.iconText}>{selectedQuality}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => {
+                  setShowEpisodeList(true);
+                  resetAutoHideTimer();
+                }}
+              >
+                <Ionicons name="list" size={30} color="white" />
+                <Text style={styles.iconText}>EP</Text>
               </TouchableOpacity>
             </View>
-          </>
-        )}
-
-        {/* RIGHT SIDE BUTTONS */}
-        {showControls && (
-          <View style={styles.rightButtons}>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() => {
-                setShowQualityModal(true);
-                resetAutoHideTimer();
-              }}
-            >
-              <Ionicons name="settings" size={28} color="white" />
-              <Text style={styles.iconText}>{selectedQuality}p</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() => {
-                setShowEpisodeList(true);
-                resetAutoHideTimer();
-              }}
-            >
-              <Ionicons name="list" size={30} color="white" />
-              <Text style={styles.iconText}>EP</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </TouchableOpacity>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* EPISODE MODAL */}
@@ -494,17 +578,19 @@ const [showQualityModal, setShowQualityModal] = useState(false);
         }}
       >
         <View style={styles.modalOverlay}>
-          <TouchableOpacity 
-            style={styles.absoluteFill} 
-            activeOpacity={1} 
+          <TouchableOpacity
+            style={styles.absoluteFill}
+            activeOpacity={1}
             onPress={() => {
               setShowEpisodeList(false);
               resetAutoHideTimer();
-            }} 
+            }}
           />
           <View style={[styles.modalContent, { backgroundColor: colors.bg }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Daftar Episode</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Daftar Episode
+              </Text>
               <TouchableOpacity
                 onPress={() => {
                   setShowEpisodeList(false);
@@ -523,7 +609,12 @@ const [showQualityModal, setShowQualityModal] = useState(false);
                 <TouchableOpacity
                   style={[
                     styles.episodeItem,
-                    { backgroundColor: item.chapterId === currentEpisode.chapterId ? colors.accent : colors.card }
+                    {
+                      backgroundColor:
+                        item.chapterId === currentEpisode.chapterId
+                          ? colors.accent
+                          : colors.card,
+                    },
                   ]}
                   onPress={() => {
                     setCurrentEpisode(item);
@@ -531,7 +622,19 @@ const [showQualityModal, setShowQualityModal] = useState(false);
                     resetAutoHideTimer();
                   }}
                 >
-                  <Text style={[styles.episodeText, { color: item.chapterId === currentEpisode.chapterId ? "#FFFFFF" : colors.text }]}>{item.chapterName}</Text>
+                  <Text
+                    style={[
+                      styles.episodeText,
+                      {
+                        color:
+                          item.chapterId === currentEpisode.chapterId
+                            ? "#FFFFFF"
+                            : colors.text,
+                      },
+                    ]}
+                  >
+                    {item.chapterName}
+                  </Text>
                 </TouchableOpacity>
               )}
             />
@@ -539,6 +642,7 @@ const [showQualityModal, setShowQualityModal] = useState(false);
         </View>
       </Modal>
 
+      {/* QUALITY & SERVER MODAL */}
       <Modal
         visible={showQualityModal}
         transparent
@@ -546,29 +650,65 @@ const [showQualityModal, setShowQualityModal] = useState(false);
         onRequestClose={() => setShowQualityModal(false)}
       >
         <View style={styles.qualityModalOverlay}>
-          <TouchableOpacity style={styles.absoluteFill} activeOpacity={1} onPress={() => setShowQualityModal(false)} />
+          <TouchableOpacity
+            style={styles.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setShowQualityModal(false)}
+          />
           <View style={[styles.qualityModal, { backgroundColor: colors.bg }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Pilih Resolusi</Text>
-              <TouchableOpacity onPress={() => setShowQualityModal(false)} style={styles.modalCloseIcon}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Pilih Kualitas & Server
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowQualityModal(false)}
+                style={styles.modalCloseIcon}
+              >
                 <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            {currentEpisode.cdnList[0].videoPathList.map((item) => (
-              <TouchableOpacity
-                key={item.quality}
-                style={[
-                  styles.qualityItem,
-                  { backgroundColor: item.quality === selectedQuality ? colors.accent : colors.card, borderColor: colors.border }
-                ]}
-                  onPress={() => {
-                  setSelectedQuality(item.quality);
-                  setShowQualityModal(false);
-                }}
-              >
-                <Text style={[styles.qualityText, { color: item.quality === selectedQuality ? "#FFFFFF" : colors.text }]}>{item.quality}p</Text>
-              </TouchableOpacity>
+            {episodeDetail?.serverqualities?.map((qualityGroup) => (
+              <View key={qualityGroup.title} style={{ marginBottom: 16 }}>
+                <Text
+                  style={[styles.qualityGroupTitle, { color: colors.text }]}
+                >
+                  {qualityGroup.title}
+                </Text>
+                {qualityGroup.serverList.map((server) => (
+                  <TouchableOpacity
+                    key={server.serverId}
+                    style={[
+                      styles.qualityItem,
+                      {
+                        backgroundColor:
+                          selectedServer?.serverId === server.serverId
+                            ? colors.accent
+                            : colors.card,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      changeQualityAndServer(qualityGroup.title, server);
+                      setShowQualityModal(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.qualityText,
+                        {
+                          color:
+                            selectedServer?.serverId === server.serverId
+                              ? "#FFFFFF"
+                              : colors.text,
+                        },
+                      ]}
+                    >
+                      {server.title}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             ))}
           </View>
         </View>
@@ -621,14 +761,12 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-
-  /* TOP CONTROLS */
   topControls: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    paddingTop: 50, // aman untuk notch
+    paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
     backgroundColor: "rgba(0,0,0,0.7)",
@@ -636,7 +774,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-
   episodeTitle: {
     color: "white",
     fontSize: 18,
@@ -644,15 +781,12 @@ const styles = StyleSheet.create({
     textAlign: "left",
     flex: 1,
   },
-
   closePageButton: {
     padding: 8,
     zIndex: 10,
     backgroundColor: "rgba(255,255,255,0.15)",
     borderRadius: 20,
   },
-
-  /* CENTER PLAY BUTTON */
   centerPlayButton: {
     position: "absolute",
     top: height / 2 - 60,
@@ -668,8 +802,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  /* PROGRESS BAR - FIXED */
   progressContainer: {
     position: "absolute",
     bottom: 100,
@@ -687,7 +819,7 @@ const styles = StyleSheet.create({
     minWidth: 45,
     textAlign: "center",
     fontWeight: "600",
-    fontVariant: ["tabular-nums"], // Bikin angka-angka tidak bergeser tebal/tipisnya
+    fontVariant: ["tabular-nums"],
   },
   progressBarWrapper: {
     flex: 1,
@@ -722,8 +854,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginLeft: -8,
   },
-
-  /* BOTTOM CONTROLS */
   bottomControls: {
     position: "absolute",
     bottom: 20,
@@ -747,8 +877,6 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontWeight: "500",
   },
-
-  /* RIGHT BUTTONS */
   rightButtons: {
     position: "absolute",
     right: 16,
@@ -770,8 +898,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: "500",
   },
-
-  /* MODAL */
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
@@ -811,20 +937,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
   },
-  closeModalButton: {
-    alignSelf: "center",
-    marginTop: 15,
-    paddingVertical: 14,
-    width: "100%",
-    alignItems: "center",
-    borderRadius: 12,
-  },
-  closeButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-
   qualityModalOverlay: {
     flex: 1,
     justifyContent: "center",
@@ -841,19 +953,26 @@ const styles = StyleSheet.create({
   qualityModal: {
     borderRadius: 16,
     padding: 24,
-    width: "75%",
-    maxWidth: 320,
+    width: "85%",
+    maxWidth: 400,
+    maxHeight: "80%",
     elevation: 10,
   },
+  qualityGroupTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
   qualityItem: {
-    paddingVertical: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: "center",
     borderRadius: 12,
-    marginBottom: 10,
+    marginBottom: 8,
     borderWidth: 1,
   },
   qualityText: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
