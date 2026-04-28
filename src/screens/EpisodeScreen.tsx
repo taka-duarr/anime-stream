@@ -32,6 +32,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [detail, setDetail] = useState<AnimeDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
@@ -87,6 +88,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError(null);
       const animeDetail = await getAnimeDetail(bookId);
 
       // Map anime detail to episodes format
@@ -118,8 +120,21 @@ export default function EpisodeScreen({ route, navigation }: any) {
 
       setEpisodes(mappedEpisodes);
       setDetail(animeDetail);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Gagal memuat detail anime:", e);
+
+      // Set user-friendly error message
+      if (e.response?.status === 500) {
+        setError(
+          "Server sedang bermasalah. Silakan coba lagi nanti atau pilih anime lain.",
+        );
+      } else if (e.code === "ECONNABORTED" || e.message?.includes("timeout")) {
+        setError("Koneksi timeout. Periksa koneksi internet Anda.");
+      } else if (e.message?.includes("Network Error")) {
+        setError("Tidak ada koneksi internet. Periksa koneksi Anda.");
+      } else {
+        setError("Gagal memuat detail anime. Silakan coba lagi.");
+      }
     } finally {
       setLoading(false);
     }
@@ -141,6 +156,75 @@ export default function EpisodeScreen({ route, navigation }: any) {
         <Text style={{ marginTop: 10, color: colors.textSecondary }}>
           Memuat Detail...
         </Text>
+      </View>
+    );
+  }
+
+  // Error state UI
+  if (error) {
+    return (
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.bg,
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 20,
+          },
+        ]}
+      >
+        <Ionicons name="alert-circle-outline" size={64} color={colors.accent} />
+        <Text
+          style={{
+            marginTop: 16,
+            fontSize: 18,
+            fontWeight: "600",
+            color: colors.text,
+            textAlign: "center",
+          }}
+        >
+          Oops! Terjadi Kesalahan
+        </Text>
+        <Text
+          style={{
+            marginTop: 8,
+            fontSize: 14,
+            color: colors.textSecondary,
+            textAlign: "center",
+            lineHeight: 20,
+          }}
+        >
+          {error}
+        </Text>
+        <View style={{ flexDirection: "row", marginTop: 24, gap: 12 }}>
+          <TouchableOpacity
+            style={{
+              backgroundColor: colors.accent,
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 8,
+            }}
+            onPress={fetchData}
+          >
+            <Text style={{ color: "#FFF", fontWeight: "600" }}>Coba Lagi</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{
+              backgroundColor: colors.card,
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={{ color: colors.text, fontWeight: "600" }}>
+              Kembali
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }

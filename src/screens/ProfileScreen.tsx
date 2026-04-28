@@ -134,14 +134,22 @@ const ProfileScreen = ({ navigation }: any) => {
         <SettingItem
           icon="code-slash"
           title="API Source"
-          subtitle="Sanka Vollerei Anime API"
-          onPress={() => openURL("https://www.sankavollerei.com/anime")}
+          subtitle="Anime Streaming API"
+          onPress={() => {
+            const apiUrl = process.env.EXPO_PUBLIC_ANIME_API_BASE_URL;
+            if (apiUrl) {
+              openURL(apiUrl);
+            }
+          }}
         />
         <SettingItem
           icon="logo-github"
           title="GitHub Repository"
           subtitle="View source code"
-          onPress={() => openURL("https://github.com")}
+          onPress={() => {
+            // GitHub URL can be configured via env if needed
+            console.log("GitHub repository");
+          }}
         />
 
         {/* SUPPORT */}

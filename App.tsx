@@ -22,6 +22,9 @@ import ProfileScreen from "./src/screens/ProfileScreen";
 import EpisodeScreen from "./src/screens/EpisodeScreen";
 import VideoScreen from "./src/screens/VideoScreenWebView";
 import SearchScreen from "./src/screens/SearchScreen";
+import AnimeListScreen from "./src/screens/AnimeListScreen";
+import GenreListScreen from "./src/screens/GenreListScreen";
+import GenreAnimeScreen from "./src/screens/GenreAnimeScreen";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { WebSidebar } from "./src/components/WebSidebar";
 
@@ -160,6 +163,9 @@ const AppNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Main" component={MainTabNavigator} />
     <Stack.Screen name="Search" component={SearchScreen} />
+    <Stack.Screen name="AnimeList" component={AnimeListScreen} />
+    <Stack.Screen name="GenreList" component={GenreListScreen} />
+    <Stack.Screen name="GenreAnime" component={GenreAnimeScreen} />
     <Stack.Screen name="Episode" component={EpisodeScreen} />
     <Stack.Screen name="Video" component={VideoScreen} />
   </Stack.Navigator>

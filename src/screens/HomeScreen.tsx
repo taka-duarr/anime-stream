@@ -267,6 +267,15 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               <Ionicons name="search" size={18} color={colors.textSecondary} />
             </View>
           </TouchableOpacity>
+
+          {/* Genre Button */}
+          <TouchableOpacity
+            style={[styles.genreButton, { backgroundColor: colors.accent }]}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate("GenreList")}
+          >
+            <Ionicons name="list" size={20} color="#FFF" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -444,14 +453,34 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            {currentTabTitle}
-          </Text>
-          <Text
-            style={[styles.sectionSubtitle, { color: colors.textSecondary }]}
-          >
-            {currentSubtitle}
-          </Text>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderLeft}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {currentTabTitle}
+              </Text>
+              <Text
+                style={[
+                  styles.sectionSubtitle,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                {currentSubtitle}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.seeAllButton, { backgroundColor: colors.accent }]}
+              activeOpacity={0.8}
+              onPress={() =>
+                navigation.navigate("AnimeList", {
+                  type: activeTab,
+                  title: currentTabTitle,
+                })
+              }
+            >
+              <Text style={styles.seeAllButtonText}>Lihat Semua</Text>
+              <Ionicons name="arrow-forward" size={14} color="#FFF" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Anime Grid */}
@@ -579,6 +608,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  genreButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
+  },
   /* TAB BAR — underline minimalist */
   tabBar: {
     flexDirection: "row",
@@ -614,6 +651,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 12,
   },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  sectionHeaderLeft: {
+    flex: 1,
+  },
   sectionTitle: {
     color: "#000000",
     fontSize: 20,
@@ -623,6 +668,19 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     color: "#666666",
     fontSize: 12,
+  },
+  seeAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  seeAllButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
   },
 
   /* HERO CAROUSEL — Poster + Info layout */

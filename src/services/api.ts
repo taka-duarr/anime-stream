@@ -1,13 +1,10 @@
-import axios, { AxiosError } from "axios";
-import axiosRetry from "axios-retry";
+import axios from "axios";
 
 // ============================================
 // ANIME API CONFIGURATION
 // ============================================
 
-export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_ANIME_API_BASE_URL ||
-  "https://www.sankavollerei.com/anime";
+export const API_BASE_URL = process.env.EXPO_PUBLIC_ANIME_API_BASE_URL || "";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -21,14 +18,25 @@ const api = axios.create({
 // AXIOS RETRY CONFIGURATION
 // ============================================
 
+// DISABLED: We'll implement manual retry with proper rate limit tracking
+// axiosRetry is disabled because it doesn't count retries in rate limit
+/*
 axiosRetry(api, {
   retries: 3,
   retryDelay: (retryCount: number) => {
     console.log(`[API RETRY] Menunggu server... Percobaan ke-${retryCount}`);
-    return retryCount * 2000;
+    return retryCount * 2000; // 2s, 4s, 6s
   },
   retryCondition: (error: AxiosError) => {
     const status = error.response?.status;
+
+    // Log detailed error info
+    if (status) {
+      console.log(
+        `[API RETRY] Status ${status} - ${status === 500 ? "Server Error" : status === 502 ? "Bad Gateway" : status === 503 ? "Service Unavailable" : status === 504 ? "Gateway Timeout" : "Rate Limited"}`,
+      );
+    }
+
     return (
       axiosRetry.isNetworkOrIdempotentRequestError(error) ||
       status === 429 ||
@@ -39,6 +47,7 @@ axiosRetry(api, {
     );
   },
 });
+*/
 
 // ============================================
 // RATE LIMITING
@@ -105,6 +114,73 @@ const waitForRateLimit = async (): Promise<void> => {
   }
 };
 
+/**
+ * Manual retry with rate limit tracking
+ * Each retry counts towards rate limit
+ */
+const retryWithRateLimit = async <T>(
+  fetcher: () => Promise<T>,
+  maxRetries: number = 3,
+  retryDelays: number[] = [2000, 4000, 6000], // 2s, 4s, 6s
+): Promise<T> => {
+  let lastError: any;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // Wait for rate limit before each attempt (including retries)
+      await waitForRateLimit();
+
+      if (attempt > 0) {
+        console.log(`[API RETRY] Percobaan ke-${attempt} dari ${maxRetries}`);
+      }
+
+      return await fetcher();
+    } catch (error: any) {
+      lastError = error;
+      const status = error.response?.status;
+
+      // Log error details
+      if (status) {
+        const errorType =
+          status === 500
+            ? "Server Error"
+            : status === 502
+              ? "Bad Gateway"
+              : status === 503
+                ? "Service Unavailable"
+                : status === 504
+                  ? "Gateway Timeout"
+                  : status === 429
+                    ? "Rate Limited"
+                    : `HTTP ${status}`;
+        console.log(`[API RETRY] Status ${status} - ${errorType}`);
+      }
+
+      // Check if we should retry
+      const shouldRetry =
+        attempt < maxRetries &&
+        (status === 429 ||
+          status === 500 ||
+          status === 502 ||
+          status === 503 ||
+          status === 504 ||
+          error.code === "ECONNABORTED" ||
+          error.message?.includes("Network Error"));
+
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      // Wait before retry
+      const delay = retryDelays[attempt] || 6000;
+      console.log(`[API RETRY] Menunggu ${delay / 1000}s sebelum retry...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+};
+
 // ============================================
 // IN-MEMORY CACHE
 // ============================================
@@ -122,12 +198,10 @@ const fetchWithCache = async <T>(
     return cache[url].data;
   }
 
-  // Wait for rate limit before making request
-  await waitForRateLimit();
-
   console.log(`[FETCHING API] Menarik data dari Endpoint: ${url}`);
   try {
-    const data = await fetcher();
+    // Use manual retry with rate limit tracking
+    const data = await retryWithRateLimit(fetcher);
     cache[url] = { data, timestamp: now };
     console.log(`[API SUCCESS] Berhasil menarik data: ${url}`);
     return data;
@@ -238,7 +312,14 @@ export const searchAnime = async (query: string) => {
 export const getEpisodeDetail = async (episodeId: string) => {
   return fetchWithCache(`/episode/${episodeId}`, async () => {
     const response = await api.get(`/episode/${episodeId}`);
-    return response.data.data;
+    const data = response.data.data;
+
+    // Transform API response structure to match our types
+    return {
+      ...data,
+      serverqualities: data.server?.qualities || [],
+      downloadUrlqualities: data.downloadUrl?.qualities || [],
+    };
   });
 };
 
@@ -249,13 +330,19 @@ export const getEpisodeDetail = async (episodeId: string) => {
  * Note: Cache disabled for streaming URLs (they may expire)
  */
 export const getServerStreamingUrl = async (serverId: string) => {
-  // Wait for rate limit before making request
-  await waitForRateLimit();
-
   console.log(`[FETCHING] /server/${serverId}`);
   try {
-    const response = await api.get(`/server/${serverId}`);
+    // Use manual retry with rate limit tracking
+    const response = await retryWithRateLimit(
+      () => api.get(`/server/${serverId}`),
+      3, // max retries
+      [2000, 4000, 6000], // retry delays
+    );
     console.log(`[SUCCESS] /server/${serverId}`);
+    console.log(
+      `[DEBUG] Server response:`,
+      JSON.stringify(response.data, null, 2),
+    );
     return response.data.data;
   } catch (error) {
     console.error(`[ERROR] /server/${serverId}`, error);
@@ -283,7 +370,7 @@ export const getSchedule = async () => {
 export const getGenreList = async () => {
   return fetchWithCache("/genre", async () => {
     const response = await api.get("/genre");
-    return response.data.data;
+    return response.data.data.genreList || [];
   });
 };
 
@@ -295,7 +382,8 @@ export const getGenreList = async () => {
 export const getAnimeByGenre = async (genreId: string, page: number = 1) => {
   return fetchWithCache(`/genre/${genreId}?page=${page}`, async () => {
     const response = await api.get(`/genre/${genreId}?page=${page}`);
-    return response.data.data;
+    // Return animeList from response data
+    return response.data.data?.animeList || response.data.data || [];
   });
 };
 
