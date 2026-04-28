@@ -811,20 +811,22 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
           </TouchableOpacity>
         </View>
 
-        {/* CENTER PLAY/PAUSE BUTTON */}
-        <View style={styles.centerControls}>
-          <TouchableOpacity
-            style={styles.playPauseButton}
-            onPress={togglePlayPause}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={isPlaying ? "pause" : "play"}
-              size={50}
-              color="white"
-            />
-          </TouchableOpacity>
-        </View>
+        {/* CENTER PLAY/PAUSE BUTTON - Hide on Web since iframe has its own */}
+        {Platform.OS !== "web" && (
+          <View style={styles.centerControls}>
+            <TouchableOpacity
+              style={styles.playPauseButton}
+              onPress={togglePlayPause}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={isPlaying ? "pause" : "play"}
+                size={50}
+                color="white"
+              />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* RIGHT SIDE BUTTONS */}
         <View style={styles.rightButtons}>
@@ -878,42 +880,44 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
           )}
         </View>
 
-        {/* BOTTOM CONTROLS - PROGRESS BAR */}
-        <View style={styles.bottomControls}>
-          <View style={styles.progressContainer}>
-            {/* Time Display */}
-            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-
-            {/* Progress Slider */}
-            <Slider
-              style={styles.progressSlider}
-              value={currentTime}
-              minimumValue={0}
-              maximumValue={duration || 1}
-              minimumTrackTintColor="#FF4757"
-              maximumTrackTintColor="rgba(255,255,255,0.3)"
-              thumbTintColor="#FF4757"
-              onSlidingComplete={(value) => seekTo(value)}
-              onValueChange={(value) => setCurrentTime(value)}
-            />
-
-            {/* Duration Display */}
-            <Text style={styles.timeText}>{formatTime(duration)}</Text>
-
-            {/* Fullscreen Button */}
-            <TouchableOpacity
-              style={styles.fullscreenButton}
-              onPress={toggleFullscreen}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={isFullscreen ? "contract" : "expand"}
-                size={24}
-                color="white"
+        {/* BOTTOM CONTROLS - PROGRESS BAR - Hide on Web */}
+        {Platform.OS !== "web" && (
+          <View style={styles.bottomControls}>
+            <View style={styles.progressContainer}>
+              {/* Time Display */}
+              <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+  
+              {/* Progress Slider */}
+              <Slider
+                style={styles.progressSlider}
+                value={currentTime}
+                minimumValue={0}
+                maximumValue={duration || 1}
+                minimumTrackTintColor="#FF4757"
+                maximumTrackTintColor="rgba(255,255,255,0.3)"
+                thumbTintColor="#FF4757"
+                onSlidingComplete={(value) => seekTo(value)}
+                onValueChange={(value) => setCurrentTime(value)}
               />
-            </TouchableOpacity>
+  
+              {/* Duration Display */}
+              <Text style={styles.timeText}>{formatTime(duration)}</Text>
+  
+              {/* Fullscreen Button */}
+              <TouchableOpacity
+                style={styles.fullscreenButton}
+                onPress={toggleFullscreen}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={isFullscreen ? "contract" : "expand"}
+                  size={24}
+                  color="white"
+                />
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        )}
       </>
     );
   };
