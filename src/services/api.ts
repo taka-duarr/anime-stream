@@ -115,15 +115,40 @@ const waitForRateLimit = async (): Promise<void> => {
 };
 
 /**
- * Manual retry with rate limit tracking
+ * Manual retry with rate limit tracking and exponential backoff
  * Each retry counts towards rate limit
+ *
+ * Strategies to minimize 502 Bad Gateway:
+ * 1. Exponential backoff with jitter (randomized delays)
+ * 2. Longer delays for 502 errors (server needs recovery time)
+ * 3. More retries for 502 (up to 5 attempts)
+ * 4. Circuit breaker pattern (track consecutive failures)
  */
+
+// Circuit breaker state
+let consecutiveFailures = 0;
+let circuitBreakerOpenUntil = 0;
+const MAX_CONSECUTIVE_FAILURES = 5;
+const CIRCUIT_BREAKER_TIMEOUT = 30000; // 30 seconds
+
 const retryWithRateLimit = async <T>(
   fetcher: () => Promise<T>,
-  maxRetries: number = 3,
-  retryDelays: number[] = [2000, 4000, 6000], // 2s, 4s, 6s
+  maxRetries: number = 5, // Increased from 3 to 5 for 502 errors
+  baseDelay: number = 2000, // Base delay for exponential backoff
 ): Promise<T> => {
   let lastError: any;
+
+  // Check circuit breaker
+  const now = Date.now();
+  if (now < circuitBreakerOpenUntil) {
+    const waitTime = Math.ceil((circuitBreakerOpenUntil - now) / 1000);
+    console.warn(
+      `[CIRCUIT BREAKER] Circuit open, waiting ${waitTime}s before retry...`,
+    );
+    await new Promise((resolve) =>
+      setTimeout(resolve, circuitBreakerOpenUntil - now),
+    );
+  }
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -134,7 +159,13 @@ const retryWithRateLimit = async <T>(
         console.log(`[API RETRY] Percobaan ke-${attempt} dari ${maxRetries}`);
       }
 
-      return await fetcher();
+      const result = await fetcher();
+
+      // Reset circuit breaker on success
+      consecutiveFailures = 0;
+      circuitBreakerOpenUntil = 0;
+
+      return result;
     } catch (error: any) {
       lastError = error;
       const status = error.response?.status;
@@ -168,13 +199,47 @@ const retryWithRateLimit = async <T>(
           error.message?.includes("Network Error"));
 
       if (!shouldRetry) {
+        // Track consecutive failures for circuit breaker
+        if (status === 502 || status === 503) {
+          consecutiveFailures++;
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            circuitBreakerOpenUntil = Date.now() + CIRCUIT_BREAKER_TIMEOUT;
+            console.warn(
+              `[CIRCUIT BREAKER] Opened after ${consecutiveFailures} consecutive failures. ` +
+                `Will retry after ${CIRCUIT_BREAKER_TIMEOUT / 1000}s`,
+            );
+          }
+        }
         throw error;
       }
 
-      // Wait before retry
-      const delay = retryDelays[attempt] || 6000;
-      console.log(`[API RETRY] Menunggu ${delay / 1000}s sebelum retry...`);
+      // Calculate delay with exponential backoff and jitter
+      // For 502 errors, use longer delays
+      const multiplier = status === 502 ? 2 : 1;
+      const exponentialDelay = baseDelay * Math.pow(2, attempt) * multiplier;
+
+      // Add jitter (randomize ±25% to avoid thundering herd)
+      const jitter = exponentialDelay * 0.25 * (Math.random() * 2 - 1);
+      const delay = Math.min(exponentialDelay + jitter, 30000); // Cap at 30s
+
+      console.log(
+        `[API RETRY] ${status === 502 ? "502 detected - using longer delay." : ""} ` +
+          `Menunggu ${(delay / 1000).toFixed(1)}s sebelum retry...`,
+      );
       await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  // Track consecutive failures for circuit breaker
+  const status = lastError?.response?.status;
+  if (status === 502 || status === 503) {
+    consecutiveFailures++;
+    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+      circuitBreakerOpenUntil = Date.now() + CIRCUIT_BREAKER_TIMEOUT;
+      console.warn(
+        `[CIRCUIT BREAKER] Opened after ${consecutiveFailures} consecutive failures. ` +
+          `Will retry after ${CIRCUIT_BREAKER_TIMEOUT / 1000}s`,
+      );
     }
   }
 
@@ -328,15 +393,21 @@ export const getEpisodeDetail = async (episodeId: string) => {
  * Endpoint: /server/{serverId}
  * Returns: Actual streaming URL from selected server
  * Note: Cache disabled for streaming URLs (they may expire)
+ *
+ * Special handling for 502 errors:
+ * - Uses longer retry delays
+ * - More retry attempts (5 instead of 3)
+ * - Exponential backoff with jitter
  */
 export const getServerStreamingUrl = async (serverId: string) => {
   console.log(`[FETCHING] /server/${serverId}`);
   try {
     // Use manual retry with rate limit tracking
+    // For streaming URLs, use more aggressive retry strategy
     const response = await retryWithRateLimit(
       () => api.get(`/server/${serverId}`),
-      3, // max retries
-      [2000, 4000, 6000], // retry delays
+      5, // max retries (increased for 502 handling)
+      3000, // base delay (3s for exponential backoff)
     );
     console.log(`[SUCCESS] /server/${serverId}`);
     console.log(
@@ -480,4 +551,31 @@ export const getRateLimitStats = () => {
 export const resetRateLimit = () => {
   rateLimitQueue.length = 0;
   console.log("[RATE LIMIT] Queue reset");
+};
+
+/**
+ * Get circuit breaker status
+ */
+export const getCircuitBreakerStatus = () => {
+  const now = Date.now();
+  const isOpen = now < circuitBreakerOpenUntil;
+  const resetIn = isOpen
+    ? Math.ceil((circuitBreakerOpenUntil - now) / 1000)
+    : 0;
+
+  return {
+    isOpen,
+    consecutiveFailures,
+    resetIn, // seconds until circuit closes
+    threshold: MAX_CONSECUTIVE_FAILURES,
+  };
+};
+
+/**
+ * Reset circuit breaker (for testing purposes)
+ */
+export const resetCircuitBreaker = () => {
+  consecutiveFailures = 0;
+  circuitBreakerOpenUntil = 0;
+  console.log("[CIRCUIT BREAKER] Reset");
 };

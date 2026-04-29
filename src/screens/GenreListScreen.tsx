@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  useWindowDimensions,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -28,7 +27,6 @@ interface GenreListScreenProps {
 
 const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
   const { colors, isDark } = useTheme();
-  const { width } = useWindowDimensions();
 
   const [genres, setGenres] = useState<Genre[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,30 +65,16 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
     fetchGenres(true);
   };
 
-  const renderGenreItem = ({ item, index }: { item: Genre; index: number }) => {
-    // Generate random gradient colors for each genre
-    const gradients = [
-      ["#FF6B6B", "#C92A2A"],
-      ["#4ECDC4", "#1A535C"],
-      ["#FFE66D", "#FF6B35"],
-      ["#A8DADC", "#457B9D"],
-      ["#F1FAEE", "#E63946"],
-      ["#06FFA5", "#00B4D8"],
-      ["#B8F2E6", "#5E60CE"],
-      ["#FFD6A5", "#FDFFB6"],
-    ];
-
-    const gradient = gradients[index % gradients.length];
-
+  const renderGenreItem = ({ item }: { item: Genre }) => {
     return (
       <TouchableOpacity
         style={[
-          styles.genreCard,
+          styles.listItem,
           {
             backgroundColor: colors.card,
           },
         ]}
-        activeOpacity={0.8}
+        activeOpacity={0.7}
         onPress={() =>
           navigation.navigate("GenreAnime", {
             genreId: item.genreId,
@@ -98,33 +82,28 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
           })
         }
       >
-        <View
-          style={[
-            styles.genreGradient,
-            {
-              backgroundColor: gradient[0],
-            },
-          ]}
-        >
-          <View style={styles.genreIconWrap}>
-            <Ionicons name="film" size={32} color="#FFF" />
-          </View>
+        {/* Icon Section (Left) */}
+        <View style={styles.iconContainer}>
+          <Ionicons name="film-outline" size={32} color={colors.accent} />
         </View>
 
-        <View style={styles.genreInfo}>
+        {/* Title Section (Center) */}
+        <View style={styles.titleContainer}>
           <Text
-            style={[styles.genreName, { color: colors.text }]}
-            numberOfLines={2}
+            style={[styles.genreTitle, { color: colors.text }]}
+            numberOfLines={1}
           >
             {item.title}
           </Text>
-          <View style={styles.genreArrow}>
-            <Ionicons
-              name="arrow-forward"
-              size={16}
-              color={colors.textSecondary}
-            />
-          </View>
+        </View>
+
+        {/* Chevron Section (Right) */}
+        <View style={styles.chevronContainer}>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.textSecondary}
+          />
         </View>
       </TouchableOpacity>
     );
@@ -194,10 +173,12 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
           data={genres}
           renderItem={renderGenreItem}
           keyExtractor={(item, index) => `${item.genreId}-${index}`}
-          numColumns={2}
-          key="genre-list-2-columns"
           contentContainerStyle={styles.listContent}
-          columnWrapperStyle={styles.columnWrapper}
+          ItemSeparatorComponent={() => (
+            <View
+              style={[styles.divider, { backgroundColor: colors.border }]}
+            />
+          )}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -252,52 +233,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   listContent: {
-    padding: 12,
+    padding: 0,
   },
-  columnWrapper: {
-    justifyContent: "space-between",
-    paddingHorizontal: 4,
+  divider: {
+    height: 1,
+    marginLeft: 72,
   },
-  genreCard: {
-    flex: 1,
-    maxWidth: "48%",
-    borderRadius: 12,
-    overflow: "hidden",
-    marginBottom: 16,
-    marginHorizontal: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  genreGradient: {
-    width: "100%",
-    height: 100,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  genreIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  genreInfo: {
-    padding: 12,
+  listItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    minHeight: 64,
   },
-  genreName: {
-    fontSize: 14,
-    fontWeight: "600",
+  iconContainer: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  titleContainer: {
     flex: 1,
   },
-  genreArrow: {
-    marginLeft: 8,
+  genreTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  chevronContainer: {
+    marginLeft: 12,
   },
   emptyContainer: {
     flex: 1,

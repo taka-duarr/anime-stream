@@ -38,7 +38,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
-  
+
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
@@ -239,72 +239,210 @@ export default function EpisodeScreen({ route, navigation }: any) {
       {isDesktop ? (
         <View style={styles.desktopHeaderContainer}>
           <ImageBackground
-            source={{ uri: detail?.poster || "https://via.placeholder.com/400x600" }}
+            source={{
+              uri: detail?.poster || "https://via.placeholder.com/400x600",
+            }}
             style={styles.desktopBgImage}
             resizeMode="cover"
             blurRadius={20}
           >
-            <View style={[styles.desktopBgOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.85)' }]} />
-            
-            <View style={[styles.toolbar, { paddingTop: 20, paddingHorizontal: 32 }]}>
-              <TouchableOpacity style={styles.iconButton} onPress={() => navigation.goBack()}>
+            <View
+              style={[
+                styles.desktopBgOverlay,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(0,0,0,0.85)"
+                    : "rgba(255,255,255,0.85)",
+                },
+              ]}
+            />
+
+            <View
+              style={[
+                styles.toolbar,
+                { paddingTop: 20, paddingHorizontal: 32 },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => navigation.goBack()}
+              >
                 <Ionicons name="arrow-back" size={24} color="#FFF" />
               </TouchableOpacity>
               <View style={styles.toolbarRight}>
-                <TouchableOpacity style={[styles.iconButton, { marginLeft: 10 }]} onPress={toggleBookmark}>
-                  <Ionicons name={isBookmarked ? "bookmark" : "bookmark-outline"} size={22} color={isBookmarked ? "#FF4757" : "#FFF"} />
+                <TouchableOpacity
+                  style={[styles.iconButton, { marginLeft: 10 }]}
+                  onPress={toggleBookmark}
+                >
+                  <Ionicons
+                    name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                    size={22}
+                    color={isBookmarked ? "#FF4757" : "#FFF"}
+                  />
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.desktopContentRow}>
               <View style={styles.desktopPosterWrap}>
-                <Image source={{ uri: detail?.poster }} style={styles.desktopPosterImage} contentFit="cover" />
+                <Image
+                  source={{ uri: detail?.poster }}
+                  style={styles.desktopPosterImage}
+                  contentFit="cover"
+                />
               </View>
 
               <View style={styles.desktopInfoCol}>
-                <Text style={[styles.titleText, { color: colors.text, fontSize: 36, marginBottom: 16 }]}>{detail?.title || title}</Text>
-                
+                <Text
+                  style={[
+                    styles.titleText,
+                    { color: colors.text, fontSize: 36, marginBottom: 16 },
+                  ]}
+                >
+                  {detail?.title || title}
+                </Text>
+
                 <View style={[styles.statsRow, { marginBottom: 20 }]}>
                   <Ionicons name="star" size={16} color={colors.accent} />
-                  <Text style={[styles.scoreText, { color: colors.accent, fontSize: 16 }]}>{detail?.score || "N/A"}</Text>
+                  <Text
+                    style={[
+                      styles.scoreText,
+                      { color: colors.accent, fontSize: 16 },
+                    ]}
+                  >
+                    {detail?.score || "N/A"}
+                  </Text>
                   <Text style={styles.dotSeparator}>•</Text>
-                  <Text style={[styles.statText, { color: colors.textSecondary, fontSize: 16 }]}>{detail?.type || "TV"}</Text>
+                  <Text
+                    style={[
+                      styles.statText,
+                      { color: colors.textSecondary, fontSize: 16 },
+                    ]}
+                  >
+                    {detail?.type || "TV"}
+                  </Text>
                   <Text style={styles.dotSeparator}>•</Text>
-                  <Text style={[styles.statText, { color: colors.textSecondary, fontSize: 16 }]}>{detail?.status || "Ongoing"}</Text>
+                  <Text
+                    style={[
+                      styles.statText,
+                      { color: colors.textSecondary, fontSize: 16 },
+                    ]}
+                  >
+                    {detail?.status || "Ongoing"}
+                  </Text>
                   <Text style={styles.dotSeparator}>•</Text>
-                  <Text style={[styles.statText, { color: colors.textSecondary, fontSize: 16 }]}>{episodes.length} Episodes</Text>
+                  <Text
+                    style={[
+                      styles.statText,
+                      { color: colors.textSecondary, fontSize: 16 },
+                    ]}
+                  >
+                    {episodes.length} Episodes
+                  </Text>
                 </View>
 
                 <View style={[styles.tagsRow, { marginBottom: 24 }]}>
                   {detail?.genreList?.slice(0, 5).map((genre, i) => (
-                    <View key={i} style={[styles.tagBadge, { backgroundColor: isDark ? "rgba(230,51,51,0.15)" : "#FFE5E8", paddingHorizontal: 16, paddingVertical: 6 }]}>
-                      <Text style={[styles.tagText, { color: colors.accent, fontSize: 14 }]}>{genre.title}</Text>
+                    <View
+                      key={i}
+                      style={[
+                        styles.tagBadge,
+                        {
+                          backgroundColor: isDark
+                            ? "rgba(230,51,51,0.15)"
+                            : "#FFE5E8",
+                          paddingHorizontal: 16,
+                          paddingVertical: 6,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.tagText,
+                          { color: colors.accent, fontSize: 14 },
+                        ]}
+                      >
+                        {genre.title}
+                      </Text>
                     </View>
                   ))}
                 </View>
 
-                <View style={[styles.actionsRow, { justifyContent: 'flex-start', marginBottom: 32 }]}>
+                <View
+                  style={[
+                    styles.actionsRow,
+                    { justifyContent: "flex-start", marginBottom: 32 },
+                  ]}
+                >
                   <TouchableOpacity
-                    style={[styles.watchButton, { backgroundColor: colors.accent, maxWidth: 200, paddingVertical: 16 }]}
+                    style={[
+                      styles.watchButton,
+                      {
+                        backgroundColor: colors.accent,
+                        maxWidth: 200,
+                        paddingVertical: 16,
+                      },
+                    ]}
                     activeOpacity={0.8}
                     onPress={() => {
                       if (episodes.length > 0) {
-                        navigation.navigate("Video", { episode: episodes[0], episodes, animeId: bookId });
+                        navigation.navigate("Video", {
+                          episode: episodes[0],
+                          episodes,
+                          animeId: bookId,
+                        });
                       }
                     }}
                   >
-                    <Ionicons name="play-circle" size={24} color="#FFF" style={{ marginRight: 8 }} />
+                    <Ionicons
+                      name="play-circle"
+                      size={24}
+                      color="#FFF"
+                      style={{ marginRight: 8 }}
+                    />
                     <Text style={styles.watchButtonText}>Watch Now</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.secondaryButton, { backgroundColor: colors.card, marginLeft: 16, height: 56, width: 56 }]} onPress={toggleBookmark}>
-                    <Ionicons name={isBookmarked ? "bookmark" : "bookmark-outline"} size={26} color={isBookmarked ? colors.accent : colors.text} />
+                  <TouchableOpacity
+                    style={[
+                      styles.secondaryButton,
+                      {
+                        backgroundColor: colors.card,
+                        marginLeft: 16,
+                        height: 56,
+                        width: 56,
+                      },
+                    ]}
+                    onPress={toggleBookmark}
+                  >
+                    <Ionicons
+                      name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                      size={26}
+                      color={isBookmarked ? colors.accent : colors.text}
+                    />
                   </TouchableOpacity>
                 </View>
 
-                <Text style={[styles.sectionTitle, { color: colors.text, fontSize: 20 }]}>Synopsis</Text>
-                <Text style={[styles.synopsisText, { color: colors.textSecondary, fontSize: 15, lineHeight: 24 }]} numberOfLines={6}>
-                  {detail?.synopsis?.paragraphs?.join("\n\n") || "No synopsis available."}
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    { color: colors.text, fontSize: 20 },
+                  ]}
+                >
+                  Synopsis
+                </Text>
+                <Text
+                  style={[
+                    styles.synopsisText,
+                    {
+                      color: colors.textSecondary,
+                      fontSize: 15,
+                      lineHeight: 24,
+                    },
+                  ]}
+                  numberOfLines={6}
+                >
+                  {detail?.synopsis?.paragraphs?.join("\n\n") ||
+                    "No synopsis available."}
                 </Text>
               </View>
             </View>
@@ -314,42 +452,82 @@ export default function EpisodeScreen({ route, navigation }: any) {
         <>
           <View style={styles.heroContainer}>
             <ImageBackground
-              source={{ uri: detail?.poster || "https://via.placeholder.com/400x600" }}
+              source={{
+                uri: detail?.poster || "https://via.placeholder.com/400x600",
+              }}
               style={styles.heroImage}
               resizeMode="cover"
             >
               <View style={[styles.toolbar, { paddingTop: insets.top + 10 }]}>
-                <TouchableOpacity style={styles.iconButton} onPress={() => navigation.goBack()}>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={() => navigation.goBack()}
+                >
                   <Ionicons name="arrow-back" size={24} color="#FFF" />
                 </TouchableOpacity>
                 <View style={styles.toolbarRight}>
-                  <TouchableOpacity style={[styles.iconButton, { marginLeft: 10 }]} onPress={toggleBookmark}>
-                    <Ionicons name={isBookmarked ? "bookmark" : "bookmark-outline"} size={22} color={isBookmarked ? "#FF4757" : "#FFF"} />
+                  <TouchableOpacity
+                    style={[styles.iconButton, { marginLeft: 10 }]}
+                    onPress={toggleBookmark}
+                  >
+                    <Ionicons
+                      name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                      size={22}
+                      color={isBookmarked ? "#FF4757" : "#FFF"}
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
               <LinearGradient
-                colors={["transparent", isDark ? "rgba(18,18,18,0.8)" : "rgba(240,240,240,0.8)", colors.bg]}
+                colors={[
+                  "transparent",
+                  isDark ? "rgba(18,18,18,0.8)" : "rgba(240,240,240,0.8)",
+                  colors.bg,
+                ]}
                 style={styles.heroGradient}
               />
             </ImageBackground>
           </View>
-          <View style={[styles.contentContainer, { backgroundColor: colors.bg }]}>
-            <Text style={[styles.titleText, { color: colors.text }]}>{detail?.title || title}</Text>
+          <View
+            style={[styles.contentContainer, { backgroundColor: colors.bg }]}
+          >
+            <Text style={[styles.titleText, { color: colors.text }]}>
+              {detail?.title || title}
+            </Text>
             <View style={styles.statsRow}>
               <Ionicons name="star" size={16} color={colors.accent} />
-              <Text style={[styles.scoreText, { color: colors.accent }]}>{detail?.score || "N/A"}</Text>
+              <Text style={[styles.scoreText, { color: colors.accent }]}>
+                {detail?.score || "N/A"}
+              </Text>
               <Text style={styles.dotSeparator}>•</Text>
-              <Text style={[styles.statText, { color: colors.textSecondary }]}>{detail?.type || "TV"}</Text>
+              <Text style={[styles.statText, { color: colors.textSecondary }]}>
+                {detail?.type || "TV"}
+              </Text>
               <Text style={styles.dotSeparator}>•</Text>
-              <Text style={[styles.statText, { color: colors.textSecondary }]}>{detail?.status || "Ongoing"}</Text>
+              <Text style={[styles.statText, { color: colors.textSecondary }]}>
+                {detail?.status || "Ongoing"}
+              </Text>
               <Text style={styles.dotSeparator}>•</Text>
-              <Text style={[styles.statText, { color: colors.textSecondary }]}>{episodes.length} Episodes</Text>
+              <Text style={[styles.statText, { color: colors.textSecondary }]}>
+                {episodes.length} Episodes
+              </Text>
             </View>
             <View style={styles.tagsRow}>
               {detail?.genreList?.slice(0, 5).map((genre, i) => (
-                <View key={i} style={[styles.tagBadge, { backgroundColor: isDark ? "rgba(230,51,51,0.15)" : "#FFE5E8" }]}>
-                  <Text style={[styles.tagText, { color: colors.accent }]}>{genre.title}</Text>
+                <View
+                  key={i}
+                  style={[
+                    styles.tagBadge,
+                    {
+                      backgroundColor: isDark
+                        ? "rgba(230,51,51,0.15)"
+                        : "#FFE5E8",
+                    },
+                  ]}
+                >
+                  <Text style={[styles.tagText, { color: colors.accent }]}>
+                    {genre.title}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -359,27 +537,64 @@ export default function EpisodeScreen({ route, navigation }: any) {
                 activeOpacity={0.8}
                 onPress={() => {
                   if (episodes.length > 0) {
-                    navigation.navigate("Video", { episode: episodes[0], episodes, animeId: bookId });
+                    navigation.navigate("Video", {
+                      episode: episodes[0],
+                      episodes,
+                      animeId: bookId,
+                    });
                   }
                 }}
               >
-                <Ionicons name="play-circle" size={24} color="#FFF" style={{ marginRight: 8 }} />
+                <Ionicons
+                  name="play-circle"
+                  size={24}
+                  color="#FFF"
+                  style={{ marginRight: 8 }}
+                />
                 <Text style={styles.watchButtonText}>Watch Now</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.secondaryButton, { backgroundColor: colors.card }]} onPress={toggleBookmark}>
-                <Ionicons name={isBookmarked ? "bookmark" : "bookmark-outline"} size={24} color={isBookmarked ? colors.accent : colors.text} />
+              <TouchableOpacity
+                style={[
+                  styles.secondaryButton,
+                  { backgroundColor: colors.card },
+                ]}
+                onPress={toggleBookmark}
+              >
+                <Ionicons
+                  name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                  size={24}
+                  color={isBookmarked ? colors.accent : colors.text}
+                />
               </TouchableOpacity>
             </View>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Synopsis</Text>
-            <Text style={[styles.synopsisText, { color: colors.textSecondary }]} numberOfLines={5}>
-              {detail?.synopsis?.paragraphs?.join("\n\n") || "No synopsis available."}
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Synopsis
+            </Text>
+            <Text
+              style={[styles.synopsisText, { color: colors.textSecondary }]}
+              numberOfLines={5}
+            >
+              {detail?.synopsis?.paragraphs?.join("\n\n") ||
+                "No synopsis available."}
             </Text>
           </View>
         </>
       )}
 
-      <View style={[styles.episodeHeader, isDesktop && { paddingHorizontal: 32, marginTop: 10 }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: isDesktop ? 22 : 18 }]}>Episodes</Text>
+      <View
+        style={[
+          styles.episodeHeader,
+          isDesktop && { paddingHorizontal: 32, marginTop: 10 },
+        ]}
+      >
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: colors.text, fontSize: isDesktop ? 22 : 18 },
+          ]}
+        >
+          Episodes
+        </Text>
       </View>
     </>
   );
@@ -396,26 +611,56 @@ export default function EpisodeScreen({ route, navigation }: any) {
         key="list"
         data={episodes}
         keyExtractor={(item) => item.chapterId}
-        contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: isDesktop ? 24 : 0 }}
+        contentContainerStyle={{
+          paddingBottom: 100,
+          paddingHorizontal: isDesktop ? 24 : 0,
+        }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={renderHeader}
         renderItem={({ item, index }) => (
           <View style={styles.listPaddingWrapper}>
             <TouchableOpacity
-              style={[styles.episodeCardVertical, { backgroundColor: colors.card }]}
+              style={[
+                styles.episodeCardVertical,
+                { backgroundColor: colors.card },
+              ]}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate("Video", { episode: item, episodes, animeId: bookId })}
+              onPress={() =>
+                navigation.navigate("Video", {
+                  episode: item,
+                  episodes,
+                  animeId: bookId,
+                })
+              }
             >
               <View style={styles.episodeImageWrapperVert}>
-                <Image source={{ uri: item.chapterImg || detail?.poster }} style={styles.episodeImageVertical} />
+                <Image
+                  source={{ uri: item.chapterImg || detail?.poster }}
+                  style={styles.episodeImageVertical}
+                />
                 <View style={styles.episodeDurationBadge}>
-                  <Text style={styles.episodeDurationText}>{item.duration || "N/A"}</Text>
+                  <Text style={styles.episodeDurationText}>
+                    {item.duration || "N/A"}
+                  </Text>
                 </View>
               </View>
 
               <View style={styles.episodeInfoVert}>
-                <Text style={[styles.episodeCardTitle, { color: colors.text }]} numberOfLines={1}>Episode {index + 1}</Text>
-                <Text style={[styles.episodeCardSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>{item.chapterName}</Text>
+                <Text
+                  style={[styles.episodeCardTitle, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  {item.chapterName}
+                </Text>
+                <Text
+                  style={[
+                    styles.episodeCardSubtitle,
+                    { color: colors.textSecondary },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {item.releaseTime || "Release date unknown"}
+                </Text>
               </View>
             </TouchableOpacity>
           </View>

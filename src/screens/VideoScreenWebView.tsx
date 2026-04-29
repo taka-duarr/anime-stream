@@ -50,12 +50,61 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
   const [isPlaying, setIsPlaying] = useState(true); // Track video playing state
   const [currentTime, setCurrentTime] = useState(0); // Current video time in seconds
   const [duration, setDuration] = useState(0); // Total video duration in seconds
-  const [isFullscreen, setIsFullscreen] = useState(true); // Already in fullscreen by default
+  const [isFullscreen, setIsFullscreen] = useState(false); // Start in portrait mode
   const { colors } = useTheme();
 
   const webViewRef = useRef<WebView>(null);
   const hideControlsTimeout = useRef<NodeJS.Timeout | null>(null);
   const progressUpdateInterval = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize orientation on mount and cleanup on unmount
+  useEffect(() => {
+    // Set initial orientation to portrait
+    const initOrientation = async () => {
+      try {
+        await ScreenOrientation.lockAsync(
+          ScreenOrientation.OrientationLock.PORTRAIT_UP,
+        );
+        setIsFullscreen(false);
+      } catch (error) {
+        console.error("[SCREEN] Failed to set initial orientation:", error);
+      }
+    };
+
+    initOrientation();
+
+    // Listen to orientation changes
+    const subscription = ScreenOrientation.addOrientationChangeListener(
+      (event) => {
+        const orientation = event.orientationInfo.orientation;
+        console.log("[SCREEN] Orientation changed:", orientation);
+
+        // Update fullscreen state based on orientation
+        if (
+          orientation === ScreenOrientation.Orientation.LANDSCAPE_LEFT ||
+          orientation === ScreenOrientation.Orientation.LANDSCAPE_RIGHT
+        ) {
+          setIsFullscreen(true);
+        } else {
+          setIsFullscreen(false);
+        }
+      },
+    );
+
+    // Cleanup: unlock orientation and reset to portrait when component unmounts
+    return () => {
+      subscription.remove();
+      ScreenOrientation.unlockAsync().catch((error) =>
+        console.error("[SCREEN] Failed to unlock orientation:", error),
+      );
+      // Reset to portrait when leaving video screen
+      ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP,
+      ).catch((error) =>
+        console.error("[SCREEN] Failed to reset to portrait:", error),
+      );
+    };
+  }, []);
 
   // Fetch episode detail when episode changes
   useEffect(() => {
@@ -66,7 +115,15 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(
       "hardwareBackPress",
-      () => {
+      async () => {
+        // Reset orientation to portrait before going back
+        try {
+          await ScreenOrientation.lockAsync(
+            ScreenOrientation.OrientationLock.PORTRAIT_UP,
+          );
+        } catch (error) {
+          console.error("[SCREEN] Failed to reset orientation on back:", error);
+        }
         navigation.goBack();
         return true;
       },
@@ -512,17 +569,19 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
   const toggleFullscreen = async () => {
     try {
       if (isFullscreen) {
-        // Exit fullscreen - go to portrait
+        // Exit fullscreen - lock to portrait
         await ScreenOrientation.lockAsync(
           ScreenOrientation.OrientationLock.PORTRAIT_UP,
         );
         setIsFullscreen(false);
+        console.log("[SCREEN] Switched to portrait mode");
       } else {
-        // Enter fullscreen - go to landscape
+        // Enter fullscreen - lock to landscape
         await ScreenOrientation.lockAsync(
           ScreenOrientation.OrientationLock.LANDSCAPE,
         );
         setIsFullscreen(true);
+        console.log("[SCREEN] Switched to landscape mode");
       }
       resetAutoHideTimer();
     } catch (error) {
@@ -886,7 +945,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
             <View style={styles.progressContainer}>
               {/* Time Display */}
               <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-  
+
               {/* Progress Slider */}
               <Slider
                 style={styles.progressSlider}
@@ -899,10 +958,10 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
                 onSlidingComplete={(value) => seekTo(value)}
                 onValueChange={(value) => setCurrentTime(value)}
               />
-  
+
               {/* Duration Display */}
               <Text style={styles.timeText}>{formatTime(duration)}</Text>
-  
+
               {/* Fullscreen Button */}
               <TouchableOpacity
                 style={styles.fullscreenButton}
