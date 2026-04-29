@@ -223,6 +223,12 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       ? "Anime yang sedang tayang saat ini"
       : "Anime yang sudah selesai tayang";
 
+  // Calculate numColumns at component level so FlatList & renderItem stay in sync
+  let numColumns = 2;
+  if (width >= 1200) numColumns = 5;
+  else if (width >= 900) numColumns = 4;
+  else if (width >= 600) numColumns = 3;
+
   if (loading && !refreshing) {
     return (
       <View style={[styles.center, { backgroundColor: colors.bg }]}>
@@ -232,74 +238,66 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   }
 
   // Grid card ala Epic Games — cover image besar di atas, info di bawah
-  const renderAnimeItem = ({ item, index }: { item: Anime; index: number }) => {
-    // Calculate responsive columns
-    let numColumns = 2;
-    if (width >= 1200) numColumns = 5;
-    else if (width >= 900) numColumns = 4;
-    else if (width >= 600) numColumns = 3;
-
-    return (
-      <TouchableOpacity
-        style={[
-          styles.card,
-          {
-            backgroundColor: colors.card,
-            flex: 1,
-            maxWidth: `${100 / numColumns - 2}%`,
-          },
-        ]}
-        activeOpacity={0.82}
-        onPress={() =>
-          navigation.navigate("Episode", {
-            bookId: item.animeId,
-            title: item.title,
-          })
-        }
-      >
-        {/* Cover Image */}
-        <View style={styles.cardImageWrap}>
-          <Image
-            source={{
-              uri: item.poster || "https://via.placeholder.com/180x240",
-            }}
-            style={styles.cardImage}
-            contentFit="cover"
-          />
-          {/* Rank badge */}
-          <View style={[styles.rankBadge, { backgroundColor: colors.accent }]}>
-            <Text style={styles.rankText}>#{index + 1}</Text>
-          </View>
-          {/* Type badge */}
-          <View
-            style={[styles.typeBadge, { backgroundColor: "rgba(0,0,0,0.6)" }]}
-          >
-            <Text style={styles.typeText}>
-              {activeTab === "ongoing" ? "ONGOING" : "COMPLETED"}
-            </Text>
-          </View>
+  const renderAnimeItem = ({ item, index }: { item: Anime; index: number }) => (
+    <TouchableOpacity
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.card,
+          // Use fixed percentage based on numColumns with consistent gap
+          width: `${100 / numColumns}%` as any,
+        },
+      ]}
+      activeOpacity={0.82}
+      onPress={() =>
+        navigation.navigate("Episode", {
+          bookId: item.animeId,
+          title: item.title,
+        })
+      }
+    >
+      {/* Cover Image */}
+      <View style={styles.cardImageWrap}>
+        <Image
+          source={{
+            uri: item.poster || "https://via.placeholder.com/180x240",
+          }}
+          style={styles.cardImage}
+          contentFit="cover"
+        />
+        {/* Rank badge */}
+        <View style={[styles.rankBadge, { backgroundColor: colors.accent }]}>
+          <Text style={styles.rankText}>#{index + 1}</Text>
         </View>
-
-        {/* Card Info */}
-        <View style={styles.cardInfo}>
-          <Text
-            style={[styles.cardTitle, { color: colors.text }]}
-            numberOfLines={2}
-          >
-            {item.title || "Unknown Anime"}
+        {/* Type badge */}
+        <View
+          style={[styles.typeBadge, { backgroundColor: "rgba(0,0,0,0.6)" }]}
+        >
+          <Text style={styles.typeText}>
+            {activeTab === "ongoing" ? "ONGOING" : "COMPLETED"}
           </Text>
-          <View style={styles.cardMeta}>
-            <Text style={[styles.cardEpisode, { color: colors.textSecondary }]}>
-              {item.totalEpisodes || "?"} ep
-            </Text>
-            <Text style={[styles.cardViews, { color: colors.accent }]}>
-              ⭐ {item.score || "N/A"}
-            </Text>
-          </View>
         </View>
-      </TouchableOpacity>
-    );
-  };
+      </View>
+
+      {/* Card Info */}
+      <View style={styles.cardInfo}>
+        <Text
+          style={[styles.cardTitle, { color: colors.text }]}
+          numberOfLines={2}
+        >
+          {item.title || "Unknown Anime"}
+        </Text>
+        <View style={styles.cardMeta}>
+          <Text style={[styles.cardEpisode, { color: colors.textSecondary }]}>
+            {item.totalEpisodes || "?"} ep
+          </Text>
+          <Text style={[styles.cardViews, { color: colors.accent }]}>
+            ⭐ {item.score || "N/A"}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
 
   const renderFooter = () => {
     if (!loadingMore) return null;
@@ -610,8 +608,8 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         data={currentData}
         renderItem={renderAnimeItem}
         keyExtractor={(item, index) => `${item.animeId}-${index}`}
-        numColumns={2}
-        key="home-anime-list-2-columns"
+        numColumns={numColumns}
+        key={`home-grid-${numColumns}`}
         contentContainerStyle={styles.listContent}
         columnWrapperStyle={styles.columnWrapper}
         showsVerticalScrollIndicator={false}
@@ -949,8 +947,6 @@ const styles = StyleSheet.create({
 
   /* ─── GRID CARD (Epic Games style) ─── */
   card: {
-    flex: 1,
-    maxWidth: "48%",
     borderRadius: 10,
     overflow: "hidden",
     shadowColor: "#000",
@@ -959,7 +955,14 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
     marginBottom: 16,
-    marginHorizontal: 4,
+    padding: 4,
+  },
+  columnWrapper: {
+    // flex-start so cards in the last row don't spread apart
+    justifyContent: "flex-start",
+  },
+  listContent: {
+    paddingBottom: 100,
   },
   cardImageWrap: {
     width: "100%",

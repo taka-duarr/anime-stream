@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   Modal,
   FlatList,
+  ScrollView,
   ActivityIndicator,
   BackHandler,
   Platform,
+  Dimensions,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { WebView } from "react-native-webview";
@@ -56,6 +58,13 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
   const webViewRef = useRef<WebView>(null);
   const hideControlsTimeout = useRef<NodeJS.Timeout | null>(null);
   const progressUpdateInterval = useRef<NodeJS.Timeout | null>(null);
+  const lastTapTime = useRef<number>(0);
+  const lastTapSide = useRef<'left' | 'right' | 'center' | null>(null);
+  const skipFeedbackTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Double-tap skip feedback state
+  const [skipFeedback, setSkipFeedback] = useState<'left' | 'right' | null>(null);
+  const [skipCount, setSkipCount] = useState(1); // How many consecutive double-taps
 
   // Initialize orientation on mount and cleanup on unmount
   useEffect(() => {
@@ -196,9 +205,9 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
       // Log all available servers for debugging
       if (detail.serverqualities && detail.serverqualities.length > 0) {
         console.log("[VIDEO] Available servers:");
-        detail.serverqualities.forEach((quality) => {
+        detail.serverqualities.forEach((quality: any) => {
           if (quality.serverList && quality.serverList.length > 0) {
-            quality.serverList.forEach((server) => {
+            quality.serverList.forEach((server: StreamingServer) => {
               console.log(
                 `  - ${quality.title}: ${server.title} (${server.serverId})`,
               );
@@ -230,7 +239,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
         // Try to find otakuwatch server (most reliable)
         for (const quality of detail.serverqualities) {
           if (quality.serverList && quality.serverList.length > 0) {
-            const otakuwatchServer = quality.serverList.find((s) =>
+            const otakuwatchServer = quality.serverList.find((s: StreamingServer) =>
               s.title.toLowerCase().includes("otakuwatch"),
             );
 
@@ -251,7 +260,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
         for (const quality of detail.serverqualities) {
           if (quality.serverList && quality.serverList.length > 0) {
             // Filter out problematic servers
-            const goodServers = quality.serverList.filter((s) => {
+            const goodServers = quality.serverList.filter((s: StreamingServer) => {
               const serverId = s.serverId.toLowerCase();
               const title = s.title.toLowerCase();
               return (
@@ -328,13 +337,13 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
 
         // Try to find 480p quality first with non-problematic server
         const preferred480p = detail.serverqualities.find(
-          (q) => q.title === "480p" && q.serverList && q.serverList.length > 0,
+          (q: any) => q.title === "480p" && q.serverList && q.serverList.length > 0,
         );
 
         if (preferred480p && preferred480p.serverList.length > 0) {
           // Try to find non-problematic server first
           const goodServer = preferred480p.serverList.find(
-            (s) => !isServerProblematic(s),
+            (s: StreamingServer) => !isServerProblematic(s),
           );
           const firstServer = goodServer || preferred480p.serverList[0];
 
@@ -467,6 +476,77 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
       resetAutoHideTimer();
     } else {
       setShowControls(false);
+    }
+  };
+
+  // Skip seconds by injecting JS into WebView video
+  const skipSeconds = (seconds: number) => {
+    webViewRef.current?.injectJavaScript(`
+      (function() {
+        var video = document.querySelector('video');
+        if (!video) {
+          var iframes = document.querySelectorAll('iframe');
+          for (var i = 0; i < iframes.length; i++) {
+            try {
+              video = iframes[i].contentWindow.document.querySelector('video');
+              if (video) break;
+            } catch(e) {}
+          }
+        }
+        if (video) {
+          video.currentTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + (${seconds})));
+        }
+      })();
+      true;
+    `);
+  };
+
+  // Handle tap on left/right overlay zones (single = controls, double = skip)
+  const handleSmartOverlayPress = (event: any) => {
+    const { locationX } = event.nativeEvent;
+    const { width } = Dimensions.get('window');
+    
+    // Determine side
+    let side: 'left' | 'right' | 'center' = 'center';
+    if (locationX < width * 0.3) {
+      side = 'left';
+    } else if (locationX > width * 0.7) {
+      side = 'right';
+    }
+
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300; // ms
+
+    if (
+      side !== 'center' &&
+      now - lastTapTime.current < DOUBLE_TAP_DELAY &&
+      lastTapSide.current === side
+    ) {
+      // Double-tap detected!
+      const seconds = side === 'right' ? 10 : -10;
+      skipSeconds(seconds);
+
+      // Update skip feedback count for consecutive taps
+      setSkipCount((prev) => (skipFeedback === side ? prev + 1 : 1));
+      setSkipFeedback(side);
+
+      // Reset feedback after 800ms of no taps
+      if (skipFeedbackTimeout.current) clearTimeout(skipFeedbackTimeout.current);
+      skipFeedbackTimeout.current = setTimeout(() => {
+        setSkipFeedback(null);
+        setSkipCount(1);
+      }, 800);
+
+      // Reset timer so controls don't hide mid-feedback
+      resetAutoHideTimer();
+
+      // Reset so next single tap is not counted as triple-tap
+      lastTapTime.current = 0;
+    } else {
+      // Single tap — toggle controls
+      lastTapTime.current = now;
+      lastTapSide.current = side;
+      handleScreenTap();
     }
   };
 
@@ -1206,9 +1286,30 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
         <TouchableOpacity
           style={styles.controlsOverlay}
           activeOpacity={1}
-          onPress={handleScreenTap}
+          onPress={handleSmartOverlayPress}
         >
           {renderControls()}
+
+          {/* Feedback UI overlaid on top, ignoring pointer events */}
+          {skipFeedback === 'left' && (
+            <View style={[styles.skipFeedbackAbsolute, { left: '10%' }]} pointerEvents="none">
+              <View style={styles.skipFeedbackContainer}>
+                <Ionicons name="play-back" size={36} color="white" />
+                <Ionicons name="play-back" size={36} color="white" style={{ marginLeft: -18 }} />
+                <Text style={styles.skipFeedbackText}>-{skipCount * 10}s</Text>
+              </View>
+            </View>
+          )}
+
+          {skipFeedback === 'right' && (
+            <View style={[styles.skipFeedbackAbsolute, { right: '10%' }]} pointerEvents="none">
+              <View style={styles.skipFeedbackContainer}>
+                <Text style={styles.skipFeedbackText}>+{skipCount * 10}s</Text>
+                <Ionicons name="play-forward" size={36} color="white" />
+                <Ionicons name="play-forward" size={36} color="white" style={{ marginLeft: -18 }} />
+              </View>
+            </View>
+          )}
         </TouchableOpacity>
       )}
 
@@ -1313,103 +1414,110 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
               </TouchableOpacity>
             </View>
 
-            {/* Show Default option if using defaultStreamingUrl */}
-            {episodeDetail?.defaultStreamingUrl && (
-              <View style={{ marginBottom: 16 }}>
-                <Text
-                  style={[styles.qualityGroupTitle, { color: colors.text }]}
-                >
-                  Default
-                </Text>
-                <TouchableOpacity
-                  style={[
-                    styles.qualityItem,
-                    {
-                      backgroundColor:
-                        selectedQuality === "Default"
-                          ? colors.accent
-                          : colors.card,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                  onPress={() => {
-                    setSelectedQuality("Default");
-                    setSelectedServer(null);
-                    setCurrentVideoUrl(episodeDetail.defaultStreamingUrl);
-                    setShowQualityModal(false);
-                  }}
-                >
+            {/* Scrollable quality list */}
+            <ScrollView
+              showsVerticalScrollIndicator={true}
+              bounces={false}
+              contentContainerStyle={{ paddingBottom: 8 }}
+            >
+              {/* Show Default option if using defaultStreamingUrl */}
+              {episodeDetail?.defaultStreamingUrl && (
+                <View style={{ marginBottom: 16 }}>
                   <Text
+                    style={[styles.qualityGroupTitle, { color: colors.text }]}
+                  >
+                    Default
+                  </Text>
+                  <TouchableOpacity
                     style={[
-                      styles.qualityText,
+                      styles.qualityItem,
                       {
-                        color:
+                        backgroundColor:
                           selectedQuality === "Default"
-                            ? "#FFFFFF"
-                            : colors.text,
+                            ? colors.accent
+                            : colors.card,
+                        borderColor: colors.border,
                       },
                     ]}
+                    onPress={() => {
+                      setSelectedQuality("Default");
+                      setSelectedServer(null);
+                      setCurrentVideoUrl(episodeDetail.defaultStreamingUrl);
+                      setShowQualityModal(false);
+                    }}
                   >
-                    Default Server
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {episodeDetail?.serverqualities?.map((qualityGroup) => (
-              <View key={qualityGroup.title} style={{ marginBottom: 16 }}>
-                <Text
-                  style={[styles.qualityGroupTitle, { color: colors.text }]}
-                >
-                  {qualityGroup.title}
-                </Text>
-                {qualityGroup.serverList &&
-                qualityGroup.serverList.length > 0 ? (
-                  qualityGroup.serverList.map((server) => (
-                    <TouchableOpacity
-                      key={server.serverId}
+                    <Text
                       style={[
-                        styles.qualityItem,
+                        styles.qualityText,
                         {
-                          backgroundColor:
-                            selectedServer?.serverId === server.serverId
-                              ? colors.accent
-                              : colors.card,
-                          borderColor: colors.border,
+                          color:
+                            selectedQuality === "Default"
+                              ? "#FFFFFF"
+                              : colors.text,
                         },
                       ]}
-                      onPress={() => {
-                        changeQualityAndServer(qualityGroup.title, server);
-                        setShowQualityModal(false);
-                      }}
                     >
-                      <Text
+                      Default Server
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {episodeDetail?.serverqualities?.map((qualityGroup) => (
+                <View key={qualityGroup.title} style={{ marginBottom: 16 }}>
+                  <Text
+                    style={[styles.qualityGroupTitle, { color: colors.text }]}
+                  >
+                    {qualityGroup.title}
+                  </Text>
+                  {qualityGroup.serverList &&
+                  qualityGroup.serverList.length > 0 ? (
+                    qualityGroup.serverList.map((server) => (
+                      <TouchableOpacity
+                        key={server.serverId}
                         style={[
-                          styles.qualityText,
+                          styles.qualityItem,
                           {
-                            color:
+                            backgroundColor:
                               selectedServer?.serverId === server.serverId
-                                ? "#FFFFFF"
-                                : colors.text,
+                                ? colors.accent
+                                : colors.card,
+                            borderColor: colors.border,
                           },
                         ]}
+                        onPress={() => {
+                          changeQualityAndServer(qualityGroup.title, server);
+                          setShowQualityModal(false);
+                        }}
                       >
-                        {server.title}
-                      </Text>
-                    </TouchableOpacity>
-                  ))
-                ) : (
-                  <Text
-                    style={[
-                      styles.noServerText,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    Tidak ada server tersedia
-                  </Text>
-                )}
-              </View>
-            ))}
+                        <Text
+                          style={[
+                            styles.qualityText,
+                            {
+                              color:
+                                selectedServer?.serverId === server.serverId
+                                  ? "#FFFFFF"
+                                  : colors.text,
+                            },
+                          ]}
+                        >
+                          {server.title}
+                        </Text>
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <Text
+                      style={[
+                        styles.noServerText,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Tidak ada server tersedia
+                    </Text>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1455,6 +1563,29 @@ const styles = StyleSheet.create({
   controlsOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 10,
+  },
+  skipFeedbackAbsolute: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -30,
+    zIndex: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  skipFeedbackContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.45)",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 50,
+    gap: 2,
+  },
+  skipFeedbackText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "700",
+    marginHorizontal: 4,
   },
   topControls: {
     position: "absolute",
@@ -1567,6 +1698,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.6)",
+    paddingVertical: 40, // ensure modal never touches screen edges vertically
+    paddingHorizontal: 20,
   },
   absoluteFill: {
     position: "absolute",
@@ -1579,8 +1712,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     width: "85%",
-    maxWidth: 400,
-    maxHeight: "80%",
+    maxWidth: 420,
+    // Use flexShrink so the box shrinks to content but won't grow beyond screen
+    flexShrink: 1,
+    maxHeight: "100%", // overlay padding already controls the outer limit
     elevation: 10,
   },
   qualityGroupTitle: {
