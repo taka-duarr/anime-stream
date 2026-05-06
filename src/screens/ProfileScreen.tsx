@@ -13,14 +13,41 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 
 const ProfileScreen = ({ navigation }: any) => {
   const { colors, isDark, toggleTheme } = useTheme();
+  const { isAuthenticated, username, logout } = useAuth();
 
   const openURL = (url: string) => {
     Linking.openURL(url).catch((err) =>
       console.error("Failed to open URL:", err),
     );
+  };
+
+  // ============================================
+  // HANDLE LOGOUT
+  // ============================================
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      // Navigate to Login screen and clear back stack
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Login" }],
+      });
+    } catch (error) {
+      console.error("[PROFILE SCREEN] Logout failed:", error);
+    }
+  };
+
+  // ============================================
+  // HANDLE LOGIN
+  // ============================================
+
+  const handleLogin = () => {
+    navigation.navigate("Login");
   };
 
   const SettingItem = ({
@@ -98,12 +125,35 @@ const ProfileScreen = ({ navigation }: any) => {
             <Ionicons name="person" size={40} color="#FFF" />
           </View>
           <Text style={[styles.profileName, { color: colors.text }]}>
-            Anime Lover
+            {isAuthenticated ? username : "Anime Lover"}
           </Text>
           <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>
-            Guest User
+            {isAuthenticated ? "Pengguna Terdaftar" : "Guest User"}
           </Text>
         </View>
+
+        {/* ACCOUNT SECTION */}
+        {isAuthenticated ? (
+          <>
+            <SectionHeader title="ACCOUNT" />
+            <SettingItem
+              icon="log-out"
+              title="Logout"
+              subtitle="Keluar dari akun Anda"
+              onPress={handleLogout}
+            />
+          </>
+        ) : (
+          <>
+            <SectionHeader title="ACCOUNT" />
+            <SettingItem
+              icon="log-in"
+              title="Login"
+              subtitle="Masuk untuk menyimpan bookmark"
+              onPress={handleLogin}
+            />
+          </>
+        )}
 
         {/* APPEARANCE */}
         <SectionHeader title="APPEARANCE" />

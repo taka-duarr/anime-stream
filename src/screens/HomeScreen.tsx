@@ -21,6 +21,7 @@ import { Anime } from "../types/drama";
 import { StatusBar } from "expo-status-bar";
 import Swiper from "react-native-swiper";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 
 const isWeb = Platform.OS === "web";
@@ -42,6 +43,7 @@ const mapAnimeToDrama = (anime: any) => ({
 
 const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, isDark, toggleTheme } = useTheme();
+  const { isAuthenticated, username } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("ongoing");
   const [ongoingAnime, setOngoingAnime] = useState<Anime[]>([]);
   const [completedAnime, setCompletedAnime] = useState<Anime[]>([]);
@@ -531,7 +533,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <View style={styles.mobileWelcomeRow}>
             <View style={styles.mobileWelcomeTextCol}>
               <Text style={[styles.mobileWelcomeTitle, { color: colors.text }]}>
-                Halo Hasan
+                Halo {isAuthenticated && username ? username : "Guest"}
               </Text>
               <Text
                 style={[

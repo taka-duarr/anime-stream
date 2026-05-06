@@ -11,6 +11,7 @@ import {
   Dimensions,
   Platform,
   useWindowDimensions,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -24,10 +25,10 @@ import {
 } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "../context/AuthContext";
+import * as api from "../services/api";
 
 const { width, height } = Dimensions.get("window");
-const STORAGE_KEY = "@my_anime_list";
 
 export default function EpisodeScreen({ route, navigation }: any) {
   const { bookId, title } = route.params ?? {};
@@ -36,8 +37,10 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
+  const { isAuthenticated } = useAuth();
 
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
@@ -46,47 +49,99 @@ export default function EpisodeScreen({ route, navigation }: any) {
     if (!bookId) return;
     fetchData();
     checkBookmarkStatus();
-  }, [bookId]);
+  }, [bookId, isAuthenticated]);
+
+  // ============================================
+  // CHECK BOOKMARK STATUS FROM API
+  // ============================================
 
   const checkBookmarkStatus = async () => {
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const list = JSON.parse(stored);
-        const exists = list.some((item: any) => item.animeId === bookId);
-        setIsBookmarked(exists);
+      if (!isAuthenticated) {
+        setIsBookmarked(false);
+        return;
       }
+
+      console.log("[EPISODE SCREEN] Checking bookmark status for:", bookId);
+      const bookmarked = await api.isBookmarked(bookId);
+      setIsBookmarked(bookmarked);
+      console.log("[EPISODE SCREEN] Bookmark status:", bookmarked);
     } catch (error) {
-      console.error("Failed to check bookmark:", error);
+      console.error("[EPISODE SCREEN] Failed to check bookmark:", error);
+      setIsBookmarked(false);
     }
   };
 
+  // ============================================
+  // TOGGLE BOOKMARK WITH AUTHENTICATION CHECK
+  // ============================================
+
   const toggleBookmark = async () => {
+    // Check if user is authenticated
+    if (!isAuthenticated) {
+      // Show alert prompting login
+      Alert.alert(
+        "Login Diperlukan",
+        "Anda harus login untuk menyimpan bookmark",
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Login",
+            onPress: () => {
+              navigation.navigate("Login", {
+                returnTo: "Episode",
+                onLoginSuccess: async () => {
+                  // After login, complete the bookmark action
+                  await performBookmarkToggle();
+                },
+              });
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    // User is authenticated, proceed with bookmark
+    await performBookmarkToggle();
+  };
+
+  // ============================================
+  // PERFORM BOOKMARK TOGGLE
+  // ============================================
+
+  const performBookmarkToggle = async () => {
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      let list = stored ? JSON.parse(stored) : [];
+      setBookmarkLoading(true);
 
-      if (isBookmarked) {
-        // Remove from list
-        list = list.filter((item: any) => item.animeId !== bookId);
+      const bookmarkData: api.Bookmark = {
+        anime_id: detail?.animeId || bookId,
+        title: detail?.title || title,
+        poster: detail?.poster || "",
+      };
+
+      console.log("[EPISODE SCREEN] Toggling bookmark:", bookmarkData);
+      const newBookmarkStatus = await api.toggleBookmark(bookmarkData);
+      setIsBookmarked(newBookmarkStatus);
+
+      console.log(
+        "[EPISODE SCREEN] Bookmark toggled successfully:",
+        newBookmarkStatus,
+      );
+    } catch (error: any) {
+      console.error("[EPISODE SCREEN] Failed to toggle bookmark:", error);
+
+      // Handle token expiration
+      if (error.response?.status === 401) {
+        Alert.alert(
+          "Error",
+          "Sesi Anda telah berakhir. Silakan login kembali.",
+        );
       } else {
-        // Add to list
-        const bookmarkData = {
-          animeId: detail?.animeId || bookId,
-          title: detail?.title || title,
-          poster: detail?.poster,
-          score: detail?.score,
-          type: detail?.type,
-          totalEpisodes: detail?.totalEpisodes,
-          addedAt: new Date().toISOString(),
-        };
-        list.unshift(bookmarkData);
+        Alert.alert("Error", "Gagal menyimpan bookmark. Coba lagi.");
       }
-
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-      setIsBookmarked(!isBookmarked);
-    } catch (error) {
-      console.error("Failed to toggle bookmark:", error);
+    } finally {
+      setBookmarkLoading(false);
     }
   };
 
@@ -273,12 +328,17 @@ export default function EpisodeScreen({ route, navigation }: any) {
                 <TouchableOpacity
                   style={[styles.iconButton, { marginLeft: 10 }]}
                   onPress={toggleBookmark}
+                  disabled={bookmarkLoading}
                 >
-                  <Ionicons
-                    name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                    size={22}
-                    color={isBookmarked ? "#FF4757" : "#FFF"}
-                  />
+                  {bookmarkLoading ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Ionicons
+                      name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                      size={22}
+                      color={isBookmarked ? "#FF4757" : "#FFF"}
+                    />
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -413,12 +473,17 @@ export default function EpisodeScreen({ route, navigation }: any) {
                       },
                     ]}
                     onPress={toggleBookmark}
+                    disabled={bookmarkLoading}
                   >
-                    <Ionicons
-                      name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                      size={26}
-                      color={isBookmarked ? colors.accent : colors.text}
-                    />
+                    {bookmarkLoading ? (
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    ) : (
+                      <Ionicons
+                        name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                        size={26}
+                        color={isBookmarked ? colors.accent : colors.text}
+                      />
+                    )}
                   </TouchableOpacity>
                 </View>
 
@@ -469,12 +534,17 @@ export default function EpisodeScreen({ route, navigation }: any) {
                   <TouchableOpacity
                     style={[styles.iconButton, { marginLeft: 10 }]}
                     onPress={toggleBookmark}
+                    disabled={bookmarkLoading}
                   >
-                    <Ionicons
-                      name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                      size={22}
-                      color={isBookmarked ? "#FF4757" : "#FFF"}
-                    />
+                    {bookmarkLoading ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Ionicons
+                        name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                        size={22}
+                        color={isBookmarked ? "#FF4757" : "#FFF"}
+                      />
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -559,12 +629,17 @@ export default function EpisodeScreen({ route, navigation }: any) {
                   { backgroundColor: colors.card },
                 ]}
                 onPress={toggleBookmark}
+                disabled={bookmarkLoading}
               >
-                <Ionicons
-                  name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                  size={24}
-                  color={isBookmarked ? colors.accent : colors.text}
-                />
+                {bookmarkLoading ? (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                ) : (
+                  <Ionicons
+                    name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                    size={24}
+                    color={isBookmarked ? colors.accent : colors.text}
+                  />
+                )}
               </TouchableOpacity>
             </View>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>

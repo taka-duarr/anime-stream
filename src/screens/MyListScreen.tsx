@@ -8,19 +8,22 @@ import {
   ScrollView,
   useWindowDimensions,
   DimensionValue,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "../context/AuthContext";
+import * as api from "../services/api";
 
 const CARD_MARGIN = 8;
-const STORAGE_KEY = "@my_anime_list";
 
 const MyListScreen = ({ navigation }: any) => {
   const { colors, isDark } = useTheme();
+  const { isAuthenticated } = useAuth();
   const { width } = useWindowDimensions();
 
   let numColumns = 2;
@@ -34,6 +37,7 @@ const MyListScreen = ({ navigation }: any) => {
 
   const [myList, setMyList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     loadMyList();
@@ -44,40 +48,98 @@ const MyListScreen = ({ navigation }: any) => {
     });
 
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, isAuthenticated]);
+
+  // ============================================
+  // LOAD BOOKMARKS FROM API
+  // ============================================
 
   const loadMyList = async () => {
     try {
       setLoading(true);
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setMyList(parsed);
+      setError("");
+
+      // Check if user is authenticated
+      if (!isAuthenticated) {
+        setMyList([]);
+        setLoading(false);
+        return;
       }
-    } catch (error) {
-      console.error("Failed to load my list:", error);
+
+      // Fetch bookmarks from API
+      console.log("[MY LIST SCREEN] Fetching bookmarks from API");
+      const bookmarks = await api.getBookmarks();
+
+      // Transform bookmarks to match the expected format
+      const transformedList = bookmarks.map((bookmark) => ({
+        animeId: bookmark.anime_id,
+        title: bookmark.title,
+        poster: bookmark.poster,
+      }));
+
+      setMyList(transformedList);
+      console.log(
+        "[MY LIST SCREEN] Loaded",
+        transformedList.length,
+        "bookmarks",
+      );
+    } catch (error: any) {
+      console.error("[MY LIST SCREEN] Failed to load bookmarks:", error);
+
+      // Handle token expiration
+      if (error.response?.status === 401) {
+        setError("Sesi Anda telah berakhir. Silakan login kembali.");
+        // Note: AuthContext will handle logout and navigation
+      } else if (
+        error.code === "ECONNABORTED" ||
+        error.message?.includes("Network Error")
+      ) {
+        setError("Koneksi gagal. Periksa internet Anda.");
+      } else {
+        setError("Gagal memuat bookmark. Coba lagi.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // ============================================
+  // REMOVE BOOKMARK
+  // ============================================
+
   const removeFromList = async (animeId: string) => {
     try {
+      console.log("[MY LIST SCREEN] Removing bookmark:", animeId);
+
+      // Call API to delete bookmark
+      await api.deleteBookmark(animeId);
+
+      // Update local state
       const updated = myList.filter((item) => item.animeId !== animeId);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       setMyList(updated);
-    } catch (error) {
-      console.error("Failed to remove from list:", error);
+
+      console.log("[MY LIST SCREEN] Bookmark removed successfully");
+    } catch (error: any) {
+      console.error("[MY LIST SCREEN] Failed to remove bookmark:", error);
+
+      // Handle token expiration
+      if (error.response?.status === 401) {
+        Alert.alert(
+          "Error",
+          "Sesi Anda telah berakhir. Silakan login kembali.",
+        );
+      } else {
+        Alert.alert("Error", "Gagal menghapus bookmark. Coba lagi.");
+      }
     }
   };
 
-  const clearAll = async () => {
-    try {
-      await AsyncStorage.removeItem(STORAGE_KEY);
-      setMyList([]);
-    } catch (error) {
-      console.error("Failed to clear list:", error);
-    }
+  // ============================================
+  // HANDLE LOGIN NAVIGATION
+  // ============================================
+
+  const handleLogin = () => {
+    navigation.navigate("Login");
   };
 
   return (
@@ -93,13 +155,6 @@ const MyListScreen = ({ navigation }: any) => {
           <Text style={[styles.headerTitle, { color: colors.text }]}>
             My List
           </Text>
-          {myList.length > 0 && (
-            <TouchableOpacity onPress={clearAll} style={styles.clearButton}>
-              <Text style={[styles.clearButtonText, { color: colors.accent }]}>
-                Clear All
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
         {myList.length > 0 && (
           <Text
@@ -113,9 +168,67 @@ const MyListScreen = ({ navigation }: any) => {
       {/* CONTENT */}
       {loading ? (
         <View style={styles.center}>
-          <Text style={[styles.text, { color: colors.textSecondary }]}>
-            Memuat...
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text
+            style={[
+              styles.text,
+              { color: colors.textSecondary, marginTop: 12 },
+            ]}
+          >
+            Memuat bookmark...
           </Text>
+        </View>
+      ) : !isAuthenticated ? (
+        <View style={styles.center}>
+          <Ionicons
+            name="bookmark-outline"
+            size={64}
+            color={colors.textMuted}
+          />
+          <Text style={[styles.title, { color: colors.text }]}>
+            Login Diperlukan
+          </Text>
+          <Text style={[styles.text, { color: colors.textSecondary }]}>
+            Login untuk menyimpan anime favorit Anda
+          </Text>
+          <TouchableOpacity
+            style={[styles.exploreButton, { backgroundColor: colors.accent }]}
+            onPress={handleLogin}
+          >
+            <Ionicons
+              name="log-in-outline"
+              size={18}
+              color="#FFF"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.exploreButtonText}>Login</Text>
+          </TouchableOpacity>
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={colors.accent}
+          />
+          <Text style={[styles.title, { color: colors.text }]}>
+            Terjadi Kesalahan
+          </Text>
+          <Text style={[styles.text, { color: colors.textSecondary }]}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            style={[styles.exploreButton, { backgroundColor: colors.accent }]}
+            onPress={loadMyList}
+          >
+            <Ionicons
+              name="refresh-outline"
+              size={18}
+              color="#FFF"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.exploreButtonText}>Coba Lagi</Text>
+          </TouchableOpacity>
         </View>
       ) : myList.length === 0 ? (
         <View style={styles.center}>
@@ -254,6 +367,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
   },
   exploreButtonText: {
     color: "#FFF",

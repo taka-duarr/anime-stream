@@ -5,9 +5,20 @@ import axios from "axios";
 // ============================================
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_ANIME_API_BASE_URL || "";
+export const AUTH_API_BASE_URL =
+  process.env.EXPO_PUBLIC_AUTH_API_BASE_URL || "";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 30000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// Separate axios instance for auth API
+const authApi = axios.create({
+  baseURL: AUTH_API_BASE_URL,
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
@@ -578,4 +589,443 @@ export const resetCircuitBreaker = () => {
   consecutiveFailures = 0;
   circuitBreakerOpenUntil = 0;
   console.log("[CIRCUIT BREAKER] Reset");
+};
+
+// ============================================
+// AUTHENTICATION & TOKEN MANAGEMENT
+// ============================================
+
+let authToken: string | null = null;
+
+/**
+ * Set authentication token
+ * This token will be used for all protected endpoints
+ */
+export const setAuthToken = (token: string | null) => {
+  authToken = token;
+  if (token) {
+    authApi.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    console.log("[AUTH] Token set successfully");
+  } else {
+    delete authApi.defaults.headers.common["Authorization"];
+    console.log("[AUTH] Token cleared");
+  }
+};
+
+/**
+ * Get current authentication token
+ */
+export const getAuthToken = (): string | null => {
+  return authToken;
+};
+
+/**
+ * Check if user is authenticated
+ */
+export const isAuthenticated = (): boolean => {
+  return authToken !== null && authToken !== "";
+};
+
+// ============================================
+// AUTHENTICATION ENDPOINTS
+// ============================================
+
+/**
+ * REGISTER NEW USER
+ * Endpoint: POST /api/auth/register
+ * Body: { username: string, password: string }
+ * Returns: { message: string, user: { id, username } }
+ */
+export const register = async (username: string, password: string) => {
+  try {
+    console.log("[AUTH] Registering user:", username);
+    const response = await authApi.post("/api/auth/register", {
+      username,
+      password,
+    });
+    console.log("[AUTH] Registration successful");
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[AUTH ERROR] Registration failed:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
+ * LOGIN USER
+ * Endpoint: POST /api/auth/login
+ * Body: { username: string, password: string }
+ * Returns: { token: string, user: { id, username } }
+ */
+export const login = async (username: string, password: string) => {
+  try {
+    console.log("[AUTH] Logging in user:", username);
+    const response = await authApi.post("/api/auth/login", {
+      username,
+      password,
+    });
+    console.log("[AUTH] Login successful");
+
+    // Automatically set token after successful login
+    if (response.data.token) {
+      setAuthToken(response.data.token);
+    }
+
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[AUTH ERROR] Login failed:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
+ * LOGOUT USER
+ * Clears the authentication token
+ */
+export const logout = () => {
+  console.log("[AUTH] Logging out user");
+  setAuthToken(null);
+};
+
+// ============================================
+// BOOKMARK ENDPOINTS (PROTECTED)
+// ============================================
+
+export interface Bookmark {
+  anime_id: string;
+  title: string;
+  poster: string;
+  created_at?: string;
+}
+
+/**
+ * GET ALL BOOKMARKS
+ * Endpoint: GET /api/bookmarks/
+ * Requires: Authentication token
+ * Returns: Array of bookmarks
+ */
+export const getBookmarks = async (): Promise<Bookmark[]> => {
+  try {
+    if (!isAuthenticated()) {
+      throw new Error("User not authenticated. Please login first.");
+    }
+
+    console.log("[BOOKMARK] Fetching bookmarks");
+    const response = await authApi.get("/api/bookmarks/");
+
+    // Handle response structure: {bookmarks: [...]}
+    const bookmarks = response.data.bookmarks || response.data || [];
+    console.log("[BOOKMARK] Fetched", bookmarks.length || 0, "bookmarks");
+    return bookmarks;
+  } catch (error: any) {
+    console.error(
+      "[BOOKMARK ERROR] Failed to fetch bookmarks:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
+ * ADD BOOKMARK
+ * Endpoint: POST /api/bookmarks/
+ * Requires: Authentication token
+ * Body: { anime_id: string, title: string, poster: string }
+ * Returns: Created bookmark
+ */
+export const addBookmark = async (bookmark: Bookmark) => {
+  try {
+    if (!isAuthenticated()) {
+      throw new Error("User not authenticated. Please login first.");
+    }
+
+    console.log("[BOOKMARK] Adding bookmark:", bookmark.anime_id);
+    const response = await authApi.post("/api/bookmarks/", bookmark);
+    console.log("[BOOKMARK] Bookmark added successfully");
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[BOOKMARK ERROR] Failed to add bookmark:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
+ * DELETE BOOKMARK
+ * Endpoint: DELETE /api/bookmarks/:anime_id
+ * Requires: Authentication token
+ * Returns: Success message
+ */
+export const deleteBookmark = async (animeId: string) => {
+  try {
+    if (!isAuthenticated()) {
+      throw new Error("User not authenticated. Please login first.");
+    }
+
+    console.log("[BOOKMARK] Deleting bookmark:", animeId);
+    const response = await authApi.delete(`/api/bookmarks/${animeId}`);
+    console.log("[BOOKMARK] Bookmark deleted successfully");
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[BOOKMARK ERROR] Failed to delete bookmark:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
+ * CHECK IF ANIME IS BOOKMARKED
+ * Helper function to check if an anime is in bookmarks
+ */
+export const isBookmarked = async (animeId: string): Promise<boolean> => {
+  try {
+    if (!isAuthenticated()) {
+      return false;
+    }
+
+    const bookmarks = await getBookmarks();
+    return bookmarks.some((bookmark) => bookmark.anime_id === animeId);
+  } catch (error) {
+    console.error("[BOOKMARK ERROR] Failed to check bookmark status:", error);
+    return false;
+  }
+};
+
+/**
+ * TOGGLE BOOKMARK
+ * Helper function to add or remove bookmark
+ */
+export const toggleBookmark = async (bookmark: Bookmark): Promise<boolean> => {
+  try {
+    if (!isAuthenticated()) {
+      throw new Error("User not authenticated. Please login first.");
+    }
+
+    const bookmarked = await isBookmarked(bookmark.anime_id);
+
+    if (bookmarked) {
+      await deleteBookmark(bookmark.anime_id);
+      console.log("[BOOKMARK] Removed bookmark:", bookmark.anime_id);
+      return false; // Not bookmarked anymore
+    } else {
+      await addBookmark(bookmark);
+      console.log("[BOOKMARK] Added bookmark:", bookmark.anime_id);
+      return true; // Now bookmarked
+    }
+  } catch (error) {
+    console.error("[BOOKMARK ERROR] Failed to toggle bookmark:", error);
+    throw error;
+  }
+};
+
+// ============================================
+// TESTING UTILITIES
+// ============================================
+
+/**
+ * Test authentication endpoints
+ * This function tests register, login, and token management
+ */
+export const testAuthEndpoints = async () => {
+  console.log("\n========================================");
+  console.log("🧪 TESTING AUTHENTICATION ENDPOINTS");
+  console.log("========================================\n");
+
+  const testUsername = `testuser_${Date.now()}`;
+  const testPassword = "testpass123";
+
+  try {
+    // Test 1: Register
+    console.log("📝 Test 1: Register new user");
+    console.log(`Username: ${testUsername}`);
+    console.log(`Password: ${testPassword}`);
+    const registerResult = await register(testUsername, testPassword);
+    console.log("✅ Registration successful:", registerResult);
+    console.log("");
+
+    // Test 2: Login
+    console.log("🔐 Test 2: Login with credentials");
+    const loginResult = await login(testUsername, testPassword);
+    console.log("✅ Login successful");
+    console.log("Token:", loginResult.token?.substring(0, 20) + "...");
+    console.log("User:", loginResult.user);
+    console.log("");
+
+    // Test 3: Check authentication status
+    console.log("🔍 Test 3: Check authentication status");
+    console.log("Is authenticated:", isAuthenticated());
+    console.log("Has token:", getAuthToken() !== null);
+    console.log("");
+
+    // Test 4: Logout
+    console.log("🚪 Test 4: Logout");
+    logout();
+    console.log("Is authenticated after logout:", isAuthenticated());
+    console.log("");
+
+    console.log("========================================");
+    console.log("✅ ALL AUTHENTICATION TESTS PASSED");
+    console.log("========================================\n");
+
+    return {
+      success: true,
+      username: testUsername,
+      token: loginResult.token,
+    };
+  } catch (error: any) {
+    console.error("\n❌ AUTHENTICATION TEST FAILED");
+    console.error("Error:", error.response?.data || error.message);
+    console.log("========================================\n");
+    return {
+      success: false,
+      error: error.response?.data || error.message,
+    };
+  }
+};
+
+/**
+ * Test bookmark endpoints
+ * This function tests add, get, and delete bookmarks
+ * Requires: User must be logged in first
+ */
+export const testBookmarkEndpoints = async () => {
+  console.log("\n========================================");
+  console.log("🧪 TESTING BOOKMARK ENDPOINTS");
+  console.log("========================================\n");
+
+  if (!isAuthenticated()) {
+    console.error("❌ User not authenticated. Please login first.");
+    console.log("Run testAuthEndpoints() first to login.\n");
+    return { success: false, error: "Not authenticated" };
+  }
+
+  const testBookmark: Bookmark = {
+    anime_id: "naruto-shippuden",
+    title: "Naruto Shippuden",
+    poster: "https://example.com/naruto.jpg",
+  };
+
+  try {
+    // Test 1: Add bookmark
+    console.log("➕ Test 1: Add bookmark");
+    console.log("Anime ID:", testBookmark.anime_id);
+    console.log("Title:", testBookmark.title);
+    const addResult = await addBookmark(testBookmark);
+    console.log("✅ Bookmark added:", addResult);
+    console.log("");
+
+    // Test 2: Get all bookmarks
+    console.log("📋 Test 2: Get all bookmarks");
+    const bookmarks = await getBookmarks();
+    console.log("✅ Fetched bookmarks:", bookmarks.length, "items");
+    console.log("Bookmarks:", bookmarks);
+    console.log("");
+
+    // Test 3: Check if bookmarked
+    console.log("🔍 Test 3: Check if anime is bookmarked");
+    const bookmarked = await isBookmarked(testBookmark.anime_id);
+    console.log("Is bookmarked:", bookmarked);
+    console.log("");
+
+    // Test 4: Delete bookmark
+    console.log("🗑️  Test 4: Delete bookmark");
+    const deleteResult = await deleteBookmark(testBookmark.anime_id);
+    console.log("✅ Bookmark deleted:", deleteResult);
+    console.log("");
+
+    // Test 5: Verify deletion
+    console.log("✔️  Test 5: Verify deletion");
+    const bookmarksAfterDelete = await getBookmarks();
+    console.log(
+      "Bookmarks after delete:",
+      bookmarksAfterDelete.length,
+      "items",
+    );
+    const stillBookmarked = await isBookmarked(testBookmark.anime_id);
+    console.log("Is still bookmarked:", stillBookmarked);
+    console.log("");
+
+    // Test 6: Toggle bookmark (add)
+    console.log("🔄 Test 6: Toggle bookmark (add)");
+    const toggleAdd = await toggleBookmark(testBookmark);
+    console.log("Toggle result (should be true):", toggleAdd);
+    console.log("");
+
+    // Test 7: Toggle bookmark (remove)
+    console.log("🔄 Test 7: Toggle bookmark (remove)");
+    const toggleRemove = await toggleBookmark(testBookmark);
+    console.log("Toggle result (should be false):", toggleRemove);
+    console.log("");
+
+    console.log("========================================");
+    console.log("✅ ALL BOOKMARK TESTS PASSED");
+    console.log("========================================\n");
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("\n❌ BOOKMARK TEST FAILED");
+    console.error("Error:", error.response?.data || error.message);
+    console.log("========================================\n");
+    return {
+      success: false,
+      error: error.response?.data || error.message,
+    };
+  }
+};
+
+/**
+ * Run all tests
+ * This function runs both authentication and bookmark tests
+ */
+export const runAllTests = async () => {
+  console.log("\n🚀 STARTING ALL API TESTS\n");
+
+  // Test authentication first
+  const authTest = await testAuthEndpoints();
+
+  if (!authTest.success) {
+    console.error("❌ Authentication tests failed. Skipping bookmark tests.\n");
+    return { success: false, authTest };
+  }
+
+  // Login again for bookmark tests
+  console.log("🔐 Logging in for bookmark tests...");
+  if (authTest.token) {
+    setAuthToken(authTest.token);
+  }
+
+  // Test bookmarks
+  const bookmarkTest = await testBookmarkEndpoints();
+
+  // Cleanup: logout
+  logout();
+
+  console.log("\n========================================");
+  console.log("🏁 ALL TESTS COMPLETED");
+  console.log("========================================");
+  console.log(
+    "Authentication tests:",
+    authTest.success ? "✅ PASSED" : "❌ FAILED",
+  );
+  console.log(
+    "Bookmark tests:",
+    bookmarkTest.success ? "✅ PASSED" : "❌ FAILED",
+  );
+  console.log("========================================\n");
+
+  return {
+    success: authTest.success && bookmarkTest.success,
+    authTest,
+    bookmarkTest,
+  };
 };

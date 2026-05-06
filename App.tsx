@@ -19,6 +19,8 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import HomeScreen from "./src/screens/HomeScreen";
 import MyListScreen from "./src/screens/MyListScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
+import LoginScreen from "./src/screens/LoginScreen";
+import RegisterScreen from "./src/screens/RegisterScreen";
 import EpisodeScreen from "./src/screens/EpisodeScreen";
 import VideoScreen from "./src/screens/VideoScreenWebView";
 import SearchScreen from "./src/screens/SearchScreen";
@@ -26,6 +28,7 @@ import AnimeListScreen from "./src/screens/AnimeListScreen";
 import GenreListScreen from "./src/screens/GenreListScreen";
 import GenreAnimeScreen from "./src/screens/GenreAnimeScreen";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
+import { AuthProvider } from "./src/context/AuthContext";
 import { WebSidebar } from "./src/components/WebSidebar";
 
 const Stack = createNativeStackNavigator();
@@ -162,6 +165,8 @@ const MainTabNavigator = () => (
 const AppNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Main" component={MainTabNavigator} />
+    <Stack.Screen name="Login" component={LoginScreen} />
+    <Stack.Screen name="Register" component={RegisterScreen} />
     <Stack.Screen name="Search" component={SearchScreen} />
     <Stack.Screen name="AnimeList" component={AnimeListScreen} />
     <Stack.Screen name="GenreList" component={GenreListScreen} />
@@ -226,7 +231,9 @@ const MobileLayout = () => (
 
 export default function App() {
   return (
-    <ThemeProvider>{isWeb ? <WebLayout /> : <MobileLayout />}</ThemeProvider>
+    <ThemeProvider>
+      <AuthProvider>{isWeb ? <WebLayout /> : <MobileLayout />}</AuthProvider>
+    </ThemeProvider>
   );
 }
 
