@@ -57,7 +57,7 @@ export const WebSidebar: React.FC<WebSidebarProps> = ({
             contentFit="contain"
           />
           <Image
-            source={require("../../assets/logo2.png")}
+            source={require("../../assets/nganime.png")}
             style={styles.logoTwo} // Style khusus logo 2
             contentFit="contain"
           />

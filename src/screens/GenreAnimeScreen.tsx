@@ -42,6 +42,12 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
+  // Calculate numColumns based on window width
+  let numColumns = 2;
+  if (width >= 1200) numColumns = 5;
+  else if (width >= 900) numColumns = 4;
+  else if (width >= 600) numColumns = 3;
+
   const fetchAnime = async (page: number, isRefresh: boolean = false) => {
     if (loading || loadingMore) return;
 
@@ -116,7 +122,13 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
   const renderAnimeItem = ({ item, index }: { item: Anime; index: number }) => {
     return (
       <TouchableOpacity
-        style={[styles.card, { backgroundColor: colors.card }]}
+        style={[
+          styles.card,
+          {
+            backgroundColor: colors.card,
+            width: `${100 / numColumns}%` as any,
+          },
+        ]}
         activeOpacity={0.8}
         onPress={() =>
           navigation.navigate("Episode", {
@@ -249,8 +261,8 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
           data={animeList}
           renderItem={renderAnimeItem}
           keyExtractor={(item, index) => `${item.animeId}-${index}`}
-          numColumns={2}
-          key="genre-anime-2-columns"
+          numColumns={numColumns}
+          key={`genre-anime-${numColumns}-columns`}
           contentContainerStyle={styles.listContent}
           columnWrapperStyle={styles.columnWrapper}
           showsVerticalScrollIndicator={false}
@@ -313,16 +325,13 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   columnWrapper: {
-    justifyContent: "space-between",
-    paddingHorizontal: 4,
+    justifyContent: "flex-start",
   },
   card: {
-    flex: 1,
-    maxWidth: "48%",
     borderRadius: 10,
     overflow: "hidden",
     marginBottom: 16,
-    marginHorizontal: 4,
+    padding: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,

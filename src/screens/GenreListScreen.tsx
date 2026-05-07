@@ -65,6 +65,34 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
     fetchGenres(true);
   };
 
+  const getGenreIcon = (title: string): any => {
+    const t = title.toLowerCase();
+    if (t.includes("action") || t.includes("aksi")) return "flame-outline";
+    if (t.includes("adventure") || t.includes("petualangan")) return "compass-outline";
+    if (t.includes("comedy") || t.includes("komedi")) return "happy-outline";
+    if (t.includes("drama")) return "people-outline";
+    if (t.includes("fantasy") || t.includes("fantasi")) return "sparkles-outline";
+    if (t.includes("romance") || t.includes("romantis")) return "heart-outline";
+    if (t.includes("sci-fi") || t.includes("science fiction")) return "planet-outline";
+    if (t.includes("slice of life")) return "cafe-outline";
+    if (t.includes("mystery") || t.includes("misteri")) return "search-outline";
+    if (t.includes("horror") || t.includes("horor")) return "skull-outline";
+    if (t.includes("psychological") || t.includes("psikologi")) return "pulse-outline";
+    if (t.includes("mecha")) return "hardware-chip-outline";
+    if (t.includes("sports") || t.includes("olahraga")) return "baseball-outline";
+    if (t.includes("supernatural") || t.includes("supranatural")) return "moon-outline";
+    if (t.includes("thriller")) return "alert-circle-outline";
+    if (t.includes("music") || t.includes("musik")) return "musical-notes-outline";
+    if (t.includes("magic") || t.includes("sihir")) return "color-wand-outline";
+    if (t.includes("game") || t.includes("permainan")) return "game-controller-outline";
+    if (t.includes("martial arts") || t.includes("bela diri")) return "fitness-outline";
+    if (t.includes("school") || t.includes("sekolah")) return "school-outline";
+    if (t.includes("historical") || t.includes("sejarah")) return "hourglass-outline";
+    if (t.includes("military") || t.includes("militer")) return "shield-outline";
+    
+    return "film-outline";
+  };
+
   const renderGenreItem = ({ item }: { item: Genre }) => {
     return (
       <TouchableOpacity
@@ -84,7 +112,7 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
       >
         {/* Icon Section (Left) */}
         <View style={styles.iconContainer}>
-          <Ionicons name="film-outline" size={32} color={colors.accent} />
+          <Ionicons name={getGenreIcon(item.title)} size={32} color={colors.accent} />
         </View>
 
         {/* Title Section (Center) */}
