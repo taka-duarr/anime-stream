@@ -959,13 +959,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     padding: 4,
   },
-  columnWrapper: {
-    // flex-start so cards in the last row don't spread apart
-    justifyContent: "flex-start",
-  },
-  listContent: {
-    paddingBottom: 100,
-  },
   cardImageWrap: {
     width: "100%",
     aspectRatio: 3 / 4,

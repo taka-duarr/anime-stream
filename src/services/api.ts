@@ -1029,3 +1029,245 @@ export const runAllTests = async () => {
     bookmarkTest,
   };
 };
+
+// ============================================
+// COMMENT ENDPOINTS
+// ============================================
+
+export interface Comment {
+  id: number;
+  user_id?: number;
+  username?: string; // Flat structure (optional for backward compatibility)
+  profile_picture?: string;
+  anime_id: string;
+  content: string;
+  parent_id?: number;
+  created_at: string;
+  updated_at?: string;
+  user?: {
+    // Nested structure from server
+    id: number;
+    username: string;
+    profile_picture?: string;
+  };
+  replies?: Comment[];
+}
+
+/**
+ * GET COMMENTS FOR ANIME
+ * Endpoint: GET /api/comments/:anime_id
+ * Public endpoint - no authentication required
+ * Returns: Array of comments with nested replies
+ */
+export const getComments = async (animeId: string): Promise<Comment[]> => {
+  try {
+    console.log("[COMMENTS] Fetching comments for anime:", animeId);
+    const response = await authApi.get(`/api/comments/${animeId}`);
+
+    console.log(
+      "[COMMENTS] Raw response:",
+      JSON.stringify(response.data, null, 2),
+    );
+
+    const rawComments = response.data.comments || response.data || [];
+    console.log("[COMMENTS] Fetched", rawComments.length, "comments");
+
+    // Transform comments to flatten user data
+    const transformComment = (comment: any): Comment => {
+      const transformed: Comment = {
+        ...comment,
+        // Flatten user data if it exists in nested structure
+        username: comment.username || comment.user?.username || "Anonymous",
+        user_id: comment.user_id || comment.user?.id,
+        profile_picture:
+          comment.profile_picture || comment.user?.profile_picture,
+      };
+
+      // Transform replies recursively
+      if (comment.replies && comment.replies.length > 0) {
+        transformed.replies = comment.replies.map(transformComment);
+      }
+
+      return transformed;
+    };
+
+    const comments = rawComments.map(transformComment);
+
+    if (comments.length > 0) {
+      console.log(
+        "[COMMENTS] First comment after transform:",
+        JSON.stringify(comments[0], null, 2),
+      );
+      console.log("[COMMENTS] First comment username:", comments[0].username);
+      console.log("[COMMENTS] First comment user_id:", comments[0].user_id);
+    }
+
+    return comments;
+  } catch (error: any) {
+    console.error(
+      "[COMMENTS ERROR] Failed to fetch comments:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
+ * ADD COMMENT
+ * Endpoint: POST /api/comments/
+ * Requires: Authentication token
+ * Body: { anime_id: string, content: string, parent_id?: number }
+ * Returns: Created comment
+ */
+export const addComment = async (
+  animeId: string,
+  content: string,
+  parentId?: number,
+): Promise<Comment> => {
+  try {
+    if (!isAuthenticated()) {
+      throw new Error("User not authenticated. Please login first.");
+    }
+
+    console.log("[COMMENTS] Adding comment for anime:", animeId);
+    const body: any = { anime_id: animeId, content };
+    if (parentId) {
+      body.parent_id = parentId;
+    }
+
+    const response = await authApi.post("/api/comments/", body);
+    console.log("[COMMENTS] Comment added successfully");
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[COMMENTS ERROR] Failed to add comment:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
+ * EDIT COMMENT
+ * Endpoint: PUT /api/comments/:id
+ * Requires: Authentication token (only own comments)
+ * Body: { content: string }
+ * Returns: Updated comment
+ */
+export const editComment = async (
+  commentId: number,
+  content: string,
+): Promise<Comment> => {
+  try {
+    if (!isAuthenticated()) {
+      throw new Error("User not authenticated. Please login first.");
+    }
+
+    console.log("[COMMENTS] Editing comment:", commentId);
+    const response = await authApi.put(`/api/comments/${commentId}`, {
+      content,
+    });
+    console.log("[COMMENTS] Comment edited successfully");
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[COMMENTS ERROR] Failed to edit comment:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
+ * DELETE COMMENT
+ * Endpoint: DELETE /api/comments/:id
+ * Requires: Authentication token (only own comments)
+ * Deletes comment and all its replies
+ * Returns: Success message
+ */
+export const deleteComment = async (commentId: number): Promise<any> => {
+  try {
+    if (!isAuthenticated()) {
+      throw new Error("User not authenticated. Please login first.");
+    }
+
+    console.log("[COMMENTS] Deleting comment:", commentId);
+    const response = await authApi.delete(`/api/comments/${commentId}`);
+    console.log("[COMMENTS] Comment deleted successfully");
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[COMMENTS ERROR] Failed to delete comment:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+// ============================================
+// USER PROFILE ENDPOINTS
+// ============================================
+
+/**
+ * UPLOAD PROFILE PICTURE
+ * Endpoint: POST /api/users/profile-picture
+ * Requires: Authentication token
+ * Request: multipart/form-data with key 'profile_picture'
+ * Returns: { message: string, profile_picture: string }
+ */
+export const uploadProfilePicture = async (imageUri: string): Promise<any> => {
+  try {
+    if (!isAuthenticated()) {
+      throw new Error("User not authenticated. Please login first.");
+    }
+
+    console.log("[PROFILE] Uploading profile picture");
+
+    // Create FormData
+    const formData = new FormData();
+
+    // Extract filename from URI
+    const filename = imageUri.split("/").pop() || "profile.jpg";
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : "image/jpeg";
+
+    // Append image to FormData
+    formData.append("profile_picture", {
+      uri: imageUri,
+      name: filename,
+      type: type,
+    } as any);
+
+    // Make request with multipart/form-data
+    const response = await authApi.post(
+      "/api/users/profile-picture",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      },
+    );
+
+    console.log("[PROFILE] Profile picture uploaded successfully");
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[PROFILE ERROR] Failed to upload profile picture:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
+ * GET PROFILE PICTURE URL
+ * Helper function to construct profile picture URL
+ */
+export const getProfilePictureUrl = (filename: string): string => {
+  if (!filename) return "";
+  // If filename is already a full URL, return it
+  if (filename.startsWith("http")) return filename;
+  // Otherwise, construct URL
+  return `${AUTH_API_BASE_URL}/uploads/profiles/${filename}`;
+};

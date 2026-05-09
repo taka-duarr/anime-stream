@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,16 +8,32 @@ import {
   TouchableOpacity,
   Switch,
   Linking,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
+import * as api from "../services/api";
 
 const ProfileScreen = ({ navigation }: any) => {
   const { colors, isDark, toggleTheme } = useTheme();
   const { isAuthenticated, username, logout } = useAuth();
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+
+  useEffect(() => {
+    // Load profile picture if user is authenticated
+    if (isAuthenticated && username) {
+      // Profile picture URL would be stored in user data
+      // For now, we'll use a placeholder
+      // TODO: Fetch user profile data including profile picture
+    }
+  }, [isAuthenticated, username]);
 
   const openURL = (url: string) => {
     Linking.openURL(url).catch((err) =>
@@ -48,6 +64,76 @@ const ProfileScreen = ({ navigation }: any) => {
 
   const handleLogin = () => {
     navigation.navigate("Login");
+  };
+
+  // ============================================
+  // HANDLE PROFILE PICTURE UPLOAD
+  // ============================================
+
+  const handleUploadProfilePicture = async () => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        "Login Diperlukan",
+        "Anda harus login untuk mengubah foto profil",
+      );
+      return;
+    }
+
+    try {
+      // Request permission
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permissionResult.granted) {
+        Alert.alert(
+          "Izin Diperlukan",
+          "Aplikasi memerlukan izin untuk mengakses galeri foto Anda",
+        );
+        return;
+      }
+
+      // Pick image
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      // Upload image
+      setUploadingPicture(true);
+      const imageUri = result.assets[0].uri;
+
+      console.log("[PROFILE] Uploading image:", imageUri);
+      const response = await api.uploadProfilePicture(imageUri);
+
+      // Update profile picture URL
+      const pictureUrl = api.getProfilePictureUrl(response.profile_picture);
+      setProfilePicture(pictureUrl);
+
+      Alert.alert("Sukses", "Foto profil berhasil diubah");
+    } catch (error: any) {
+      console.error("[PROFILE] Failed to upload profile picture:", error);
+
+      if (error.response?.status === 401) {
+        Alert.alert(
+          "Error",
+          "Sesi Anda telah berakhir. Silakan login kembali.",
+        );
+      } else {
+        Alert.alert(
+          "Error",
+          "Gagal mengubah foto profil. Coba lagi.\n" +
+            (error.response?.data?.error || error.message || ""),
+        );
+      }
+    } finally {
+      setUploadingPicture(false);
+    }
   };
 
   const SettingItem = ({
@@ -121,15 +207,40 @@ const ProfileScreen = ({ navigation }: any) => {
       >
         {/* PROFILE CARD */}
         <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
-          <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-            <Ionicons name="person" size={40} color="#FFF" />
-          </View>
+          <TouchableOpacity
+            style={[styles.avatar, { backgroundColor: colors.accent }]}
+            onPress={handleUploadProfilePicture}
+            disabled={!isAuthenticated || uploadingPicture}
+            activeOpacity={0.8}
+          >
+            {uploadingPicture ? (
+              <ActivityIndicator size="large" color="#FFF" />
+            ) : profilePicture ? (
+              <Image
+                source={{ uri: profilePicture }}
+                style={styles.avatarImage}
+                contentFit="cover"
+              />
+            ) : (
+              <Ionicons name="person" size={40} color="#FFF" />
+            )}
+            {isAuthenticated && !uploadingPicture && (
+              <View style={styles.avatarEditBadge}>
+                <Ionicons name="camera" size={16} color="#FFF" />
+              </View>
+            )}
+          </TouchableOpacity>
           <Text style={[styles.profileName, { color: colors.text }]}>
             {isAuthenticated ? username : "Anime Lover"}
           </Text>
           <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>
             {isAuthenticated ? "Pengguna Terdaftar" : "Guest User"}
           </Text>
+          {isAuthenticated && (
+            <Text style={[styles.profileHint, { color: colors.textMuted }]}>
+              Tap foto untuk mengubah
+            </Text>
+          )}
         </View>
 
         {/* ACCOUNT SECTION */}
@@ -277,6 +388,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
+    position: "relative",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  avatarEditBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   profileName: {
     fontSize: 20,
@@ -285,6 +413,11 @@ const styles = StyleSheet.create({
   },
   profileEmail: {
     fontSize: 14,
+  },
+  profileHint: {
+    fontSize: 12,
+    marginTop: 8,
+    fontStyle: "italic",
   },
   sectionHeader: {
     fontSize: 12,

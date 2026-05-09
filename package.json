@@ -29,6 +29,7 @@
     "expo": "~54.0.33",
     "expo-av": "~16.0.8",
     "expo-image": "~3.0.11",
+    "expo-image-picker": "^55.0.20",
     "expo-keep-awake": "~15.0.8",
     "expo-linear-gradient": "~15.0.8",
     "expo-screen-orientation": "~9.0.8",

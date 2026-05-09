@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -27,6 +26,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
+import EpisodeList from "../components/EpisodeList";
+import CommentSection from "../components/CommentSection";
 
 const { width, height } = Dimensions.get("window");
 
@@ -682,65 +683,46 @@ export default function EpisodeScreen({ route, navigation }: any) {
         translucent
       />
 
-      <FlatList
-        key="list"
-        data={episodes}
-        keyExtractor={(item) => item.chapterId}
-        contentContainerStyle={{
-          paddingBottom: 100,
-          paddingHorizontal: isDesktop ? 24 : 0,
-        }}
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={renderHeader}
-        renderItem={({ item, index }) => (
-          <View style={styles.listPaddingWrapper}>
-            <TouchableOpacity
-              style={[
-                styles.episodeCardVertical,
-                { backgroundColor: colors.card },
-              ]}
-              activeOpacity={0.8}
-              onPress={() =>
-                navigation.navigate("Video", {
-                  episode: item,
-                  episodes,
-                  animeId: bookId,
-                })
-              }
-            >
-              <View style={styles.episodeImageWrapperVert}>
-                <Image
-                  source={{ uri: item.chapterImg || detail?.poster }}
-                  style={styles.episodeImageVertical}
-                />
-                <View style={styles.episodeDurationBadge}>
-                  <Text style={styles.episodeDurationText}>
-                    {item.duration || "N/A"}
-                  </Text>
-                </View>
-              </View>
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
+        {/* Header Section */}
+        {renderHeader()}
 
-              <View style={styles.episodeInfoVert}>
-                <Text
-                  style={[styles.episodeCardTitle, { color: colors.text }]}
-                  numberOfLines={1}
-                >
-                  {item.chapterName}
-                </Text>
-                <Text
-                  style={[
-                    styles.episodeCardSubtitle,
-                    { color: colors.textSecondary },
-                  ]}
-                  numberOfLines={2}
-                >
-                  {item.releaseTime || "Release date unknown"}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        )}
-      />
+        {/* Episode List Section with Separate Scroll */}
+        <View
+          style={[
+            styles.episodeHeader,
+            isDesktop && { paddingHorizontal: 32, marginTop: 10 },
+          ]}
+        >
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: colors.text, fontSize: isDesktop ? 22 : 18 },
+            ]}
+          >
+            Episodes ({episodes.length})
+          </Text>
+        </View>
+
+        <EpisodeList
+          episodes={episodes}
+          posterUrl={detail?.poster}
+          onEpisodePress={(episode) =>
+            navigation.navigate("Video", {
+              episode,
+              episodes,
+              animeId: bookId,
+            })
+          }
+          maxHeight={400}
+        />
+
+        {/* Comment Section */}
+        <CommentSection animeId={bookId} navigation={navigation} />
+      </ScrollView>
     </View>
   );
 }
@@ -918,55 +900,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
-  },
-  episodeCardVertical: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    backgroundColor: "#F9FAFB",
-    padding: 10,
-    borderRadius: 12,
-  },
-  episodeImageWrapperVert: {
-    width: 120,
-    height: 70,
-    borderRadius: 8,
-    overflow: "hidden",
-    marginRight: 14,
-  },
-  episodeImageVertical: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  },
-  episodeInfoVert: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  episodeDurationBadge: {
-    position: "absolute",
-    bottom: 4,
-    right: 4,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  episodeDurationText: {
-    color: "#FFF",
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  episodeCardTitle: {
-    fontSize: 15,
-    fontWeight: "bold",
-    color: "#001F3F",
-    marginBottom: 4,
-  },
-  episodeCardSubtitle: {
-    fontSize: 13,
-    color: "#6B7280",
-    lineHeight: 18,
+    paddingHorizontal: 16,
   },
   listPaddingWrapper: {
     paddingHorizontal: 16,
