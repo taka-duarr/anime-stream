@@ -27,12 +27,23 @@ const ProfileScreen = ({ navigation }: any) => {
   const [uploadingPicture, setUploadingPicture] = useState(false);
 
   useEffect(() => {
-    // Load profile picture if user is authenticated
-    if (isAuthenticated && username) {
-      // Profile picture URL would be stored in user data
-      // For now, we'll use a placeholder
-      // TODO: Fetch user profile data including profile picture
-    }
+    const fetchProfile = async () => {
+      if (isAuthenticated && username) {
+        try {
+          const response = await api.getProfile();
+          if (response.user?.profile_picture) {
+            const pictureUrl = api.getProfilePictureUrl(
+              response.user.profile_picture,
+            );
+            setProfilePicture(pictureUrl);
+          }
+        } catch (error) {
+          console.error("[PROFILE SCREEN] Failed to fetch profile:", error);
+        }
+      }
+    };
+
+    fetchProfile();
   }, [isAuthenticated, username]);
 
   const openURL = (url: string) => {

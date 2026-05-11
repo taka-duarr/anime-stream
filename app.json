@@ -15,7 +15,10 @@
         "backgroundColor": "#FF4757"
       },
       "usesCleartextTraffic": true,
-      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
     },
     "ios": {
       "supportsTablet": true,
@@ -24,10 +27,12 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-video"],
+    "plugins": [
+      "expo-video"
+    ],
     "extra": {
       "eas": {
-        "projectId": "a12e763e-fbed-4ba5-8854-a73daade4a48"
+        "projectId": "de8c0b27-e0f7-4f65-b89b-1e02b25fa5c4"
       }
     }
   }

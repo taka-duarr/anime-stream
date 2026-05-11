@@ -1,4 +1,5 @@
 import axios from "axios";
+import { Platform } from "react-native";
 
 // ============================================
 // ANIME API CONFIGURATION
@@ -20,9 +21,6 @@ const api = axios.create({
 const authApi = axios.create({
   baseURL: AUTH_API_BASE_URL,
   timeout: 30000,
-  headers: {
-    "Content-Type": "application/json",
-  },
 });
 
 // ============================================
@@ -1209,6 +1207,30 @@ export const deleteComment = async (commentId: number): Promise<any> => {
 // ============================================
 
 /**
+ * GET CURRENT USER PROFILE
+ * Endpoint: GET /api/users/profile
+ * Requires: Authentication token
+ * Returns: { user: { id, username, profile_picture } }
+ */
+export const getProfile = async () => {
+  try {
+    if (!isAuthenticated()) {
+      throw new Error("User not authenticated. Please login first.");
+    }
+
+    console.log("[PROFILE] Fetching current user profile");
+    const response = await authApi.get("/api/users/profile");
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[PROFILE ERROR] Failed to fetch profile:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
  * UPLOAD PROFILE PICTURE
  * Endpoint: POST /api/users/profile-picture
  * Requires: Authentication token
@@ -1223,29 +1245,48 @@ export const uploadProfilePicture = async (imageUri: string): Promise<any> => {
 
     console.log("[PROFILE] Uploading profile picture");
 
-    // Create FormData
+    // 3. Create upload directory if not exists (Handled by backend)
+    
+    // 4. Create FormData
     const formData = new FormData();
 
-    // Extract filename from URI
-    const filename = imageUri.split("/").pop() || "profile.jpg";
-    const match = /\.(\w+)$/.exec(filename);
-    const type = match ? `image/${match[1]}` : "image/jpeg";
+    // Extract extension and ensure it's valid for the backend
+    let filename = imageUri.split("/").pop() || "profile.jpg";
+    if (!filename.includes(".")) {
+      filename += ".jpg"; // Default extension if missing
+    }
 
-    // Append image to FormData
-    formData.append("profile_picture", {
-      uri: imageUri,
-      name: filename,
-      type: type,
-    } as any);
+    // 5. Append image to FormData (Handle Web vs Mobile)
+    if (Platform.OS === "web" && imageUri.startsWith("blob:")) {
+      // On Web, we need to fetch the blob to send it properly
+      const blobResponse = await fetch(imageUri);
+      const blob = await blobResponse.blob();
+      
+      // Force a valid filename with extension for the backend
+      let extension = blob.type.split("/")[1] || "jpg";
+      if (extension === "jpeg") extension = "jpg";
+      const finalFilename = `profile_${Date.now()}.${extension}`;
+      
+      formData.append("profile_picture", blob, finalFilename);
+    } else {
+      // On Mobile (iOS/Android), use the URI object format
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : "image/jpeg";
 
-    // Make request with multipart/form-data
+      formData.append("profile_picture", {
+        uri: imageUri, // Keep full uri including file:// for both iOS and Android
+        name: filename,
+        type: type,
+      } as any);
+    }
+
+    // 6. Make request
     const response = await authApi.post(
       "/api/users/profile-picture",
       formData,
       {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+        headers: Platform.OS !== "web" ? { "Content-Type": "multipart/form-data" } : {},
+        transformRequest: (data) => data,
       },
     );
 
@@ -1264,10 +1305,18 @@ export const uploadProfilePicture = async (imageUri: string): Promise<any> => {
  * GET PROFILE PICTURE URL
  * Helper function to construct profile picture URL
  */
-export const getProfilePictureUrl = (filename: string): string => {
-  if (!filename) return "";
-  // If filename is already a full URL, return it
-  if (filename.startsWith("http")) return filename;
+export const getProfilePictureUrl = (path: string): string => {
+  if (!path) return "";
+  // If path is already a full URL, return it
+  if (path.startsWith("http")) return path;
+  
+  const baseUrl = AUTH_API_BASE_URL.replace(/\/$/, "");
+  
+  // If path already starts with / (e.g. /uploads/profiles/...), just append
+  if (path.startsWith("/")) {
+    return `${baseUrl}${path}`;
+  }
+  
   // Otherwise, construct URL
-  return `${AUTH_API_BASE_URL}/uploads/profiles/${filename}`;
+  return `${baseUrl}/uploads/profiles/${path}`;
 };

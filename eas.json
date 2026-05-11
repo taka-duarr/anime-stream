@@ -12,6 +12,10 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_ANIME_API_BASE_URL": "https://www.sankavollerei.com/anime",
+        "EXPO_PUBLIC_AUTH_API_BASE_URL": "https://nganimeapi.zatwasdead.my.id"
       }
     },
     "production": {
