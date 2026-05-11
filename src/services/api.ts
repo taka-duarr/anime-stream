@@ -1246,7 +1246,7 @@ export const uploadProfilePicture = async (imageUri: string): Promise<any> => {
     console.log("[PROFILE] Uploading profile picture");
 
     // 3. Create upload directory if not exists (Handled by backend)
-    
+
     // 4. Create FormData
     const formData = new FormData();
 
@@ -1261,13 +1261,15 @@ export const uploadProfilePicture = async (imageUri: string): Promise<any> => {
       // On Web, we need to fetch the blob to send it properly
       const blobResponse = await fetch(imageUri);
       const blob = await blobResponse.blob();
-      
+
       // Force a valid filename with extension for the backend
       let extension = blob.type.split("/")[1] || "jpg";
       if (extension === "jpeg") extension = "jpg";
       const finalFilename = `profile_${Date.now()}.${extension}`;
-      
-      formData.append("profile_picture", blob, finalFilename);
+
+      // FIX: Use File constructor for web (FormData.append only accepts 2 params in RN)
+      const file = new File([blob], finalFilename, { type: blob.type });
+      formData.append("profile_picture", file);
     } else {
       // On Mobile (iOS/Android), use the URI object format
       const match = /\.(\w+)$/.exec(filename);
@@ -1285,7 +1287,10 @@ export const uploadProfilePicture = async (imageUri: string): Promise<any> => {
       "/api/users/profile-picture",
       formData,
       {
-        headers: Platform.OS !== "web" ? { "Content-Type": "multipart/form-data" } : {},
+        headers:
+          Platform.OS !== "web"
+            ? { "Content-Type": "multipart/form-data" }
+            : {},
         transformRequest: (data) => data,
       },
     );
@@ -1309,14 +1314,14 @@ export const getProfilePictureUrl = (path: string): string => {
   if (!path) return "";
   // If path is already a full URL, return it
   if (path.startsWith("http")) return path;
-  
+
   const baseUrl = AUTH_API_BASE_URL.replace(/\/$/, "");
-  
+
   // If path already starts with / (e.g. /uploads/profiles/...), just append
   if (path.startsWith("/")) {
     return `${baseUrl}${path}`;
   }
-  
+
   // Otherwise, construct URL
   return `${baseUrl}/uploads/profiles/${path}`;
 };

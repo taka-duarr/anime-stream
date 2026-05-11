@@ -10,6 +10,7 @@ import {
   Linking,
   Alert,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -25,6 +26,7 @@ const ProfileScreen = ({ navigation }: any) => {
   const { isAuthenticated, username, logout } = useAuth();
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [uploadingPicture, setUploadingPicture] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -301,27 +303,19 @@ const ProfileScreen = ({ navigation }: any) => {
           icon="information-circle"
           title="Tentang Aplikasi"
           subtitle="Versi 1.0.0"
-          onPress={() => {}}
+          onPress={() => setShowAboutModal(true)}
         />
         <SettingItem
           icon="code-slash"
           title="API Source"
           subtitle="Anime Streaming API"
-          onPress={() => {
-            const apiUrl = process.env.EXPO_PUBLIC_ANIME_API_BASE_URL;
-            if (apiUrl) {
-              openURL(apiUrl);
-            }
-          }}
+          onPress={() => openURL("https://www.sankavollerei.com/anime")}
         />
         <SettingItem
           icon="logo-github"
           title="GitHub Repository"
           subtitle="View source code"
-          onPress={() => {
-            // GitHub URL can be configured via env if needed
-            console.log("GitHub repository");
-          }}
+          onPress={() => openURL("https://github.com/taka-duarr/anime-stream")}
         />
 
         {/* SUPPORT */}
@@ -330,7 +324,11 @@ const ProfileScreen = ({ navigation }: any) => {
           icon="bug"
           title="Laporkan Bug"
           subtitle="Bantu kami memperbaiki aplikasi"
-          onPress={() => {}}
+          onPress={() =>
+            openURL(
+              "https://wa.me/6281357398265?text=Halo,%20saya%20ingin%20melaporkan%20bug%20di%20aplikasi%20anime%20streaming",
+            )
+          }
         />
         <SettingItem
           icon="star"
@@ -362,6 +360,182 @@ const ProfileScreen = ({ navigation }: any) => {
           </Text>
         </View>
       </ScrollView>
+
+      {/* ABOUT APP MODAL */}
+      <Modal
+        visible={showAboutModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAboutModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAboutModal(false)}
+        >
+          <TouchableOpacity
+            style={[styles.modalContent, { backgroundColor: colors.card }]}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View
+                style={[
+                  styles.modalIconContainer,
+                  { backgroundColor: colors.accent + "20" },
+                ]}
+              >
+                <Ionicons
+                  name="information-circle"
+                  size={32}
+                  color={colors.accent}
+                />
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowAboutModal(false)}
+              >
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Body */}
+            <View style={styles.modalBody}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Tentang Aplikasi
+              </Text>
+              <Text
+                style={[styles.modalSubtitle, { color: colors.textSecondary }]}
+              >
+                Anime Streaming App
+              </Text>
+
+              <View style={styles.modalDivider} />
+
+              {/* Version Info */}
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>
+                  Versi Aplikasi
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  1.0.0
+                </Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>
+                  Platform
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {Platform.OS === "ios"
+                    ? "iOS"
+                    : Platform.OS === "android"
+                      ? "Android"
+                      : "Web"}
+                </Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>
+                  Build
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  Production
+                </Text>
+              </View>
+
+              <View style={styles.modalDivider} />
+
+              {/* Description */}
+              <Text
+                style={[
+                  styles.modalDescription,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                Aplikasi streaming anime gratis dengan koleksi lengkap anime
+                ongoing dan completed. Nikmati pengalaman menonton anime favorit
+                Anda dengan kualitas terbaik.
+              </Text>
+
+              {/* Features */}
+              <View style={styles.featuresList}>
+                <View style={styles.featureItem}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={18}
+                    color={colors.accent}
+                  />
+                  <Text
+                    style={[
+                      styles.featureText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Streaming anime gratis
+                  </Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={18}
+                    color={colors.accent}
+                  />
+                  <Text
+                    style={[
+                      styles.featureText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Koleksi anime lengkap
+                  </Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={18}
+                    color={colors.accent}
+                  />
+                  <Text
+                    style={[
+                      styles.featureText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Bookmark anime favorit
+                  </Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={18}
+                    color={colors.accent}
+                  />
+                  <Text
+                    style={[
+                      styles.featureText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Dark mode support
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.modalDivider} />
+
+              {/* Footer */}
+              <Text style={[styles.modalFooter, { color: colors.textMuted }]}>
+                Made with ❤️ for Anime Fans
+              </Text>
+              <Text style={[styles.modalFooter, { color: colors.textMuted }]}>
+                © 2024 MyAnime App
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -479,6 +653,94 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 12,
+  },
+  // MODAL STYLES
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 400,
+    borderRadius: 20,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    paddingBottom: 16,
+  },
+  modalIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalBody: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: "rgba(128, 128, 128, 0.2)",
+    marginVertical: 16,
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  infoLabel: {
+    fontSize: 14,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  modalDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  featuresList: {
+    gap: 10,
+  },
+  featureItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  featureText: {
+    fontSize: 14,
+    flex: 1,
+  },
+  modalFooter: {
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 4,
   },
 });
 
