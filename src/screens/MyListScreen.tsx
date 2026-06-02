@@ -122,14 +122,11 @@ const MyListScreen = ({ navigation }: any) => {
     } catch (error: any) {
       console.error("[MY LIST SCREEN] Failed to remove bookmark:", error);
 
-      // Handle token expiration
+      // Update error state so UI reflects the failure
       if (error.response?.status === 401) {
-        Alert.alert(
-          "Error",
-          "Sesi Anda telah berakhir. Silakan login kembali.",
-        );
+        setError("Sesi Anda telah berakhir. Silakan login kembali.");
       } else {
-        Alert.alert("Error", "Gagal menghapus bookmark. Coba lagi.");
+        setError("Gagal menghapus bookmark. Coba lagi.");
       }
     }
   };

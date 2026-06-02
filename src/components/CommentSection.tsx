@@ -33,6 +33,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   const [editingComment, setEditingComment] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   useEffect(() => {
     console.log("[COMMENT SECTION] Component mounted with animeId:", animeId);
@@ -140,26 +142,28 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   // DELETE COMMENT
   // ============================================
 
-  const handleDeleteComment = async (commentId: number) => {
-    Alert.alert(
-      "Hapus Komentar",
-      "Apakah Anda yakin ingin menghapus komentar ini?",
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Hapus",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await api.deleteComment(commentId);
-              await loadComments();
-            } catch (error: any) {
-              Alert.alert("Gagal", "Tidak dapat menghapus komentar.");
-            }
-          },
-        },
-      ],
-    );
+  // Opens the custom delete confirmation modal (cross-platform: works on web & mobile)
+  const handleDeleteComment = (commentId: number) => {
+    setDeleteTargetId(commentId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return;
+    try {
+      await api.deleteComment(deleteTargetId);
+      await loadComments();
+    } catch (error: any) {
+      console.error("[COMMENT SECTION] Failed to delete comment:", error);
+    } finally {
+      setShowDeleteModal(false);
+      setDeleteTargetId(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setDeleteTargetId(null);
   };
 
   // ============================================
@@ -292,7 +296,10 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   // ============================================
 
   const renderComment = (comment: api.Comment, isReply: boolean = false) => {
-    const isOwnComment = !!isAuthenticated && comment.username === username;
+    const isOwnComment =
+      !!isAuthenticated &&
+      !!username &&
+      (comment.username || "").toLowerCase() === username.toLowerCase();
     const displayUsername =
       comment.username ||
       comment.user?.username ||
@@ -421,10 +428,101 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   // MAIN RENDER
   // ============================================
 
+  // ============================================
+  // DELETE CONFIRM MODAL — Cross-platform (Web + Mobile)
+  // ============================================
+
+  const renderDeleteModal = () => (
+    <Modal
+      visible={showDeleteModal}
+      transparent
+      animationType="fade"
+      onRequestClose={cancelDelete}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={cancelDelete}
+      >
+        <TouchableOpacity
+          style={[styles.modalCard, { backgroundColor: colors.card }]}
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Icon */}
+          <View
+            style={[
+              styles.modalIconWrap,
+              { backgroundColor: "#FF474720" },
+            ]}
+          >
+            <Ionicons name="trash" size={36} color="#FF4747" />
+          </View>
+
+          {/* Title */}
+          <Text style={[styles.modalTitle, { color: colors.text }]}>
+            Hapus Komentar?
+          </Text>
+
+          {/* Subtitle */}
+          <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+            Komentar yang dihapus tidak dapat dikembalikan. Apakah Anda yakin
+            ingin menghapus komentar ini?
+          </Text>
+
+          {/* Divider */}
+          <View
+            style={[styles.modalDivider, { backgroundColor: colors.border }]}
+          />
+
+          {/* Delete Button */}
+          <TouchableOpacity
+            style={[styles.modalLoginBtn, { backgroundColor: "#FF4747" }]}
+            activeOpacity={0.85}
+            onPress={confirmDelete}
+          >
+            <Ionicons
+              name="trash-outline"
+              size={20}
+              color="#FFF"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.modalLoginBtnText}>Ya, Hapus</Text>
+          </TouchableOpacity>
+
+          {/* Cancel Button */}
+          <TouchableOpacity
+            style={[
+              styles.modalCancelBtn,
+              {
+                backgroundColor: colors.bgSecondary,
+                borderColor: colors.border,
+              },
+            ]}
+            activeOpacity={0.8}
+            onPress={cancelDelete}
+          >
+            <Text
+              style={[
+                styles.modalCancelBtnText,
+                { color: colors.textSecondary },
+              ]}
+            >
+              Batal
+            </Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* Login Modal */}
       {renderLoginModal()}
+
+      {/* Delete Confirm Modal */}
+      {renderDeleteModal()}
 
       {/* Section Header */}
       <View style={styles.sectionHeader}>

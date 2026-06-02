@@ -80,26 +80,13 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const toggleBookmark = async () => {
     // Check if user is authenticated
     if (!isAuthenticated) {
-      // Show alert prompting login
-      Alert.alert(
-        "Login Diperlukan",
-        "Anda harus login untuk menyimpan bookmark",
-        [
-          { text: "Batal", style: "cancel" },
-          {
-            text: "Login",
-            onPress: () => {
-              navigation.navigate("Login", {
-                returnTo: "Episode",
-                onLoginSuccess: async () => {
-                  // After login, complete the bookmark action
-                  await performBookmarkToggle();
-                },
-              });
-            },
-          },
-        ],
-      );
+      // On web, Alert.alert doesn't support multi-button callbacks — navigate directly
+      navigation.navigate("Login", {
+        returnTo: "Episode",
+        onLoginSuccess: async () => {
+          await performBookmarkToggle();
+        },
+      });
       return;
     }
 
@@ -131,16 +118,6 @@ export default function EpisodeScreen({ route, navigation }: any) {
       );
     } catch (error: any) {
       console.error("[EPISODE SCREEN] Failed to toggle bookmark:", error);
-
-      // Handle token expiration
-      if (error.response?.status === 401) {
-        Alert.alert(
-          "Error",
-          "Sesi Anda telah berakhir. Silakan login kembali.",
-        );
-      } else {
-        Alert.alert("Error", "Gagal menyimpan bookmark. Coba lagi.");
-      }
     } finally {
       setBookmarkLoading(false);
     }
