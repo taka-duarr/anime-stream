@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
@@ -31,6 +32,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [editingComment, setEditingComment] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
     console.log("[COMMENT SECTION] Component mounted with animeId:", animeId);
@@ -50,58 +52,37 @@ const CommentSection: React.FC<CommentSectionProps> = ({
       setLoading(true);
       console.log("[COMMENT SECTION] Loading comments for anime:", animeId);
       const fetchedComments = await api.getComments(animeId);
-      console.log(
-        "[COMMENT SECTION] Raw fetched comments:",
-        JSON.stringify(fetchedComments, null, 2),
-      );
 
-      // Group replies under their parent comments
       const commentMap = new Map<number, api.Comment>();
       const rootComments: api.Comment[] = [];
 
-      // First pass: create map of all comments
       fetchedComments.forEach((comment) => {
         commentMap.set(comment.id, { ...comment, replies: [] });
       });
 
-      // Second pass: organize into tree structure
       fetchedComments.forEach((comment) => {
         const commentWithReplies = commentMap.get(comment.id)!;
-
         if (comment.parent_id === null) {
-          // This is a root comment
           rootComments.push(commentWithReplies);
         } else {
-          // This is a reply, add it to parent's replies array
           const parent = commentMap.get(comment.parent_id);
           if (parent) {
-            if (!parent.replies) {
-              parent.replies = [];
-            }
+            if (!parent.replies) parent.replies = [];
             parent.replies.push(commentWithReplies);
           }
         }
       });
 
-      console.log(
-        "[COMMENT SECTION] Organized comments:",
-        JSON.stringify(rootComments, null, 2),
-      );
       setComments(rootComments);
     } catch (error: any) {
       console.error("[COMMENT SECTION] Failed to load comments:", error);
-      console.error("[COMMENT SECTION] Error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
     } finally {
       setLoading(false);
     }
   };
 
   // ============================================
-  // ADD COMMENT OR REPLY
+  // SUBMIT COMMENT OR REPLY
   // ============================================
 
   const handleSubmitComment = async () => {
@@ -111,57 +92,28 @@ const CommentSection: React.FC<CommentSectionProps> = ({
     }
 
     if (!isAuthenticated) {
-      Alert.alert(
-        "Login Diperlukan",
-        "Anda harus login untuk mengomentari anime",
-        [
-          { text: "Batal", style: "cancel" },
-          {
-            text: "Login",
-            onPress: () => {
-              navigation.navigate("Login");
-            },
-          },
-        ],
-      );
+      setShowLoginModal(true);
       return;
     }
 
     try {
       setSubmitting(true);
-
       if (editingComment) {
-        // Edit existing comment
         await api.editComment(editingComment, commentText);
         setEditingComment(null);
       } else {
-        // Add new comment or reply
         await api.addComment(animeId, commentText, replyingTo || undefined);
         setReplyingTo(null);
       }
-
       setCommentText("");
       await loadComments();
     } catch (error: any) {
       console.error("[COMMENT SECTION] Failed to submit comment:", error);
-      console.error("[COMMENT SECTION] Error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        animeId: animeId,
-        commentText: commentText,
-        isEdit: !!editingComment,
-        isReply: !!replyingTo,
-      });
-
-      // Determine error message based on error type
       let errorTitle = "Gagal Mengirim Komentar";
-      let errorMessage = "";
-
+      let errorMessage = "Terjadi kesalahan saat mengirim komentar.";
       if (error.response?.status === 401) {
         errorTitle = "Sesi Berakhir";
-        errorMessage =
-          "Sesi login Anda telah berakhir. Silakan login kembali untuk melanjutkan.";
+        errorMessage = "Sesi login Anda telah berakhir. Silakan login kembali.";
       } else if (error.response?.status === 403) {
         errorTitle = "Akses Ditolak";
         errorMessage = "Anda tidak memiliki izin untuk melakukan aksi ini.";
@@ -170,32 +122,15 @@ const CommentSection: React.FC<CommentSectionProps> = ({
         errorMessage =
           error.response?.data?.error ||
           error.response?.data?.message ||
-          "Komentar yang Anda kirim tidak valid. Periksa kembali isi komentar.";
+          "Komentar tidak valid. Periksa kembali isi komentar.";
       } else if (error.response?.status === 500) {
         errorTitle = "Server Bermasalah";
-        errorMessage =
-          "Terjadi kesalahan pada server. Silakan coba lagi dalam beberapa saat.";
-      } else if (
-        error.code === "ECONNABORTED" ||
-        error.message?.includes("timeout")
-      ) {
-        errorTitle = "Koneksi Timeout";
-        errorMessage =
-          "Koneksi ke server terlalu lama. Periksa koneksi internet Anda dan coba lagi.";
+        errorMessage = "Terjadi kesalahan pada server. Coba lagi nanti.";
       } else if (error.message?.includes("Network Error")) {
         errorTitle = "Tidak Ada Koneksi";
-        errorMessage =
-          "Tidak dapat terhubung ke server. Periksa koneksi internet Anda.";
-      } else {
-        errorTitle = "Gagal Mengirim Komentar";
-        errorMessage =
-          error.response?.data?.error ||
-          error.response?.data?.message ||
-          error.message ||
-          "Terjadi kesalahan yang tidak diketahui. Silakan coba lagi.";
+        errorMessage = "Tidak dapat terhubung ke server.";
       }
-
-      Alert.alert(errorTitle, errorMessage, [{ text: "OK", style: "default" }]);
+      Alert.alert(errorTitle, errorMessage, [{ text: "OK" }]);
     } finally {
       setSubmitting(false);
     }
@@ -208,7 +143,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   const handleDeleteComment = async (commentId: number) => {
     Alert.alert(
       "Hapus Komentar",
-      "Apakah Anda yakin ingin menghapus komentar ini? Semua balasan juga akan terhapus.",
+      "Apakah Anda yakin ingin menghapus komentar ini?",
       [
         { text: "Batal", style: "cancel" },
         {
@@ -219,61 +154,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
               await api.deleteComment(commentId);
               await loadComments();
             } catch (error: any) {
-              console.error(
-                "[COMMENT SECTION] Failed to delete comment:",
-                error,
-              );
-              console.error("[COMMENT SECTION] Error details:", {
-                message: error.message,
-                response: error.response?.data,
-                status: error.response?.status,
-                commentId: commentId,
-                animeId: animeId,
-              });
-
-              // Determine error message based on error type
-              let errorTitle = "Gagal Menghapus Komentar";
-              let errorMessage = "";
-
-              if (error.response?.status === 401) {
-                errorTitle = "Sesi Berakhir";
-                errorMessage =
-                  "Sesi login Anda telah berakhir. Silakan login kembali untuk melanjutkan.";
-              } else if (error.response?.status === 403) {
-                errorTitle = "Akses Ditolak";
-                errorMessage =
-                  "Anda tidak memiliki izin untuk menghapus komentar ini. Hanya pemilik komentar yang dapat menghapusnya.";
-              } else if (error.response?.status === 404) {
-                errorTitle = "Komentar Tidak Ditemukan";
-                errorMessage =
-                  "Komentar yang ingin Anda hapus tidak ditemukan. Mungkin sudah dihapus sebelumnya.";
-              } else if (error.response?.status === 500) {
-                errorTitle = "Server Bermasalah";
-                errorMessage =
-                  "Terjadi kesalahan pada server. Silakan coba lagi dalam beberapa saat.";
-              } else if (
-                error.code === "ECONNABORTED" ||
-                error.message?.includes("timeout")
-              ) {
-                errorTitle = "Koneksi Timeout";
-                errorMessage =
-                  "Koneksi ke server terlalu lama. Periksa koneksi internet Anda dan coba lagi.";
-              } else if (error.message?.includes("Network Error")) {
-                errorTitle = "Tidak Ada Koneksi";
-                errorMessage =
-                  "Tidak dapat terhubung ke server. Periksa koneksi internet Anda.";
-              } else {
-                errorTitle = "Gagal Menghapus Komentar";
-                errorMessage =
-                  error.response?.data?.error ||
-                  error.response?.data?.message ||
-                  error.message ||
-                  "Terjadi kesalahan yang tidak diketahui. Silakan coba lagi.";
-              }
-
-              Alert.alert(errorTitle, errorMessage, [
-                { text: "OK", style: "default" },
-              ]);
+              Alert.alert("Gagal", "Tidak dapat menghapus komentar.");
             }
           },
         },
@@ -292,17 +173,21 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   };
 
   // ============================================
-  // REPLY TO COMMENT
+  // REPLY — Cek Auth Langsung
   // ============================================
 
   const handleReplyComment = (comment: api.Comment) => {
+    if (!isAuthenticated) {
+      setShowLoginModal(true);
+      return;
+    }
     setReplyingTo(comment.id);
     setEditingComment(null);
     setCommentText("");
   };
 
   // ============================================
-  // CANCEL ACTION
+  // CANCEL
   // ============================================
 
   const handleCancel = () => {
@@ -312,13 +197,102 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   };
 
   // ============================================
+  // LOGIN MODAL — Themed
+  // ============================================
+
+  const renderLoginModal = () => (
+    <Modal
+      visible={showLoginModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowLoginModal(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setShowLoginModal(false)}
+      >
+        <TouchableOpacity
+          style={[styles.modalCard, { backgroundColor: colors.card }]}
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Icon */}
+          <View
+            style={[
+              styles.modalIconWrap,
+              { backgroundColor: colors.accent + "20" },
+            ]}
+          >
+            <Ionicons name="lock-closed" size={36} color={colors.accent} />
+          </View>
+
+          {/* Title */}
+          <Text style={[styles.modalTitle, { color: colors.text }]}>
+            Login Diperlukan
+          </Text>
+
+          {/* Subtitle */}
+          <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+            Anda harus login terlebih dahulu untuk dapat menulis komentar atau
+            membalas komentar orang lain.
+          </Text>
+
+          {/* Divider */}
+          <View
+            style={[styles.modalDivider, { backgroundColor: colors.border }]}
+          />
+
+          {/* Login Button */}
+          <TouchableOpacity
+            style={[styles.modalLoginBtn, { backgroundColor: colors.accent }]}
+            activeOpacity={0.85}
+            onPress={() => {
+              setShowLoginModal(false);
+              navigation.navigate("Login");
+            }}
+          >
+            <Ionicons
+              name="log-in-outline"
+              size={20}
+              color="#FFF"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.modalLoginBtnText}>Login Sekarang</Text>
+          </TouchableOpacity>
+
+          {/* Cancel Button */}
+          <TouchableOpacity
+            style={[
+              styles.modalCancelBtn,
+              {
+                backgroundColor: colors.bgSecondary,
+                borderColor: colors.border,
+              },
+            ]}
+            activeOpacity={0.8}
+            onPress={() => setShowLoginModal(false)}
+          >
+            <Text
+              style={[
+                styles.modalCancelBtnText,
+                { color: colors.textSecondary },
+              ]}
+            >
+              Batal
+            </Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  // ============================================
   // RENDER COMMENT ITEM
   // ============================================
 
   const renderComment = (comment: api.Comment, isReply: boolean = false) => {
-    const isOwnComment = isAuthenticated && comment.username === username;
-
-    // Get username from either flat structure or nested user object
+    const isOwnComment = !!isAuthenticated && comment.username === username;
     const displayUsername =
       comment.username ||
       comment.user?.username ||
@@ -327,16 +301,15 @@ const CommentSection: React.FC<CommentSectionProps> = ({
 
     return (
       <View key={comment.id} style={styles.commentContainer}>
-        {/* Comment Item */}
         <View style={[styles.commentItem, isReply && styles.replyItem]}>
           {/* Avatar */}
           <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
             <Text style={styles.avatarText}>{avatarLetter}</Text>
           </View>
 
-          {/* Content Area */}
+          {/* Content */}
           <View style={styles.contentArea}>
-            {/* Header: Username, Badge, Timestamp */}
+            {/* Header */}
             <View style={styles.headerRow}>
               <View style={styles.userInfoRow}>
                 <Text style={[styles.username, { color: colors.text }]}>
@@ -363,7 +336,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
                 </Text>
               </View>
 
-              {/* Edit/Delete Buttons */}
+              {/* Edit / Delete */}
               {isOwnComment && (
                 <View style={styles.actionButtons}>
                   <TouchableOpacity
@@ -395,7 +368,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
               {comment.content || ""}
             </Text>
 
-            {/* Interaction Buttons */}
+            {/* Actions */}
             <View style={styles.interactionRow}>
               <TouchableOpacity style={styles.interactionBtn}>
                 <Ionicons
@@ -434,7 +407,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
           </View>
         </View>
 
-        {/* Render Replies */}
+        {/* Replies */}
         {!isReply && comment.replies && comment.replies.length > 0 && (
           <View style={styles.repliesSection}>
             {comment.replies.map((reply) => renderComment(reply, true))}
@@ -445,11 +418,14 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   };
 
   // ============================================
-  // RENDER
+  // MAIN RENDER
   // ============================================
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      {/* Login Modal */}
+      {renderLoginModal()}
+
       {/* Section Header */}
       <View style={styles.sectionHeader}>
         <Ionicons name="chatbubbles" size={24} color={colors.accent} />
@@ -458,8 +434,9 @@ const CommentSection: React.FC<CommentSectionProps> = ({
         </Text>
       </View>
 
-      {/* Comment Input */}
+      {/* Input Area */}
       <View style={[styles.inputContainer, { backgroundColor: colors.card }]}>
+        {/* Reply/Edit Banner */}
         {(replyingTo || editingComment) && (
           <View
             style={[
@@ -470,7 +447,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
             <Text
               style={[styles.actionBannerText, { color: colors.textSecondary }]}
             >
-              {editingComment ? "Mengedit komentar" : `Membalas komentar`}
+              {editingComment ? "Mengedit komentar" : "Membalas komentar"}
             </Text>
             <TouchableOpacity onPress={handleCancel}>
               <Ionicons
@@ -482,48 +459,94 @@ const CommentSection: React.FC<CommentSectionProps> = ({
           </View>
         )}
 
-        <View style={styles.inputRow}>
-          <TextInput
+        {/* Guest Prompt Banner */}
+        {!isAuthenticated && (
+          <TouchableOpacity
             style={[
-              styles.input,
+              styles.guestBanner,
               {
-                backgroundColor: colors.bgSecondary,
-                color: colors.text,
-                borderColor: colors.border,
+                backgroundColor: colors.accent + "15",
+                borderColor: colors.accent + "40",
               },
             ]}
-            placeholder={
-              editingComment
-                ? "Edit komentar Anda..."
-                : replyingTo
+            activeOpacity={0.8}
+            onPress={() => setShowLoginModal(true)}
+          >
+            <Ionicons
+              name="lock-closed-outline"
+              size={16}
+              color={colors.accent}
+            />
+            <Text style={[styles.guestBannerText, { color: colors.accent }]}>
+              Login untuk menulis komentar
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.accent} />
+          </TouchableOpacity>
+        )}
+
+        {/* Input Row */}
+        <View style={styles.inputRow}>
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            activeOpacity={isAuthenticated ? 1 : 0.7}
+            onPress={!isAuthenticated ? () => setShowLoginModal(true) : undefined}
+          >
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.bgSecondary,
+                  color: colors.text,
+                  borderColor: colors.border,
+                  opacity: isAuthenticated ? 1 : 0.5,
+                },
+              ]}
+              placeholder={
+                !isAuthenticated
+                  ? "Login untuk berkomentar..."
+                  : editingComment
+                  ? "Edit komentar Anda..."
+                  : replyingTo
                   ? "Tulis balasan Anda..."
                   : "Tulis komentar Anda..."
-            }
-            placeholderTextColor={colors.textMuted}
-            value={commentText}
-            onChangeText={setCommentText}
-            multiline
-            maxLength={500}
-          />
+              }
+              placeholderTextColor={colors.textMuted}
+              value={commentText}
+              onChangeText={setCommentText}
+              multiline
+              maxLength={500}
+              editable={!!isAuthenticated}
+            />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[
               styles.sendButton,
               { backgroundColor: colors.accent },
-              (!commentText.trim() || submitting) && styles.sendButtonDisabled,
+              (!commentText.trim() || submitting || !isAuthenticated) &&
+                styles.sendButtonDisabled,
             ]}
-            onPress={handleSubmitComment}
-            disabled={!commentText.trim() || submitting}
+            onPress={
+              isAuthenticated
+                ? handleSubmitComment
+                : () => setShowLoginModal(true)
+            }
+            disabled={submitting}
           >
             {submitting ? (
               <ActivityIndicator size="small" color="#FFF" />
             ) : (
-              <Ionicons name="send" size={20} color="#FFF" />
+              <Ionicons
+                name={isAuthenticated ? "send" : "lock-closed"}
+                size={20}
+                color="#FFF"
+              />
             )}
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Comments List */}
+      {/* Comment List */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.accent} />
@@ -547,27 +570,16 @@ const CommentSection: React.FC<CommentSectionProps> = ({
         </View>
       ) : (
         <View style={styles.commentsList}>
-          {comments.map((comment) => {
-            try {
-              return renderComment(comment);
-            } catch (error) {
-              console.error(
-                "[COMMENT SECTION] Error rendering comment:",
-                error,
-              );
-              console.error("[COMMENT SECTION] Anime ID:", animeId);
-              console.error(
-                "[COMMENT SECTION] Comment data:",
-                JSON.stringify(comment, null, 2),
-              );
-              return null;
-            }
-          })}
+          {comments.map((comment) => renderComment(comment))}
         </View>
       )}
     </View>
   );
 };
+
+// ============================================
+// STYLES
+// ============================================
 
 const styles = StyleSheet.create({
   container: {
@@ -605,6 +617,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   actionBannerText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  guestBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  guestBannerText: {
+    flex: 1,
     fontSize: 13,
     fontWeight: "600",
   },
@@ -656,7 +683,6 @@ const styles = StyleSheet.create({
   commentsList: {
     paddingHorizontal: 16,
   },
-  // MINIMALIST COMMENT STYLES
   commentContainer: {
     marginBottom: 16,
   },
@@ -740,6 +766,77 @@ const styles = StyleSheet.create({
   },
   repliesSection: {
     marginTop: 4,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 380,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  modalIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalDivider: {
+    width: "100%",
+    height: 1,
+    marginBottom: 20,
+  },
+  modalLoginBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  modalLoginBtnText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  modalCancelBtn: {
+    width: "100%",
+    paddingVertical: 13,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCancelBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
 
