@@ -28,7 +28,7 @@ import AnimeListScreen from "./src/screens/AnimeListScreen";
 import GenreListScreen from "./src/screens/GenreListScreen";
 import GenreAnimeScreen from "./src/screens/GenreAnimeScreen";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
-import { AuthProvider } from "./src/context/AuthContext";
+import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { WebSidebar } from "./src/components/WebSidebar";
 
 const Stack = createNativeStackNavigator();
@@ -49,6 +49,7 @@ const getActiveRouteName = (state: NavigationState | undefined): string => {
 const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
+  const { isAuthenticated } = useAuth();
 
   // Kembalikan kotak kosong jika layer mode WebSidebar sedang mengudara di PC/Desktop
   if (width >= 768) return <View style={{ height: 0 }} />;
@@ -72,7 +73,11 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
           });
 
           if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(route.name, route.params);
+            if (route.name === "ProfileTab" && !isAuthenticated) {
+              navigation.navigate("Login");
+            } else {
+              navigation.navigate(route.name, route.params);
+            }
           }
         };
 
@@ -83,6 +88,7 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
             case "MyListTab":
               return focused ? "bookmark" : "bookmark-outline";
             case "ProfileTab":
+              if (!isAuthenticated) return focused ? "log-in" : "log-in-outline";
               return focused ? "person" : "person-outline";
             default:
               return "help-circle-outline";
@@ -96,7 +102,7 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
             case "MyListTab":
               return "My List";
             case "ProfileTab":
-              return "Profile";
+              return isAuthenticated ? "Profile" : "Login";
             default:
               return "";
           }
@@ -181,17 +187,22 @@ const WebLayout = () => {
   const { colors } = useTheme();
   const [currentRoute, setCurrentRoute] = useState("HomeTab");
   const [activeRoute, setActiveRoute] = useState("HomeTab");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
   const handleNavigate = (name: string) => {
     if (navigationRef.isReady()) {
-      navigationRef.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: "Main", params: { screen: name } }],
-        }),
-      );
+      if (name === "GenreList" || name === "Login") {
+        (navigationRef as any).navigate(name);
+      } else {
+        navigationRef.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: "Main", params: { screen: name } }],
+          }),
+        );
+      }
       setCurrentRoute(name);
     }
   };
@@ -202,7 +213,12 @@ const WebLayout = () => {
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: colors.bg }}>
       {/* Persistent Sidebar (hidden on Login & Register screens) */}
       {isDesktop && !isAuthScreen && (
-        <WebSidebar currentRoute={currentRoute} onNavigate={handleNavigate} />
+        <WebSidebar
+          currentRoute={currentRoute}
+          onNavigate={handleNavigate}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        />
       )}
 
       {/* Main Content Area */}
@@ -218,8 +234,8 @@ const WebLayout = () => {
           onStateChange={(state) => {
             const name = getActiveRouteName(state as NavigationState);
             setActiveRoute(name);
-            // Only update if it's a tab-level route (sidebar items)
-            const tabRoutes = ["HomeTab", "MyListTab", "ProfileTab"];
+            // Only update if it's a tab-level or sidebar route
+            const tabRoutes = ["HomeTab", "MyListTab", "ProfileTab", "GenreList"];
             if (tabRoutes.includes(name)) {
               setCurrentRoute(name);
             }

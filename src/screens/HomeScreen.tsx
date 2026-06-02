@@ -557,7 +557,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 />
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => navigation.navigate("ProfileTab")}
+                onPress={() => navigation.navigate(isAuthenticated ? "ProfileTab" : "Login")}
                 activeOpacity={0.8}
               >
                 <View
@@ -566,7 +566,11 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     { backgroundColor: isDark ? "#2C2C2C" : "#EEE" },
                   ]}
                 >
-                  <Ionicons name="person" size={16} color={colors.accent} />
+                  <Ionicons
+                    name={isAuthenticated ? "person" : "log-in"}
+                    size={16}
+                    color={colors.accent}
+                  />
                 </View>
               </TouchableOpacity>
             </View>
@@ -593,14 +597,16 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </View>
           </TouchableOpacity>
 
-          {/* Genre Button */}
-          <TouchableOpacity
-            style={[styles.genreButton, { backgroundColor: colors.accent }]}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate("GenreList")}
-          >
-            <Ionicons name="list" size={20} color="#FFF" />
-          </TouchableOpacity>
+          {/* Genre Button (Only show on mobile/tablet, hidden on web desktop since it is in sidebar) */}
+          {!isDesktop && (
+            <TouchableOpacity
+              style={[styles.genreButton, { backgroundColor: colors.accent }]}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate("GenreList")}
+            >
+              <Ionicons name="list" size={20} color="#FFF" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 

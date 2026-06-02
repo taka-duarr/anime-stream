@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,7 +24,7 @@ interface LoginScreenProps {
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { login } = useAuth();
 
   const [username, setUsername] = useState("");
@@ -33,6 +32,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Focus states for input fields to render glowing borders
+  const [isUsernameFocused, setIsUsernameFocused] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
   // ============================================
   // FORM VALIDATION
@@ -51,10 +54,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
   // ============================================
 
   const handleLogin = async () => {
-    // Clear previous error
     setError("");
 
-    // Validate form
     if (!validateForm()) {
       return;
     }
@@ -62,18 +63,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
     setLoading(true);
 
     try {
-      // Call login function from AuthContext
       await login(username, password);
-
-      // Login successful
       console.log("[LOGIN SCREEN] Login successful");
 
-      // Execute onLoginSuccess callback if provided
       if (route?.params?.onLoginSuccess) {
         route.params.onLoginSuccess();
       }
 
-      // Navigate to Main tab navigator and clear back stack
       navigation.reset({
         index: 0,
         routes: [{ name: "Main" }],
@@ -100,8 +96,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
 
   const handleContinueAsGuest = () => {
     console.log("[LOGIN SCREEN] Continuing as guest");
-
-    // Navigate to Main tab navigator and clear back stack
     navigation.reset({
       index: 0,
       routes: [{ name: "Main" }],
@@ -118,182 +112,198 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
       contentContainerStyle={styles.contentContainer}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <Ionicons name="log-in" size={48} color={colors.accent} />
-        <Text style={[styles.title, { color: colors.text }]}>Login</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Masuk untuk menyimpan anime favorit Anda
-        </Text>
-      </View>
-
-      {/* Form Card */}
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
-        {/* Error Message */}
-        {error ? (
-          <View
-            style={[
-              styles.errorContainer,
-              { backgroundColor: colors.bgSecondary },
-            ]}
-          >
-            <Ionicons name="alert-circle" size={20} color={colors.accent} />
-            <Text style={[styles.errorText, { color: colors.accent }]}>
-              {error}
-            </Text>
+      {/* Centered Login Card wrapper */}
+      <View style={styles.cardWrapper}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={[styles.iconContainer, { backgroundColor: isDark ? "rgba(230,51,51,0.1)" : "rgba(230,51,51,0.06)" }]}>
+            <Ionicons name="log-in" size={28} color={colors.accent} />
           </View>
-        ) : null}
-
-        {/* Username Input */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.textSecondary }]}>
-            Username
+          <Text style={[styles.title, { color: colors.text }]}>Welcome Back</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            Masuk ke akun Anda untuk menyelaraskan koleksi anime
           </Text>
-          <View
+        </View>
+
+        {/* Form Card */}
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {/* Error Message */}
+          {error ? (
+            <View
+              style={[
+                styles.errorContainer,
+                { backgroundColor: isDark ? "rgba(230,51,51,0.1)" : "rgba(230,51,51,0.05)" },
+              ]}
+            >
+              <Ionicons name="alert-circle" size={18} color={colors.accent} style={styles.errorIcon} />
+              <Text style={[styles.errorText, { color: colors.accent }]}>
+                {error}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Username Input */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              Username
+            </Text>
+            <View
+              style={[
+                styles.inputContainer,
+                {
+                  backgroundColor: colors.bgSecondary,
+                  borderColor: isUsernameFocused ? colors.accent : colors.border,
+                },
+              ]}
+            >
+              <Ionicons
+                name="person-outline"
+                size={18}
+                color={isUsernameFocused ? colors.accent : colors.textSecondary}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                placeholder="Masukkan username"
+                placeholderTextColor={colors.textMuted}
+                value={username}
+                onChangeText={(text) => {
+                  setUsername(text);
+                  setError("");
+                }}
+                onFocus={() => setIsUsernameFocused(true)}
+                onBlur={() => setIsUsernameFocused(false)}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!loading}
+              />
+            </View>
+          </View>
+
+          {/* Password Input */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>
+              Password
+            </Text>
+            <View
+              style={[
+                styles.inputContainer,
+                {
+                  backgroundColor: colors.bgSecondary,
+                  borderColor: isPasswordFocused ? colors.accent : colors.border,
+                },
+              ]}
+            >
+              <Ionicons
+                name="lock-closed-outline"
+                size={18}
+                color={isPasswordFocused ? colors.accent : colors.textSecondary}
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                placeholder="Masukkan password"
+                placeholderTextColor={colors.textMuted}
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  setError("");
+                }}
+                onFocus={() => setIsPasswordFocused(true)}
+                onBlur={() => setIsPasswordFocused(false)}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!loading}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeIcon}
+                disabled={loading}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={18}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Login Button */}
+          <TouchableOpacity
             style={[
-              styles.inputContainer,
+              styles.loginButton,
+              { backgroundColor: colors.accent },
+              loading && styles.loginButtonDisabled,
+            ]}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <>
+                <Ionicons
+                  name="log-in-outline"
+                  size={18}
+                  color="#FFFFFF"
+                  style={styles.buttonIcon}
+                />
+                <Text style={styles.loginButtonText}>Masuk Ke Akun</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* Register Link */}
+          <View style={styles.registerContainer}>
+            <Text style={[styles.registerText, { color: colors.textSecondary }]}>
+              Belum memiliki akun?{" "}
+            </Text>
+            <TouchableOpacity
+              onPress={handleNavigateToRegister}
+              disabled={loading}
+            >
+              <Text style={[styles.registerLink, { color: colors.accent }]}>
+                Daftar sekarang
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Divider */}
+          <View style={styles.dividerContainer}>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.dividerText, { color: colors.textMuted }]}>ATAU</Text>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          </View>
+
+          {/* Guest Button */}
+          <TouchableOpacity
+            style={[
+              styles.guestButton,
               {
-                backgroundColor: colors.bgSecondary,
+                backgroundColor: "transparent",
                 borderColor: colors.border,
               },
             ]}
+            onPress={handleContinueAsGuest}
+            disabled={loading}
+            activeOpacity={0.8}
           >
             <Ionicons
               name="person-outline"
-              size={20}
+              size={18}
               color={colors.textSecondary}
-              style={styles.inputIcon}
+              style={styles.buttonIcon}
             />
-            <TextInput
-              style={[styles.input, { color: colors.text }]}
-              placeholder="Masukkan username"
-              placeholderTextColor={colors.textMuted}
-              value={username}
-              onChangeText={(text) => {
-                setUsername(text);
-                setError(""); // Clear error on input change
-              }}
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!loading}
-            />
-          </View>
-        </View>
-
-        {/* Password Input */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.textSecondary }]}>
-            Password
-          </Text>
-          <View
-            style={[
-              styles.inputContainer,
-              {
-                backgroundColor: colors.bgSecondary,
-                borderColor: colors.border,
-              },
-            ]}
-          >
-            <Ionicons
-              name="lock-closed-outline"
-              size={20}
-              color={colors.textSecondary}
-              style={styles.inputIcon}
-            />
-            <TextInput
-              style={[styles.input, { color: colors.text }]}
-              placeholder="Masukkan password"
-              placeholderTextColor={colors.textMuted}
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                setError(""); // Clear error on input change
-              }}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!loading}
-            />
-            <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.eyeIcon}
-              disabled={loading}
+            <Text
+              style={[styles.guestButtonText, { color: colors.textSecondary }]}
             >
-              <Ionicons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={20}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Login Button */}
-        <TouchableOpacity
-          style={[
-            styles.loginButton,
-            { backgroundColor: colors.accent },
-            loading && styles.loginButtonDisabled,
-          ]}
-          onPress={handleLogin}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <>
-              <Ionicons
-                name="log-in-outline"
-                size={20}
-                color="#FFFFFF"
-                style={styles.buttonIcon}
-              />
-              <Text style={styles.loginButtonText}>Login</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        {/* Register Link */}
-        <View style={styles.registerContainer}>
-          <Text style={[styles.registerText, { color: colors.textSecondary }]}>
-            Belum punya akun?{" "}
-          </Text>
-          <TouchableOpacity
-            onPress={handleNavigateToRegister}
-            disabled={loading}
-          >
-            <Text style={[styles.registerLink, { color: colors.accent }]}>
-              Daftar di sini
+              Masuk sebagai Guest
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* Guest Button */}
-        <TouchableOpacity
-          style={[
-            styles.guestButton,
-            {
-              backgroundColor: colors.bgSecondary,
-              borderColor: colors.border,
-            },
-          ]}
-          onPress={handleContinueAsGuest}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="person-outline"
-            size={20}
-            color={colors.textSecondary}
-            style={styles.buttonIcon}
-          />
-          <Text
-            style={[styles.guestButtonText, { color: colors.textSecondary }]}
-          >
-            Masuk sebagai Guest
-          </Text>
-        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -311,70 +321,90 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     padding: 20,
-    paddingTop: Platform.OS === "web" ? 60 : 40,
+    paddingTop: Platform.OS === "web" ? 80 : 40,
     paddingBottom: 40,
   },
-  header: {
-    alignItems: "center",
-    marginBottom: 32,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    textAlign: "center",
-  },
-  card: {
-    borderRadius: 12,
-    padding: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+  cardWrapper: {
     maxWidth: 400,
     width: "100%",
     alignSelf: "center",
   },
+  header: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
+    paddingHorizontal: 20,
+  },
+  card: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    elevation: 8,
+  },
   errorContainer: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 8,
     marginBottom: 16,
   },
+  errorIcon: {
+    marginRight: 8,
+  },
   errorText: {
-    fontSize: 14,
-    marginLeft: 8,
+    fontSize: 13,
     flex: 1,
+    fontWeight: "500",
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 8,
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 6,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     paddingHorizontal: 12,
-    height: 50,
+    height: 48,
   },
   inputIcon: {
     marginRight: 8,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     height: "100%",
+    paddingVertical: 0,
   },
   eyeIcon: {
     padding: 4,
@@ -383,9 +413,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 10,
+    paddingVertical: 13,
     marginTop: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
   },
   loginButtonDisabled: {
     opacity: 0.6,
@@ -395,32 +430,46 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 14,
+    fontWeight: "700",
   },
   registerContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 24,
+    marginTop: 20,
   },
   registerText: {
-    fontSize: 14,
+    fontSize: 13,
   },
   registerLink: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontSize: 11,
+    fontWeight: "700",
+    marginHorizontal: 16,
+    letterSpacing: 1,
   },
   guestButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
-    paddingVertical: 14,
-    marginTop: 16,
+    borderRadius: 10,
+    paddingVertical: 12,
     borderWidth: 1,
   },
   guestButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
   },
 });
