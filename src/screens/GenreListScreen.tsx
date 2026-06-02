@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   useWindowDimensions,
+  TextInput,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -40,6 +41,7 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
   const [genres, setGenres] = useState<Genre[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const numColumns = isDesktop ? 4 : 2;
   const cardPercent = isDesktop ? "23.5%" : "48%";
@@ -173,6 +175,10 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
     );
   };
 
+  const filteredGenres = genres.filter((g) =>
+    g.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.bg }]}
@@ -180,28 +186,27 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
     >
       <StatusBar style={isDark ? "light" : "dark"} />
 
-      {/* Header */}
+      {/* Search Header replacing old titles and back button */}
       <View
         style={[
           styles.header,
-          { backgroundColor: colors.sidebar, borderBottomColor: colors.border },
+          { backgroundColor: colors.sidebar, borderBottomColor: colors.border, paddingVertical: 14 }
         ]}
       >
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Genre Anime
-          </Text>
-          <Text
-            style={[styles.headerSubtitle, { color: colors.textSecondary }]}
-          >
-            {genres.length} genre tersedia
-          </Text>
+        <View style={[styles.searchBar, { backgroundColor: colors.searchBg }]}>
+          <Ionicons name="search" size={18} color={colors.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            placeholder="Cari genre..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={[styles.searchInput, { color: colors.text }]}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearBtn}>
+              <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -215,7 +220,7 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
         </View>
       ) : (
         <FlatList
-          data={genres}
+          data={filteredGenres}
           renderItem={renderGenreItem}
           keyExtractor={(item, index) => `${item.genreId}-${index}`}
           numColumns={numColumns}
@@ -243,6 +248,27 @@ export default GenreListScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 40,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    height: 40,
+    padding: 0,
+    outlineStyle: "none",
+  } as any,
+  clearBtn: {
+    padding: 4,
   },
   header: {
     flexDirection: "row",

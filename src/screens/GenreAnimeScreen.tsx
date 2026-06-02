@@ -18,20 +18,20 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 
 interface GenreAnimeScreenProps {
-  route: {
+  route?: {
     params: {
       genreId: string;
       genreName: string;
     };
   };
-  navigation: any;
+  navigation?: any;
 }
 
 const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
   route,
   navigation,
 }) => {
-  const { genreId, genreName } = route.params;
+  const { genreId, genreName } = route?.params || { genreId: "", genreName: "" };
   const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
 

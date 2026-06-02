@@ -8,9 +8,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   useWindowDimensions,
+  TextInput,
+  ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
-import { getOngoingAnime, getCompleteAnime } from "../services/api";
+import { getOngoingAnime, getCompleteAnime, getAnimeByGenre } from "../services/api";
 import { Anime } from "../types/drama";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,20 +22,20 @@ import { useTheme } from "../context/ThemeContext";
 type AnimeListType = "ongoing" | "completed";
 
 interface AnimeListScreenProps {
-  route: {
+  route?: {
     params: {
       type: AnimeListType;
       title?: string;
     };
   };
-  navigation: any;
+  navigation?: any;
 }
 
 const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
   route,
   navigation,
 }) => {
-  const { type, title } = route.params;
+  const { type, title } = route?.params || { type: "ongoing", title: "Anime Ongoing" };
   const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
 
@@ -43,6 +45,18 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
   const [loadingMore, setLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedGenre, setSelectedGenre] = useState("all");
+
+  const GENRES = [
+    { id: "all", label: "ALL CATEGORIES" },
+    { id: "shounen", label: "SHONEN" },
+    { id: "seinen", label: "SEINEN" },
+    { id: "action", label: "ACTION" },
+    { id: "sci-fi", label: "SCI-FI" },
+    { id: "mystery", label: "MYSTERY" },
+    { id: "isekai", label: "ISEKAI" },
+  ];
 
   const screenTitle =
     title || (type === "ongoing" ? "Anime Ongoing" : "Anime Completed");
@@ -57,11 +71,23 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
     }
 
     try {
-      console.log(`[PAGINATION] Fetching ${type} anime page ${page}`);
-
-      const fetchFunction =
-        type === "ongoing" ? getOngoingAnime : getCompleteAnime;
-      const data = await fetchFunction(page);
+      let data: Anime[] = [];
+      if (selectedGenre === "all") {
+        console.log(`[PAGINATION] Fetching ${type} anime page ${page}`);
+        const fetchFunction = type === "ongoing" ? getOngoingAnime : getCompleteAnime;
+        data = await fetchFunction(page);
+      } else {
+        console.log(`[PAGINATION] Fetching genre ${selectedGenre} page ${page} for ${type} filter`);
+        const genreData = await getAnimeByGenre(selectedGenre, page);
+        data = genreData.filter((item: Anime) => {
+          const statusLower = item.status?.toLowerCase() || "";
+          if (type === "ongoing") {
+            return statusLower.includes("ongoing");
+          } else {
+            return statusLower.includes("completed") || statusLower.includes("complete") || (!statusLower.includes("ongoing") && statusLower !== "");
+          }
+        });
+      }
 
       if (data && data.length > 0) {
         if (page === 1) {
@@ -69,17 +95,12 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
         } else {
           setAnimeList((prev) => [...prev, ...data]);
         }
-
-        // Check if there's more data
-        // If we get less than expected (e.g., < 20), assume no more pages
-        setHasMore(data.length >= 20);
-
-        console.log(
-          `[PAGINATION] Loaded ${data.length} items, total: ${page === 1 ? data.length : animeList.length + data.length}`,
-        );
+        setHasMore(selectedGenre === "all" ? (data.length >= 20) : (data.length >= 5));
       } else {
+        if (page === 1) {
+          setAnimeList([]);
+        }
         setHasMore(false);
-        console.log(`[PAGINATION] No more data available`);
       }
     } catch (error) {
       console.error(`[PAGINATION ERROR] Failed to fetch page ${page}:`, error);
@@ -92,14 +113,17 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
   };
 
   useEffect(() => {
+    setAnimeList([]);
+    setCurrentPage(1);
+    setHasMore(true);
     fetchAnime(1);
-  }, [type]);
+  }, [type, selectedGenre]);
 
   const onRefresh = useCallback(() => {
     setCurrentPage(1);
     setHasMore(true);
     fetchAnime(1, true);
-  }, [type]);
+  }, [type, selectedGenre]);
 
   const loadMore = useCallback(() => {
     if (!loadingMore && hasMore && !loading) {
@@ -107,7 +131,7 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
       setCurrentPage(nextPage);
       fetchAnime(nextPage);
     }
-  }, [currentPage, hasMore, loadingMore, loading]);
+  }, [currentPage, hasMore, loadingMore, loading, type, selectedGenre]);
 
   const renderAnimeItem = ({ item, index }: { item: Anime; index: number }) => {
     // Calculate responsive columns
@@ -208,6 +232,10 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
     );
   };
 
+  const filteredAnimeList = animeList.filter((item) =>
+    item.title?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.bg }]}
@@ -215,23 +243,59 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
     >
       <StatusBar style={isDark ? "light" : "dark"} />
 
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: colors.sidebar, borderBottomColor: colors.border, justifyContent: "center" },
-        ]}
-      >
-        <View style={[styles.headerTitleContainer, { alignItems: "center" }]}>
-          <Text style={[styles.headerTitle, { color: colors.text, textAlign: "center" }]}>
-            {screenTitle}
-          </Text>
-          <Text
-            style={[styles.headerSubtitle, { color: colors.textSecondary, textAlign: "center" }]}
-          >
-            {animeList.length} anime
-          </Text>
+
+
+      {/* Search & Genre categories */}
+      <View style={[styles.searchGenreContainer, { backgroundColor: colors.sidebar, borderBottomColor: colors.border }]}>
+        {/* Search Bar */}
+        <View style={[styles.searchBar, { backgroundColor: colors.searchBg }]}>
+          <Ionicons name="search" size={18} color={colors.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            placeholder="Search for titles, studios, or genres..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={[styles.searchInput, { color: colors.text }]}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearBtn}>
+              <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
+
+        {/* Genre Tags Scroll */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.genreScroll}
+        >
+          {GENRES.map((g) => {
+            const isActive = selectedGenre === g.id;
+            return (
+              <TouchableOpacity
+                key={g.id}
+                style={[
+                  styles.genreTag,
+                  isActive
+                    ? { backgroundColor: colors.accent }
+                    : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }
+                ]}
+                onPress={() => setSelectedGenre(g.id)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.genreTagText,
+                    { color: isActive ? "#FFF" : colors.textSecondary }
+                  ]}
+                >
+                  {g.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {/* Anime List */}
@@ -244,7 +308,7 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
         </View>
       ) : (
         <FlatList
-          data={animeList}
+          data={filteredAnimeList}
           renderItem={renderAnimeItem}
           keyExtractor={(item, index) => `${item.animeId}-${index}`}
           numColumns={1}
@@ -274,6 +338,48 @@ export default AnimeListScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  searchGenreContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 40,
+    marginBottom: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    height: 40,
+    padding: 0,
+    outlineStyle: "none",
+  } as any,
+  clearBtn: {
+    padding: 4,
+  },
+  genreScroll: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  genreTag: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+  },
+  genreTagText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   header: {
     flexDirection: "row",

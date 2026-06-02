@@ -29,7 +29,7 @@ import GenreListScreen from "./src/screens/GenreListScreen";
 import GenreAnimeScreen from "./src/screens/GenreAnimeScreen";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
-import { WebSidebar } from "./src/components/WebSidebar";
+import { WebNavbar } from "./src/components/WebNavbar";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -51,7 +51,7 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
   const { colors, isDark } = useTheme();
   const { isAuthenticated } = useAuth();
 
-  // Kembalikan kotak kosong jika layer mode WebSidebar sedang mengudara di PC/Desktop
+  // Kembalikan kotak kosong jika layer mode WebNavbar sedang mengudara di PC/Desktop
   if (width >= 768) return <View style={{ height: 0 }} />;
 
   return (
@@ -182,12 +182,11 @@ const AppNavigator = () => (
   </Stack.Navigator>
 );
 
-// Web layout: persistent sidebar + content
+// Web layout: persistent navbar + content
 const WebLayout = () => {
   const { colors } = useTheme();
   const [currentRoute, setCurrentRoute] = useState("HomeTab");
   const [activeRoute, setActiveRoute] = useState("HomeTab");
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
@@ -197,7 +196,7 @@ const WebLayout = () => {
         (navigationRef as any).navigate("AnimeList", { type: "ongoing", title: "Anime Ongoing" });
       } else if (name === "CompletedList") {
         (navigationRef as any).navigate("AnimeList", { type: "completed", title: "Anime Completed" });
-      } else if (name === "GenreList" || name === "Login") {
+      } else if (name === "GenreList" || name === "Login" || name === "Search") {
         (navigationRef as any).navigate(name);
       } else {
         navigationRef.dispatch(
@@ -211,17 +210,15 @@ const WebLayout = () => {
     }
   };
 
-  const isAuthScreen = activeRoute === "Login" || activeRoute === "Register";
+  const isNavbarHidden = activeRoute === "Login" || activeRoute === "Register" || activeRoute === "Episode";
 
   return (
-    <View style={{ flex: 1, flexDirection: "row", backgroundColor: colors.bg }}>
-      {/* Persistent Sidebar (hidden on Login & Register screens) */}
-      {isDesktop && !isAuthScreen && (
-        <WebSidebar
+    <View style={{ flex: 1, flexDirection: "column", backgroundColor: colors.bg }}>
+      {/* Persistent Navbar (hidden on Login, Register & Episode screens) */}
+      {isDesktop && !isNavbarHidden && (
+        <WebNavbar
           currentRoute={currentRoute}
           onNavigate={handleNavigate}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
       )}
 
@@ -238,7 +235,7 @@ const WebLayout = () => {
           onStateChange={(state) => {
             const name = getActiveRouteName(state as NavigationState);
             setActiveRoute(name);
-            
+
             if (name === "AnimeList") {
               const params = navigationRef.isReady() ? (navigationRef.getCurrentRoute()?.params as any) : null;
               if (params?.type === "completed") {

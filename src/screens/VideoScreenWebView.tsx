@@ -124,15 +124,13 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(
       "hardwareBackPress",
-      async () => {
+      () => {
         // Reset orientation to portrait before going back
-        try {
-          await ScreenOrientation.lockAsync(
-            ScreenOrientation.OrientationLock.PORTRAIT_UP,
-          );
-        } catch (error) {
+        ScreenOrientation.lockAsync(
+          ScreenOrientation.OrientationLock.PORTRAIT_UP,
+        ).catch((error) => {
           console.error("[SCREEN] Failed to reset orientation on back:", error);
-        }
+        });
         navigation.goBack();
         return true;
       },
@@ -371,7 +369,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
             if (quality.serverList && quality.serverList.length > 0) {
               // Try to find non-problematic server first
               const goodServer = quality.serverList.find(
-                (s) => !isServerProblematic(s),
+                (s: any) => !isServerProblematic(s),
               );
               const firstServer = goodServer || quality.serverList[0];
 

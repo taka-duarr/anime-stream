@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
@@ -25,6 +27,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({
 }) => {
   const { colors } = useTheme();
   const { isAuthenticated, username } = useAuth();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= 768;
 
   const [comments, setComments] = useState<api.Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +71,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
         if (comment.parent_id === null) {
           rootComments.push(commentWithReplies);
         } else {
-          const parent = commentMap.get(comment.parent_id);
+          const parent = commentMap.get(comment.parent_id!);
           if (parent) {
             if (!parent.replies) parent.replies = [];
             parent.replies.push(commentWithReplies);
@@ -322,7 +326,22 @@ const CommentSection: React.FC<CommentSectionProps> = ({
                 <Text style={[styles.username, { color: colors.text }]}>
                   {displayUsername}
                 </Text>
-                {isOwnComment && (
+                
+                {isDesktop && (
+                  <>
+                    <Text style={[styles.userLevel, { color: colors.textSecondary }]}>
+                      Level 2 (Otooto)
+                    </Text>
+                    <View style={[styles.modBadge, { backgroundColor: colors.accent }]}>
+                      <Text style={styles.modBadgeText}>Moderator</Text>
+                    </View>
+                    <Text style={[styles.postIdText, { color: colors.textMuted }]}>
+                      #245
+                    </Text>
+                  </>
+                )}
+
+                {isOwnComment && !isDesktop && (
                   <View
                     style={[
                       styles.badge,
@@ -334,13 +353,6 @@ const CommentSection: React.FC<CommentSectionProps> = ({
                     </Text>
                   </View>
                 )}
-                <Text style={[styles.timestamp, { color: colors.textMuted }]}>
-                  •{" "}
-                  {new Date(comment.created_at).toLocaleDateString("id-ID", {
-                    day: "numeric",
-                    month: "short",
-                  })}
-                </Text>
               </View>
 
               {/* Edit / Delete */}
@@ -375,40 +387,93 @@ const CommentSection: React.FC<CommentSectionProps> = ({
               {comment.content || ""}
             </Text>
 
-            {/* Actions */}
+            {/* Actions interaction row matching mockup */}
             <View style={styles.interactionRow}>
-              <TouchableOpacity style={styles.interactionBtn}>
-                <Ionicons
-                  name="heart-outline"
-                  size={16}
-                  color={colors.textMuted}
-                />
-                <Text
-                  style={[styles.interactionText, { color: colors.textMuted }]}
-                >
-                  0
-                </Text>
-              </TouchableOpacity>
+              {isDesktop ? (
+                <>
+                  <TouchableOpacity style={styles.thumbsBtn}>
+                    <Ionicons
+                      name="thumbs-up-outline"
+                      size={16}
+                      color={colors.accent}
+                    />
+                    <Text style={[styles.thumbsText, { color: colors.accent }]}>
+                      12
+                    </Text>
+                  </TouchableOpacity>
 
-              {!isReply && (
-                <TouchableOpacity
-                  onPress={() => handleReplyComment(comment)}
-                  style={styles.interactionBtn}
-                >
-                  <Ionicons
-                    name="arrow-undo-outline"
-                    size={16}
-                    color={colors.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.interactionText,
-                      { color: colors.textMuted },
-                    ]}
+                  <TouchableOpacity style={styles.thumbsBtn}>
+                    <Ionicons
+                      name="thumbs-down-outline"
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={[styles.thumbsText, { color: colors.textSecondary }]}>
+                      1
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => handleReplyComment(comment)}
+                    style={styles.replyTextBtn}
                   >
-                    Balas
+                    <Text style={[styles.replyText, { color: colors.textSecondary }]}>
+                      REPLY
+                    </Text>
+                  </TouchableOpacity>
+
+                  <Text style={[styles.timestampDesktop, { color: colors.textMuted }]}>
+                    1 hour ago
                   </Text>
-                </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.moreIconBtn}>
+                    <Ionicons name="ellipsis-horizontal" size={16} color={colors.textMuted} />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity style={styles.interactionBtn}>
+                    <Ionicons
+                      name="heart-outline"
+                      size={16}
+                      color={colors.textMuted}
+                    />
+                    <Text
+                      style={[styles.interactionText, { color: colors.textMuted }]}
+                    >
+                      0
+                    </Text>
+                  </TouchableOpacity>
+
+                  {!isReply && (
+                    <TouchableOpacity
+                      onPress={() => handleReplyComment(comment)}
+                      style={styles.interactionBtn}
+                    >
+                      <Ionicons
+                        name="arrow-undo-outline"
+                        size={16}
+                        color={colors.textMuted}
+                      />
+                      <Text
+                        style={[
+                          styles.interactionText,
+                          { color: colors.textMuted },
+                        ]}
+                      >
+                        Balas
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  
+                  <Text style={[styles.timestamp, { color: colors.textMuted }]}>
+                    •{" "}
+                    {new Date(comment.created_at).toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </Text>
+                </>
               )}
             </View>
           </View>
@@ -526,14 +591,21 @@ const CommentSection: React.FC<CommentSectionProps> = ({
 
       {/* Section Header */}
       <View style={styles.sectionHeader}>
-        <Ionicons name="chatbubbles" size={24} color={colors.accent} />
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Komentar ({comments.length})
-        </Text>
+        <View style={styles.sectionHeaderLeft}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Comments <Text style={{ color: colors.accent }}>({comments.length})</Text>
+          </Text>
+        </View>
+        {isDesktop && (
+          <View style={styles.sectionHeaderRight}>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginRight: 8, fontWeight: "600" }}>Latest Comments</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+          </View>
+        )}
       </View>
 
       {/* Input Area */}
-      <View style={[styles.inputContainer, { backgroundColor: colors.card }]}>
+      <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {/* Reply/Edit Banner */}
         {(replyingTo || editingComment) && (
           <View
@@ -582,66 +654,142 @@ const CommentSection: React.FC<CommentSectionProps> = ({
           </TouchableOpacity>
         )}
 
-        {/* Input Row */}
-        <View style={styles.inputRow}>
-          <TouchableOpacity
-            style={{ flex: 1 }}
-            activeOpacity={isAuthenticated ? 1 : 0.7}
-            onPress={!isAuthenticated ? () => setShowLoginModal(true) : undefined}
-          >
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.bgSecondary,
-                  color: colors.text,
-                  borderColor: colors.border,
-                  opacity: isAuthenticated ? 1 : 0.5,
-                },
-              ]}
-              placeholder={
-                !isAuthenticated
-                  ? "Login untuk berkomentar..."
-                  : editingComment
-                  ? "Edit komentar Anda..."
-                  : replyingTo
-                  ? "Tulis balasan Anda..."
-                  : "Tulis komentar Anda..."
-              }
-              placeholderTextColor={colors.textMuted}
-              value={commentText}
-              onChangeText={setCommentText}
-              multiline
-              maxLength={500}
-              editable={!!isAuthenticated}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              { backgroundColor: colors.accent },
-              (!commentText.trim() || submitting || !isAuthenticated) &&
-                styles.sendButtonDisabled,
-            ]}
-            onPress={
-              isAuthenticated
-                ? handleSubmitComment
-                : () => setShowLoginModal(true)
-            }
-            disabled={submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <Ionicons
-                name={isAuthenticated ? "send" : "lock-closed"}
-                size={20}
-                color="#FFF"
+        {/* Input Row - Desktop Watch Form vs Mobile Form */}
+        {isDesktop ? (
+          <View style={styles.desktopInputWrap}>
+            <TouchableOpacity
+              style={{ width: "100%" }}
+              activeOpacity={isAuthenticated ? 1 : 0.7}
+              onPress={!isAuthenticated ? () => setShowLoginModal(true) : undefined}
+            >
+              <TextInput
+                style={[
+                  styles.desktopTextInput,
+                  {
+                    backgroundColor: colors.bgSecondary,
+                    color: colors.text,
+                    borderColor: colors.border,
+                    opacity: isAuthenticated ? 1 : 0.5,
+                    outline: "none",
+                  } as any,
+                ]}
+                placeholder={
+                  !isAuthenticated
+                    ? "Login untuk berkomentar..."
+                    : "Type your comment here..."
+                }
+                placeholderTextColor={colors.textMuted}
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+                maxLength={500}
+                numberOfLines={4}
+                editable={!!isAuthenticated}
               />
-            )}
-          </TouchableOpacity>
-        </View>
+            </TouchableOpacity>
+
+            <View style={styles.toolbarRow}>
+              {/* Left format tools */}
+              <View style={styles.toolbarLeft}>
+                <TouchableOpacity style={styles.toolbarIconBtn}>
+                  <Ionicons name="camera-outline" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.toolbarIconBtn}>
+                  <Ionicons name="happy-outline" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.toolbarIconBtn}>
+                  <Text style={[styles.toolbarText, { color: colors.textSecondary }]}>B</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.toolbarIconBtn}>
+                  <Text style={[styles.toolbarText, { color: colors.textSecondary }]}>I</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.toolbarIconBtn}>
+                  <Text style={[styles.toolbarText, { color: colors.textSecondary }]}>U</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.toolbarIconBtn}>
+                  <Text style={[styles.toolbarText, { color: colors.textSecondary }]}>S</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Right Post button */}
+              <TouchableOpacity
+                style={[
+                  styles.desktopPostBtn,
+                  { backgroundColor: colors.accent },
+                  (!commentText.trim() || submitting || !isAuthenticated) && styles.desktopPostBtnDisabled,
+                ]}
+                onPress={isAuthenticated ? handleSubmitComment : () => setShowLoginModal(true)}
+                disabled={submitting || !commentText.trim() || !isAuthenticated}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.postBtnText}>Post</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.inputRow}>
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              activeOpacity={isAuthenticated ? 1 : 0.7}
+              onPress={!isAuthenticated ? () => setShowLoginModal(true) : undefined}
+            >
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.bgSecondary,
+                    color: colors.text,
+                    borderColor: colors.border,
+                    opacity: isAuthenticated ? 1 : 0.5,
+                  },
+                ]}
+                placeholder={
+                  !isAuthenticated
+                    ? "Login untuk berkomentar..."
+                    : editingComment
+                    ? "Edit komentar Anda..."
+                    : replyingTo
+                    ? "Tulis balasan Anda..."
+                    : "Tulis komentar Anda..."
+                }
+                placeholderTextColor={colors.textMuted}
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+                maxLength={500}
+                editable={!!isAuthenticated}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                { backgroundColor: colors.accent },
+                (!commentText.trim() || submitting || !isAuthenticated) &&
+                  styles.sendButtonDisabled,
+              ]}
+              onPress={
+                isAuthenticated
+                  ? handleSubmitComment
+                  : () => setShowLoginModal(true)
+              }
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Ionicons
+                  name={isAuthenticated ? "send" : "lock-closed"}
+                  size={20}
+                  color="#FFF"
+                />
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Comment List */}
@@ -862,9 +1010,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  repliesSection: {
-    marginTop: 4,
-  },
   // Modal Styles
   modalOverlay: {
     flex: 1,
@@ -936,6 +1081,107 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
   },
-});
+  sectionHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  sectionHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  desktopInputWrap: {
+    width: "100%",
+  },
+  desktopTextInput: {
+    width: "100%",
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 16,
+    fontSize: 14,
+    minHeight: 100,
+  },
+  toolbarRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  toolbarLeft: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+  },
+  toolbarIconBtn: {
+    padding: 4,
+  },
+  toolbarText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  desktopPostBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  desktopPostBtnDisabled: {
+    opacity: 0.5,
+  },
+  postBtnText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  userLevel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  modBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  modBadgeText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  postIdText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  thumbsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 2,
+  },
+  thumbsText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  replyTextBtn: {
+    paddingVertical: 2,
+  },
+  replyText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  timestampDesktop: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  moreIconBtn: {
+    padding: 2,
+  },
+  repliesSection: {
+    borderLeftWidth: 1.5,
+    borderLeftColor: "rgba(255,255,255,0.08)",
+    marginLeft: 24,
+    paddingLeft: 16,
+    marginTop: 8,
+  },
+}) as any;
 
 export default CommentSection;

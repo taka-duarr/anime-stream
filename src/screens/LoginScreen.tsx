@@ -8,8 +8,11 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 
@@ -26,12 +29,15 @@ interface LoginScreenProps {
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
   const { colors, isDark } = useTheme();
   const { login } = useAuth();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === "web" && width >= 768;
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [keepLoggedIn, setKeepLoggedIn] = useState(true);
 
   const [isUsernameFocused, setIsUsernameFocused] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
@@ -105,6 +111,245 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
   // RENDER
   // ============================================
 
+  // RENDER
+  // ============================================
+
+  if (isDesktop) {
+    return (
+      <View style={[styles.desktopWrapper, { backgroundColor: isDark ? "#0A0B0E" : "#F0F0F0" }]}>
+        {/* Absolute page background image for high-fidelity desaturated look */}
+        <Image
+          source={{ uri: "https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1200&auto=format&fit=crop" }}
+          style={styles.bgImageBackdrop as any}
+          contentFit="cover"
+        />
+        <View style={styles.bgOverlay as any} />
+
+        {/* 
+          Inject global CSS rules to override default browser autofill behavior.
+        */}
+        <style dangerouslySetInnerHTML={{__html: `
+          input:-webkit-autofill,
+          input:-webkit-autofill:hover,
+          input:-webkit-autofill:focus,
+          input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 1000px ${colors.bgSecondary} inset !important;
+            -webkit-text-fill-color: ${colors.text} !important;
+            caret-color: ${colors.text};
+            transition: background-color 5000s ease-in-out 0s;
+          }
+        `}} />
+
+        <View style={[styles.splitCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {/* Left Column: Branding & Art */}
+          <View style={styles.splitLeft}>
+            {/* Blurred background image inside left panel */}
+            <Image
+              source={{ uri: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=800&auto=format&fit=crop" }}
+              style={styles.splitLeftBg as any}
+              contentFit="cover"
+            />
+            <LinearGradient
+              colors={["rgba(26, 34, 48, 0.6)", "rgba(13, 14, 21, 0.92)"]}
+              style={StyleSheet.absoluteFillObject}
+            />
+
+            <View style={styles.splitLeftContent}>
+              {Platform.OS === "web" ? (
+                // Beautiful custom infinity-loop SVG in Accent Red color
+                <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginBottom: 32 }}>
+                  <path
+                    d="M18 22C24.5 22 28.5 27 32 32C35.5 37 39.5 42 46 42C53 42 58 37 58 32C58 27 53 22 46 22C39.5 22 35.5 27 32 32C28.5 37 24.5 42 18 42C11 42 6 37 6 32C6 27 11 22 18 22Z"
+                    stroke={colors.accent}
+                    strokeWidth="5.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                <Image
+                  source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
+                  style={styles.splitLogo as any}
+                  contentFit="contain"
+                />
+              )}
+              <Text style={styles.splitText}>
+                Stream,{"\n"}watch and{"\n"}discover{"\n"}anime<Text style={{ color: colors.accent }}>.</Text>
+              </Text>
+            </View>
+          </View>
+
+          {/* Right Column: Login Form */}
+          <View style={styles.splitRight}>
+            {/* Close Button */}
+            <TouchableOpacity
+              style={styles.closeBtn}
+              onPress={handleContinueAsGuest}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <Text style={[styles.splitTitle, { color: colors.text }]}>Login</Text>
+            <Text style={[styles.splitSubtitle, { color: colors.textSecondary }]}>
+              Masuk untuk menikmati streaming anime favorit Anda tanpa batas.
+            </Text>
+
+            {/* Error Message */}
+            {error ? (
+              <View
+                style={[
+                  styles.errorContainer,
+                  { backgroundColor: isDark ? "rgba(230,51,51,0.1)" : "rgba(230,51,51,0.05)" },
+                ]}
+              >
+                <Ionicons name="alert-circle" size={16} color={colors.accent} style={styles.errorIcon} />
+                <Text style={[styles.errorText, { color: colors.accent }]} numberOfLines={1}>
+                  {error}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Username Input */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Username</Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: colors.bgSecondary,
+                    borderColor: isUsernameFocused ? colors.accent : colors.border,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="person-outline"
+                  size={18}
+                  color={isUsernameFocused ? colors.accent : colors.textSecondary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="Masukkan username"
+                  placeholderTextColor={colors.textMuted}
+                  value={username}
+                  onChangeText={(text) => {
+                    setUsername(text);
+                    setError("");
+                  }}
+                  onFocus={() => setIsUsernameFocused(true)}
+                  onBlur={() => setIsUsernameFocused(false)}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                />
+              </View>
+            </View>
+
+            {/* Password Input */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: colors.bgSecondary,
+                    borderColor: isPasswordFocused ? colors.accent : colors.border,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={18}
+                  color={isPasswordFocused ? colors.accent : colors.textSecondary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="Masukkan password"
+                  placeholderTextColor={colors.textMuted}
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    setError("");
+                  }}
+                  onFocus={() => setIsPasswordFocused(true)}
+                  onBlur={() => setIsPasswordFocused(false)}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeIcon}
+                  disabled={loading}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Options Row */}
+            <View style={styles.optionsRow}>
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => setKeepLoggedIn(!keepLoggedIn)}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={keepLoggedIn ? "checkbox" : "square-outline"}
+                  size={18}
+                  color={keepLoggedIn ? colors.accent : colors.textSecondary}
+                />
+                <Text style={[styles.checkboxText, { color: colors.textSecondary }]}>
+                  Keep me Logged In
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity activeOpacity={0.7}>
+                <Text style={[styles.forgotText, { color: colors.accent }]}>Forgot Password?</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Action Button */}
+            <TouchableOpacity
+              style={[
+                styles.loginButton,
+                { backgroundColor: colors.accent },
+                loading && styles.loginButtonDisabled,
+              ]}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.loginButtonText}>Log In</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Register Link */}
+            <View style={styles.registerContainer}>
+              <Text style={[styles.registerText, { color: colors.textSecondary }]}>
+                Don't have an account yet?{" "}
+              </Text>
+              <TouchableOpacity onPress={handleNavigateToRegister} disabled={loading}>
+                <Text style={[styles.registerLink, { color: colors.accent }]}>Join Now</Text>
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.bg }]}
@@ -113,7 +358,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
     >
       {/* 
         Inject global CSS rules to override default browser autofill behavior.
-        This resolves the ugly white/light-blue rectangular background on autofilled inputs in web browsers.
       */}
       {Platform.OS === "web" && (
         <style dangerouslySetInnerHTML={{__html: `
@@ -132,7 +376,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
       <View style={styles.cardWrapper}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Selamat Datang</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Login</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Silakan masuk untuk menyelaraskan koleksi anime Anda
           </Text>
@@ -458,6 +702,136 @@ const styles = StyleSheet.create({
   guestButtonText: {
     fontSize: 14,
     fontWeight: "600",
+  },
+  desktopWrapper: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    ...Platform.select({
+      web: {
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+      },
+    }),
+  } as any,
+  bgImageBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100%",
+    height: "100%",
+    opacity: 0.25,
+    ...Platform.select({
+      web: {
+        filter: "blur(20px) grayscale(40%)",
+      },
+    }),
+  },
+  bgOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(12, 13, 17, 0.75)",
+  },
+  splitCard: {
+    flexDirection: "row",
+    width: 820,
+    height: 520,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 0.25,
+    shadowRadius: 40,
+    zIndex: 10,
+  },
+  splitLeft: {
+    flex: 1,
+    position: "relative",
+    overflow: "hidden",
+  },
+  splitLeftBg: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100%",
+    height: "100%",
+    ...Platform.select({
+      web: {
+        filter: "blur(4px) desaturate(20%)",
+      },
+    }),
+  },
+  splitLeftContent: {
+    flex: 1,
+    padding: 40,
+    justifyContent: "center",
+    zIndex: 2,
+  },
+  splitLogo: {
+    width: 64,
+    height: 64,
+    marginBottom: 32,
+  },
+  splitText: {
+    color: "#FFF",
+    fontSize: 28,
+    fontWeight: "800",
+    lineHeight: 36,
+  },
+  splitRight: {
+    width: 440,
+    padding: 40,
+    justifyContent: "center",
+    position: "relative",
+  },
+  closeBtn: {
+    position: "absolute",
+    top: 24,
+    right: 24,
+    padding: 4,
+  },
+  splitTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+  },
+  splitSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  optionsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  checkboxText: {
+    fontSize: 12.5,
+    fontWeight: "600",
+  },
+  forgotText: {
+    fontSize: 12.5,
+    fontWeight: "700",
   },
 });
 
