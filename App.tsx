@@ -180,6 +180,7 @@ const AppNavigator = () => (
 const WebLayout = () => {
   const { colors } = useTheme();
   const [currentRoute, setCurrentRoute] = useState("HomeTab");
+  const [activeRoute, setActiveRoute] = useState("HomeTab");
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
@@ -195,10 +196,12 @@ const WebLayout = () => {
     }
   };
 
+  const isAuthScreen = activeRoute === "Login" || activeRoute === "Register";
+
   return (
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: colors.bg }}>
-      {/* Persistent Sidebar */}
-      {isDesktop && (
+      {/* Persistent Sidebar (hidden on Login & Register screens) */}
+      {isDesktop && !isAuthScreen && (
         <WebSidebar currentRoute={currentRoute} onNavigate={handleNavigate} />
       )}
 
@@ -206,8 +209,15 @@ const WebLayout = () => {
       <View style={{ flex: 1, overflow: "hidden" }}>
         <NavigationContainer
           ref={navigationRef}
+          onReady={() => {
+            if (navigationRef.isReady()) {
+              const state = navigationRef.getRootState();
+              setActiveRoute(getActiveRouteName(state));
+            }
+          }}
           onStateChange={(state) => {
             const name = getActiveRouteName(state as NavigationState);
+            setActiveRoute(name);
             // Only update if it's a tab-level route (sidebar items)
             const tabRoutes = ["HomeTab", "MyListTab", "ProfileTab"];
             if (tabRoutes.includes(name)) {
