@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  useWindowDimensions,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -25,12 +26,23 @@ interface GenreListScreenProps {
   navigation: any;
 }
 
+const GENRE_COLORS = [
+  "#FF4757", "#2ED573", "#1E90FF", "#FFA502", "#9B59B6", 
+  "#1ABC9C", "#E67E22", "#E84393", "#00CEC9", "#6C5CE7",
+  "#FF7675", "#0984E3", "#D63031", "#E17055", "#FD79A8"
+];
+
 const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
   const { colors, isDark } = useTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
 
   const [genres, setGenres] = useState<Genre[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  const numColumns = isDesktop ? 4 : 2;
+  const cardPercent = isDesktop ? "23.5%" : "48%";
 
   const fetchGenres = async (isRefresh: boolean = false) => {
     if (loading) return;
@@ -93,16 +105,32 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
     return "film-outline";
   };
 
+  const getGenreColor = (title: string, isDesktopView: boolean): string => {
+    if (!isDesktopView) return colors.accent; // Mobile: all same color
+
+    // Desktop: different colors based on simple hash
+    let hash = 0;
+    for (let i = 0; i < title.length; i++) {
+      hash = title.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % GENRE_COLORS.length;
+    return GENRE_COLORS[index];
+  };
+
   const renderGenreItem = ({ item }: { item: Genre }) => {
+    const iconColor = getGenreColor(item.title, isDesktop);
+
     return (
       <TouchableOpacity
         style={[
-          styles.listItem,
+          styles.genreCard,
           {
             backgroundColor: colors.card,
+            borderColor: colors.border,
+            width: cardPercent as any,
           },
         ]}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
         onPress={() =>
           navigation.navigate("GenreAnime", {
             genreId: item.genreId,
@@ -110,29 +138,18 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
           })
         }
       >
-        {/* Icon Section (Left) */}
-        <View style={styles.iconContainer}>
-          <Ionicons name={getGenreIcon(item.title)} size={32} color={colors.accent} />
+        {/* Icon Container */}
+        <View style={[styles.cardIconContainer, { backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }]}>
+          <Ionicons name={getGenreIcon(item.title)} size={32} color={iconColor} />
         </View>
 
-        {/* Title Section (Center) */}
-        <View style={styles.titleContainer}>
-          <Text
-            style={[styles.genreTitle, { color: colors.text }]}
-            numberOfLines={1}
-          >
-            {item.title}
-          </Text>
-        </View>
-
-        {/* Chevron Section (Right) */}
-        <View style={styles.chevronContainer}>
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={colors.textSecondary}
-          />
-        </View>
+        {/* Title */}
+        <Text
+          style={[styles.genreCardTitle, { color: colors.text }]}
+          numberOfLines={1}
+        >
+          {item.title}
+        </Text>
       </TouchableOpacity>
     );
   };
@@ -188,7 +205,7 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Genre List */}
+      {/* Genre List Grid */}
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.accent} />
@@ -201,12 +218,10 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
           data={genres}
           renderItem={renderGenreItem}
           keyExtractor={(item, index) => `${item.genreId}-${index}`}
+          numColumns={numColumns}
+          key={`genre-grid-${numColumns}`} // Force re-layout when column size shifts
           contentContainerStyle={styles.listContent}
-          ItemSeparatorComponent={() => (
-            <View
-              style={[styles.divider, { backgroundColor: colors.border }]}
-            />
-          )}
+          columnWrapperStyle={styles.columnWrapper}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -261,35 +276,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   listContent: {
-    padding: 0,
+    padding: 16,
   },
-  divider: {
-    height: 1,
-    marginLeft: 72,
+  columnWrapper: {
+    justifyContent: "space-between",
+    marginBottom: 16,
   },
-  listItem: {
-    flexDirection: "row",
+  genreCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 20,
+    paddingHorizontal: 12,
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    minHeight: 64,
-  },
-  iconContainer: {
-    width: 40,
-    height: 40,
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  cardIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: "center",
-    marginRight: 16,
+    justifyContent: "center",
+    marginBottom: 12,
   },
-  titleContainer: {
-    flex: 1,
-  },
-  genreTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  chevronContainer: {
-    marginLeft: 12,
+  genreCardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+    letterSpacing: -0.2,
   },
   emptyContainer: {
     flex: 1,

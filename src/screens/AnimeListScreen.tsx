@@ -219,23 +219,17 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
       <View
         style={[
           styles.header,
-          { backgroundColor: colors.sidebar, borderBottomColor: colors.border },
+          { backgroundColor: colors.sidebar, borderBottomColor: colors.border, justifyContent: "center" },
         ]}
       >
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
+        <View style={[styles.headerTitleContainer, { alignItems: "center" }]}>
+          <Text style={[styles.headerTitle, { color: colors.text, textAlign: "center" }]}>
             {screenTitle}
           </Text>
           <Text
-            style={[styles.headerSubtitle, { color: colors.textSecondary }]}
+            style={[styles.headerSubtitle, { color: colors.textSecondary, textAlign: "center" }]}
           >
-            {animeList.length} anime • Page {currentPage}
+            {animeList.length} anime
           </Text>
         </View>
       </View>

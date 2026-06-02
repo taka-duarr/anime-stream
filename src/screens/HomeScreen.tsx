@@ -6,17 +6,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
-  FlatList,
+  ScrollView,
   RefreshControl,
   Platform,
   useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
-import {
-  getHomeData,
-  getOngoingAnime,
-  getCompleteAnime,
-} from "../services/api";
+import { getHomeData } from "../services/api";
 import { Anime } from "../types/drama";
 import { StatusBar } from "expo-status-bar";
 import Swiper from "react-native-swiper";
@@ -25,8 +21,6 @@ import { useAuth } from "../context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 
 const isWeb = Platform.OS === "web";
-
-type TabType = "ongoing" | "completed";
 
 // Helper fungsi untuk mapping anime data ke format lama (backward compatibility)
 const mapAnimeToDrama = (anime: any) => ({
@@ -43,22 +37,17 @@ const mapAnimeToDrama = (anime: any) => ({
 
 const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, isDark, toggleTheme } = useTheme();
-  const { isAuthenticated, username } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabType>("ongoing");
+  const { isAuthenticated, username, profilePicture } = useAuth();
+  
   const [ongoingAnime, setOngoingAnime] = useState<Anime[]>([]);
   const [completedAnime, setCompletedAnime] = useState<Anime[]>([]);
   const [carouselItems, setCarouselItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [ongoingPage, setOngoingPage] = useState(1);
-  const [completedPage, setCompletedPage] = useState(1);
-  const [ongoingHasMore, setOngoingHasMore] = useState(true);
-  const [completedHasMore, setCompletedHasMore] = useState(true);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
-  const flatListRef = useRef<FlatList>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const fetchAll = async () => {
     try {
@@ -68,7 +57,6 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
       console.log("[HOME] Home Data received");
 
-      // Data should already be in correct format from api.ts
       if (homeData && homeData.ongoingAnime && homeData.completeAnime) {
         console.log("[HOME] Valid home data structure");
 
@@ -78,10 +66,6 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
         setOngoingAnime(ongoing);
         setCompletedAnime(completed);
-        setOngoingPage(1);
-        setCompletedPage(1);
-        setOngoingHasMore(true);
-        setCompletedHasMore(true);
 
         // Setup carousel dari ongoing anime (top 6)
         const carouselData = homeData.ongoingAnime
@@ -101,87 +85,17 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         setCarouselItems(carouselData);
       } else {
         console.error("[HOME ERROR] Invalid home data structure:", homeData);
-        // Set empty arrays as fallback
         setOngoingAnime([]);
         setCompletedAnime([]);
         setCarouselItems([]);
       }
     } catch (e: any) {
       console.error("[HOME ERROR] Gagal fetch home:", e);
-      console.error("[HOME ERROR STACK]", e?.stack || "No stack trace");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
-
-  // Load more anime for pagination
-  const loadMoreAnime = useCallback(async () => {
-    if (loadingMore) return;
-
-    const isOngoing = activeTab === "ongoing";
-    const currentPage = isOngoing ? ongoingPage : completedPage;
-    const hasMore = isOngoing ? ongoingHasMore : completedHasMore;
-
-    if (!hasMore) {
-      console.log(`[HOME PAGINATION] No more ${activeTab} anime to load`);
-      return;
-    }
-
-    setLoadingMore(true);
-    const nextPage = currentPage + 1;
-
-    try {
-      console.log(`[HOME PAGINATION] Loading ${activeTab} page ${nextPage}`);
-
-      const fetchFunction = isOngoing ? getOngoingAnime : getCompleteAnime;
-      const data = await fetchFunction(nextPage);
-
-      if (data && data.length > 0) {
-        const mappedData = data.map(mapAnimeToDrama);
-
-        if (isOngoing) {
-          setOngoingAnime((prev) => [...prev, ...mappedData]);
-          setOngoingPage(nextPage);
-          setOngoingHasMore(data.length >= 10);
-        } else {
-          setCompletedAnime((prev) => [...prev, ...mappedData]);
-          setCompletedPage(nextPage);
-          setCompletedHasMore(data.length >= 10);
-        }
-
-        console.log(
-          `[HOME PAGINATION] Loaded ${data.length} items, page ${nextPage}`,
-        );
-      } else {
-        if (isOngoing) {
-          setOngoingHasMore(false);
-        } else {
-          setCompletedHasMore(false);
-        }
-        console.log(`[HOME PAGINATION] No more ${activeTab} data`);
-      }
-    } catch (error) {
-      console.error(
-        `[HOME PAGINATION ERROR] Failed to load page ${nextPage}:`,
-        error,
-      );
-      if (isOngoing) {
-        setOngoingHasMore(false);
-      } else {
-        setCompletedHasMore(false);
-      }
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [
-    activeTab,
-    ongoingPage,
-    completedPage,
-    ongoingHasMore,
-    completedHasMore,
-    loadingMore,
-  ]);
 
   useEffect(() => {
     fetchAll();
@@ -189,10 +103,6 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    setOngoingPage(1);
-    setCompletedPage(1);
-    setOngoingHasMore(true);
-    setCompletedHasMore(true);
     fetchAll();
   }, []);
 
@@ -200,7 +110,6 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const handleScroll = useCallback(
     (event: any) => {
       const offsetY = event.nativeEvent.contentOffset.y;
-      // Show button when scrolled down more than 500px
       if (offsetY > 500 && !showScrollToTop) {
         setShowScrollToTop(true);
       } else if (offsetY <= 500 && showScrollToTop) {
@@ -212,24 +121,13 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   // Scroll to top function
   const scrollToTop = useCallback(() => {
-    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   }, []);
 
-  const currentData = activeTab === "ongoing" ? ongoingAnime : completedAnime;
-
-  const currentTabTitle =
-    activeTab === "ongoing" ? "Anime Ongoing" : "Anime Completed";
-
-  const currentSubtitle =
-    activeTab === "ongoing"
-      ? "Anime yang sedang tayang saat ini"
-      : "Anime yang sudah selesai tayang";
-
-  // Calculate numColumns at component level so FlatList & renderItem stay in sync
-  let numColumns = 2;
-  if (width >= 1200) numColumns = 5;
-  else if (width >= 900) numColumns = 4;
-  else if (width >= 600) numColumns = 3;
+  // Responsive percentage width for grid cards inside ScrollView
+  const cardWidthPercent = isDesktop
+    ? width >= 1200 ? "18%" : "23%" // 5 columns on desktop, 4 columns on small desktop/tablet web
+    : "48%"; // 2 columns on mobile
 
   if (loading && !refreshing) {
     return (
@@ -239,281 +137,69 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     );
   }
 
-  // Grid card ala Epic Games — cover image besar di atas, info di bawah
-  const renderAnimeItem = ({ item, index }: { item: Anime; index: number }) => (
-    <TouchableOpacity
-      style={[
-        styles.card,
-        {
-          backgroundColor: colors.card,
-          // Use fixed percentage based on numColumns with consistent gap
-          width: `${100 / numColumns}%` as any,
-        },
-      ]}
-      activeOpacity={0.82}
-      onPress={() =>
-        navigation.navigate("Episode", {
-          bookId: item.animeId,
-          title: item.title,
-        })
-      }
-    >
-      {/* Cover Image */}
-      <View style={styles.cardImageWrap}>
-        <Image
-          source={{
-            uri: item.poster || "https://via.placeholder.com/180x240",
-          }}
-          style={styles.cardImage}
-          contentFit="cover"
-        />
-        {/* Rank badge */}
-        <View style={[styles.rankBadge, { backgroundColor: colors.accent }]}>
-          <Text style={styles.rankText}>#{index + 1}</Text>
-        </View>
-        {/* Type badge */}
-        <View
-          style={[styles.typeBadge, { backgroundColor: "rgba(0,0,0,0.6)" }]}
-        >
-          <Text style={styles.typeText}>
-            {activeTab === "ongoing" ? "ONGOING" : "COMPLETED"}
-          </Text>
-        </View>
-      </View>
-
-      {/* Card Info */}
-      <View style={styles.cardInfo}>
-        <Text
-          style={[styles.cardTitle, { color: colors.text }]}
-          numberOfLines={2}
-        >
-          {item.title || "Unknown Anime"}
-        </Text>
-        <View style={styles.cardMeta}>
-          <Text style={[styles.cardEpisode, { color: colors.textSecondary }]}>
-            {item.totalEpisodes || "?"} ep
-          </Text>
-          <Text style={[styles.cardViews, { color: colors.accent }]}>
-            ⭐ {item.score || "N/A"}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderFooter = () => {
-    if (!loadingMore) return null;
-
+  // Grid card rendering
+  const renderCard = (item: Anime, index: number, badgeText: string) => {
     return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={colors.accent} />
-        <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-          Loading more...
-        </Text>
-      </View>
-    );
-  };
-
-  const renderEmpty = () => {
-    if (loading) return null;
-
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-          Tidak ada anime di kategori ini
-        </Text>
-        <TouchableOpacity
-          onPress={onRefresh}
-          style={[styles.retryButton, { backgroundColor: colors.accent }]}
-        >
-          <Text style={styles.retryButtonText}>Refresh</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const renderListHeader = () => (
-    <>
-      {/* HERO CAROUSEL */}
-      {carouselItems.length > 0 && (
-        <View style={styles.heroContainer}>
-          <Swiper
-            showsButtons={false}
-            autoplay
-            autoplayTimeout={5}
-            showsPagination
-            dot={<View style={styles.heroDot} />}
-            activeDot={
-              <View
-                style={[
-                  styles.heroActiveDot,
-                  { backgroundColor: colors.accent },
-                ]}
-              />
-            }
-          >
-            {carouselItems.map((item) => (
-              <View key={`hero-${item.id}`} style={styles.heroSlide}>
-                <Image
-                  source={{ uri: item.cover }}
-                  style={styles.heroImage}
-                  contentFit="cover"
-                  blurRadius={isWeb ? 0 : 8}
-                />
-                <LinearGradient
-                  colors={[
-                    "rgba(0,0,0,0.85)",
-                    "rgba(0,0,0,0.6)",
-                    "rgba(0,0,0,0.4)",
-                    "rgba(0,0,0,0.7)",
-                  ]}
-                  style={styles.heroGradient}
-                />
-                <View style={styles.heroGradBottom} />
-
-                <View style={styles.heroContentRow}>
-                  <View style={styles.heroPosterWrap}>
-                    <Image
-                      source={{ uri: item.cover }}
-                      style={styles.heroPoster}
-                      contentFit="cover"
-                    />
-                  </View>
-
-                  <View style={styles.heroInfoPanel}>
-                    <Text
-                      style={[styles.heroLabel, { color: item.labelColor }]}
-                    >
-                      {item.label}
-                    </Text>
-
-                    <Text style={styles.heroTitle} numberOfLines={2}>
-                      {item.title}
-                    </Text>
-
-                    <Text style={styles.heroEpisodeCount}>{item.meta}</Text>
-
-                    <Text style={styles.heroDescription} numberOfLines={2}>
-                      {item.description ||
-                        "Anime seru yang tak boleh kamu lewatkan."}
-                    </Text>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.heroBtn,
-                        { backgroundColor: item.labelColor },
-                      ]}
-                      activeOpacity={0.85}
-                      onPress={() =>
-                        navigation.navigate(item.navTarget, {
-                          bookId: item.navBookId,
-                          title: item.title,
-                        })
-                      }
-                    >
-                      <Ionicons
-                        name="play"
-                        size={14}
-                        color="#FFF"
-                        style={{ marginRight: 6 }}
-                      />
-                      <Text style={styles.heroBtnText}>Watch Now</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </Swiper>
-        </View>
-      )}
-
-      {/* TAB SELECTOR */}
-      <View
+      <TouchableOpacity
+        key={`${item.animeId}-${badgeText}-${index}`}
         style={[
-          styles.tabBar,
-          { backgroundColor: colors.sidebar, borderBottomColor: colors.border },
+          styles.card,
+          {
+            backgroundColor: colors.card,
+            width: cardWidthPercent as any,
+            borderBottomWidth: 2.5,
+            borderBottomColor: colors.accent,
+          },
         ]}
+        activeOpacity={0.82}
+        onPress={() =>
+          navigation.navigate("Episode", {
+            bookId: item.animeId,
+            title: item.title,
+          })
+        }
       >
-        {(
-          [
-            {
-              key: "ongoing",
-              label: "Ongoing",
-              count: ongoingAnime.length,
-            },
-            {
-              key: "completed",
-              label: "Completed",
-              count: completedAnime.length,
-            },
-          ] as const
-        ).map((tab) => {
-          const active = activeTab === tab.key;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              style={styles.tabItem}
-              onPress={() => setActiveTab(tab.key)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: active ? colors.text : colors.textSecondary },
-                  active && styles.tabLabelActive,
-                ]}
-              >
-                {tab.label}
-                {tab.count > 0 && (
-                  <Text style={{ fontSize: 10, fontWeight: "400" }}>
-                    {" "}
-                    {tab.count}
-                  </Text>
-                )}
-              </Text>
-              {active && (
-                <View
-                  style={[
-                    styles.tabUnderline,
-                    { backgroundColor: colors.accent },
-                  ]}
-                />
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+        {/* Cover Image */}
+        <View style={styles.cardImageWrap}>
+          <Image
+            source={{
+              uri: item.poster || "https://via.placeholder.com/180x240",
+            }}
+            style={styles.cardImage}
+            contentFit="cover"
+          />
+          {/* Rank badge */}
+          <View style={[styles.rankBadge, { backgroundColor: colors.accent }]}>
+            <Text style={styles.rankText}>#{index + 1}</Text>
+          </View>
+          {/* Type badge */}
+          <View
+            style={[styles.typeBadge, { backgroundColor: "rgba(0,0,0,0.6)" }]}
+          >
+            <Text style={styles.typeText}>{badgeText}</Text>
+          </View>
+        </View>
 
-      {/* SECTION HEADER */}
-      <View style={styles.sectionHeader}>
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionHeaderLeft}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              {currentTabTitle}
+        {/* Card Info */}
+        <View style={styles.cardInfo}>
+          <Text
+            style={[styles.cardTitle, { color: colors.text }]}
+            numberOfLines={2}
+          >
+            {item.title || "Unknown Anime"}
+          </Text>
+          <View style={styles.cardMeta}>
+            <Text style={[styles.cardEpisode, { color: colors.textSecondary }]}>
+              {item.totalEpisodes || "?"} ep
             </Text>
-            <Text
-              style={[styles.sectionSubtitle, { color: colors.textSecondary }]}
-            >
-              {currentSubtitle}
+            <Text style={[styles.cardViews, { color: colors.accent }]}>
+              ⭐ {item.score || "N/A"}
             </Text>
           </View>
-          <TouchableOpacity
-            style={[styles.seeAllButton, { backgroundColor: colors.accent }]}
-            activeOpacity={0.8}
-            onPress={() =>
-              navigation.navigate("AnimeList", {
-                type: activeTab,
-                title: currentTabTitle,
-              })
-            }
-          >
-            <Text style={styles.seeAllButtonText}>Lihat Semua</Text>
-            <Ionicons name="arrow-forward" size={14} color="#FFF" />
-          </TouchableOpacity>
         </View>
-      </View>
-    </>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -522,6 +208,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         backgroundColor={colors.sidebar}
       />
 
+      {/* Header */}
       <View
         style={[
           styles.header,
@@ -566,11 +253,19 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     { backgroundColor: isDark ? "#2C2C2C" : "#EEE" },
                   ]}
                 >
-                  <Ionicons
-                    name={isAuthenticated ? "person" : "log-in"}
-                    size={16}
-                    color={colors.accent}
-                  />
+                  {isAuthenticated && profilePicture ? (
+                    <Image
+                      source={{ uri: profilePicture }}
+                      style={{ width: "100%", height: "100%", borderRadius: 16 }}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <Ionicons
+                      name={isAuthenticated ? "person" : "log-in"}
+                      size={16}
+                      color={colors.accent}
+                    />
+                  )}
                 </View>
               </TouchableOpacity>
             </View>
@@ -597,7 +292,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </View>
           </TouchableOpacity>
 
-          {/* Genre Button (Only show on mobile/tablet, hidden on web desktop since it is in sidebar) */}
+          {/* Genre Button (Only show on mobile/tablet) */}
           {!isDesktop && (
             <TouchableOpacity
               style={[styles.genreButton, { backgroundColor: colors.accent }]}
@@ -610,20 +305,13 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         </View>
       </View>
 
-      {/* FLATLIST WITH PAGINATION */}
-      <FlatList
-        ref={flatListRef}
-        data={currentData}
-        renderItem={renderAnimeItem}
-        keyExtractor={(item, index) => `${item.animeId}-${index}`}
-        numColumns={numColumns}
-        key={`home-grid-${numColumns}`}
-        contentContainerStyle={styles.listContent}
-        columnWrapperStyle={styles.columnWrapper}
+      {/* Main Scrollable Content */}
+      <ScrollView
+        ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={renderListHeader}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -632,11 +320,166 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             tintColor={colors.accent}
           />
         }
-        onEndReached={loadMoreAnime}
-        onEndReachedThreshold={0.5}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-      />
+      >
+        {/* HERO CAROUSEL */}
+        {carouselItems.length > 0 && (
+          <View style={styles.heroContainer}>
+            <Swiper
+              showsButtons={false}
+              autoplay
+              autoplayTimeout={5}
+              showsPagination
+              dot={<View style={styles.heroDot} />}
+              activeDot={
+                <View
+                  style={[
+                    styles.heroActiveDot,
+                    { backgroundColor: colors.accent },
+                  ]}
+                />
+              }
+            >
+              {carouselItems.map((item) => (
+                <View key={`hero-${item.id}`} style={styles.heroSlide}>
+                  <Image
+                    source={{ uri: item.cover }}
+                    style={styles.heroImage}
+                    contentFit="cover"
+                    blurRadius={isWeb ? 0 : 8}
+                  />
+                  <LinearGradient
+                    colors={[
+                      "rgba(0,0,0,0.85)",
+                      "rgba(0,0,0,0.6)",
+                      "rgba(0,0,0,0.4)",
+                      "rgba(0,0,0,0.7)",
+                    ]}
+                    style={styles.heroGradient}
+                  />
+                  <View style={styles.heroGradBottom} />
+
+                  <View style={styles.heroContentRow}>
+                    <View style={styles.heroPosterWrap}>
+                      <Image
+                        source={{ uri: item.cover }}
+                        style={styles.heroPoster}
+                        contentFit="cover"
+                      />
+                    </View>
+
+                    <View style={styles.heroInfoPanel}>
+                      <Text
+                        style={[styles.heroLabel, { color: item.labelColor }]}
+                      >
+                        {item.label}
+                      </Text>
+
+                      <Text style={styles.heroTitle} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+
+                      <Text style={styles.heroEpisodeCount}>{item.meta}</Text>
+
+                      <Text style={styles.heroDescription} numberOfLines={2}>
+                        {item.description ||
+                          "Anime seru yang tak boleh kamu lewatkan."}
+                      </Text>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.heroBtn,
+                          { backgroundColor: item.labelColor },
+                        ]}
+                        activeOpacity={0.85}
+                        onPress={() =>
+                          navigation.navigate(item.navTarget, {
+                            bookId: item.navBookId,
+                            title: item.title,
+                          })
+                        }
+                      >
+                        <Ionicons
+                          name="play"
+                          size={14}
+                          color="#FFF"
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text style={styles.heroBtnText}>Watch Now</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </Swiper>
+          </View>
+        )}
+
+        {/* SECTION 1: ANIME ONGOING */}
+        {ongoingAnime.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <View style={{ width: 4, height: 20, backgroundColor: colors.accent, marginRight: 8, borderRadius: 2 }} />
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Anime Ongoing
+                  </Text>
+                </View>
+                <Text style={[styles.sectionSubtitle, { color: colors.textSecondary, marginLeft: 12 }]}>
+                  Anime yang sedang tayang saat ini
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("AnimeList", { type: "ongoing", title: "Anime Ongoing" })}
+                style={styles.seeAllButton}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.seeAllText, { color: colors.accent }]}>
+                  Lihat Semua
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.accent} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.gridContainer}>
+              {ongoingAnime.slice(0, 10).map((item, index) => renderCard(item, index, "ONGOING"))}
+            </View>
+          </View>
+        )}
+
+        {/* SECTION 2: ANIME COMPLETED */}
+        {completedAnime.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <View style={{ width: 4, height: 20, backgroundColor: colors.accent, marginRight: 8, borderRadius: 2 }} />
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Anime Completed
+                  </Text>
+                </View>
+                <Text style={[styles.sectionSubtitle, { color: colors.textSecondary, marginLeft: 12 }]}>
+                  Anime yang sudah selesai tayang
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => navigation.navigate("AnimeList", { type: "completed", title: "Anime Completed" })}
+                style={styles.seeAllButton}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.seeAllText, { color: colors.accent }]}>
+                  Lihat Semua
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.accent} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.gridContainer}>
+              {completedAnime.slice(0, 10).map((item, index) => renderCard(item, index, "COMPLETED"))}
+            </View>
+          </View>
+        )}
+      </ScrollView>
 
       {/* SCROLL TO TOP BUTTON */}
       {showScrollToTop && (
@@ -654,32 +497,26 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
 export default HomeScreen;
 
-/* ⬇⬇⬇ STYLES */
+/* styles */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
   },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
   },
   header: {
-    backgroundColor: "#FFFFFF",
     paddingTop: isWeb ? 16 : 50,
     paddingHorizontal: 16,
     paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "transparent",
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
-  /* MOBILE WELCOME HEADER */
   mobileWelcomeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -718,7 +555,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  /* Search bar — inline dengan icon kanan */
   searchBar: {
     flex: 1,
     flexDirection: "row",
@@ -747,86 +583,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginLeft: 8,
   },
-  /* TAB BAR — underline minimalist */
-  tabBar: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    paddingHorizontal: 4,
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 12,
-    position: "relative",
-  },
-  tabLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  tabLabelActive: {
-    fontWeight: "700",
-  },
-  tabUnderline: {
-    position: "absolute",
-    bottom: 0,
-    left: "10%",
-    right: "10%",
-    height: 2,
-    borderRadius: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  listContent: {
+  scrollContent: {
     paddingBottom: 40,
   },
-  columnWrapper: {
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-  },
-  sectionHeader: {
-    paddingHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 12,
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  sectionHeaderLeft: {
-    flex: 1,
-  },
-  sectionTitle: {
-    color: "#000000",
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    color: "#666666",
-    fontSize: 12,
-  },
-  seeAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 4,
-  },
-  seeAllButtonText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-
-  /* HERO CAROUSEL — Poster + Info layout */
   heroContainer: {
     height: isWeb ? 280 : 220,
     marginHorizontal: 12,
     marginTop: 12,
-    marginBottom: 4,
+    marginBottom: 24,
     borderRadius: 14,
     overflow: "hidden",
   },
@@ -835,7 +599,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#0D0D0D",
     position: "relative",
   },
-  /* Background image fills entire slide (blurred on mobile) */
   heroImage: {
     position: "absolute",
     top: 0,
@@ -848,7 +611,6 @@ const styles = StyleSheet.create({
       ? { filter: "blur(10px) brightness(0.9)", transform: [{ scale: 1.1 }] }
       : {}),
   },
-  /* Dark overlay gradient */
   heroGradient: {
     position: "absolute",
     top: 0,
@@ -856,7 +618,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: 0,
   },
-  /* Bottom fade so dots are readable */
   heroGradBottom: {
     position: "absolute",
     bottom: 0,
@@ -864,7 +625,6 @@ const styles = StyleSheet.create({
     right: 0,
     height: 48,
   },
-  /* Content row: poster left + info right */
   heroContentRow: {
     position: "absolute",
     top: 0,
@@ -876,7 +636,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: isWeb ? 24 : 16,
     paddingBottom: 30,
   },
-  /* Poster preview thumbnail */
   heroPosterWrap: {
     width: isWeb ? 140 : 100,
     height: isWeb ? 200 : 145,
@@ -892,7 +651,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  /* Info panel next to poster */
   heroInfoPanel: {
     flex: 1,
     marginLeft: isWeb ? 20 : 14,
@@ -952,8 +710,42 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginHorizontal: 3,
   },
-
-  /* ─── GRID CARD (Epic Games style) ─── */
+  section: {
+    marginBottom: 28,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  seeAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  seeAllText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+  },
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+  },
   card: {
     borderRadius: 10,
     overflow: "hidden",
@@ -1024,49 +816,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
-
-  /* ─── EMPTY / RETRY ─── */
-  footerLoader: {
-    paddingVertical: 20,
-    alignItems: "center",
-    width: "100%",
-  },
-  footerText: {
-    marginTop: 8,
-    fontSize: 12,
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: "center",
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  retryButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
   scrollToTopButton: {
     position: "absolute",
     bottom: 24,
-    right: 16,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    right: 24,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
+    elevation: 5,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowRadius: 4,
   },
 });

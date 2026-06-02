@@ -23,8 +23,7 @@ import * as api from "../services/api";
 
 const ProfileScreen = ({ navigation }: any) => {
   const { colors, isDark, toggleTheme } = useTheme();
-  const { isAuthenticated, username, logout } = useAuth();
-  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const { isAuthenticated, username, logout, profilePicture, setProfilePicture } = useAuth();
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
 

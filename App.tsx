@@ -193,7 +193,11 @@ const WebLayout = () => {
 
   const handleNavigate = (name: string) => {
     if (navigationRef.isReady()) {
-      if (name === "GenreList" || name === "Login") {
+      if (name === "OngoingList") {
+        (navigationRef as any).navigate("AnimeList", { type: "ongoing", title: "Anime Ongoing" });
+      } else if (name === "CompletedList") {
+        (navigationRef as any).navigate("AnimeList", { type: "completed", title: "Anime Completed" });
+      } else if (name === "GenreList" || name === "Login") {
         (navigationRef as any).navigate(name);
       } else {
         navigationRef.dispatch(
@@ -234,10 +238,19 @@ const WebLayout = () => {
           onStateChange={(state) => {
             const name = getActiveRouteName(state as NavigationState);
             setActiveRoute(name);
-            // Only update if it's a tab-level or sidebar route
-            const tabRoutes = ["HomeTab", "MyListTab", "ProfileTab", "GenreList"];
-            if (tabRoutes.includes(name)) {
-              setCurrentRoute(name);
+            
+            if (name === "AnimeList") {
+              const params = navigationRef.isReady() ? (navigationRef.getCurrentRoute()?.params as any) : null;
+              if (params?.type === "completed") {
+                setCurrentRoute("CompletedList");
+              } else if (params?.type === "ongoing") {
+                setCurrentRoute("OngoingList");
+              }
+            } else {
+              const tabRoutes = ["HomeTab", "MyListTab", "ProfileTab", "GenreList", "CompletedList", "OngoingList"];
+              if (tabRoutes.includes(name)) {
+                setCurrentRoute(name);
+              }
             }
           }}
         >

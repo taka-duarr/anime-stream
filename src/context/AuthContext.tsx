@@ -16,6 +16,8 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   username: string | null;
   token: string | null;
+  profilePicture: string | null;
+  setProfilePicture: (url: string | null) => void;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
@@ -32,6 +34,8 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   username: null,
   token: null,
+  profilePicture: null,
+  setProfilePicture: () => {},
   loading: true,
   login: async () => {},
   register: async () => {},
@@ -48,7 +52,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [profilePicture, setProfilePictureState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const setProfilePicture = async (url: string | null) => {
+    setProfilePictureState(url);
+    if (url) {
+      await AsyncStorage.setItem("@profile_picture", url);
+    } else {
+      await AsyncStorage.removeItem("@profile_picture");
+    }
+  };
+
+  const fetchUserProfilePicture = async () => {
+    try {
+      const response = await api.getProfile();
+      if (response.user?.profile_picture) {
+        const pictureUrl = api.getProfilePictureUrl(response.user.profile_picture);
+        setProfilePictureState(pictureUrl);
+        await AsyncStorage.setItem("@profile_picture", pictureUrl);
+      } else {
+        setProfilePictureState(null);
+        await AsyncStorage.removeItem("@profile_picture");
+      }
+    } catch (error) {
+      console.log("[AUTH CONTEXT] Gagal fetch profile picture:", error);
+    }
+  };
 
   // ============================================
   // CHECK AUTHENTICATION ON APP START
@@ -61,6 +91,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Retrieve stored token and username from AsyncStorage
       const storedToken = await AsyncStorage.getItem("@auth_token");
       const storedUsername = await AsyncStorage.getItem("@username");
+      const storedProfilePicture = await AsyncStorage.getItem("@profile_picture");
 
       if (storedToken && storedUsername) {
         console.log(
@@ -70,12 +101,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Restore authentication state
         setToken(storedToken);
         setUsername(storedUsername);
+        setProfilePictureState(storedProfilePicture);
         setIsAuthenticated(true);
 
         // Configure API service with token
         api.setAuthToken(storedToken);
 
         console.log("[AUTH CONTEXT] Authentication restored successfully");
+
+        // Sync fresh profile picture from server
+        fetchUserProfilePicture();
       } else {
         console.log("[AUTH CONTEXT] No stored credentials found");
       }
@@ -88,6 +123,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsAuthenticated(false);
       setUsername(null);
       setToken(null);
+      setProfilePictureState(null);
     } finally {
       setLoading(false);
     }
@@ -126,6 +162,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       api.setAuthToken(response.token);
 
       console.log("[AUTH CONTEXT] Login successful");
+
+      // Sync fresh profile picture from server after successful login
+      fetchUserProfilePicture();
     } catch (error: any) {
       console.error("[AUTH CONTEXT ERROR] Login failed:", error);
 
@@ -187,8 +226,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log("[AUTH CONTEXT] Logging out...");
 
-      // Remove token and username from AsyncStorage
-      await AsyncStorage.multiRemove(["@auth_token", "@username"]);
+      // Remove token, username, and profile picture from AsyncStorage
+      await AsyncStorage.multiRemove(["@auth_token", "@username", "@profile_picture"]);
 
       // Clear API service token
       api.logout();
@@ -196,6 +235,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Reset context state
       setToken(null);
       setUsername(null);
+      setProfilePictureState(null);
       setIsAuthenticated(false);
 
       console.log("[AUTH CONTEXT] Logout successful");
@@ -204,6 +244,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Even if AsyncStorage fails, clear the state
       setToken(null);
       setUsername(null);
+      setProfilePictureState(null);
       setIsAuthenticated(false);
     }
   };
@@ -235,6 +276,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isAuthenticated,
     username,
     token,
+    profilePicture,
+    setProfilePicture,
     loading,
     login,
     register,

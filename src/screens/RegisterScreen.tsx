@@ -28,7 +28,6 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Focus states for input fields to render glowing borders
   const [isUsernameFocused, setIsUsernameFocused] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
@@ -115,16 +114,30 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
       contentContainerStyle={styles.contentContainer}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Centered Register Card wrapper */}
+      {/* 
+        Inject global CSS rules to override default browser autofill behavior.
+        This resolves the ugly white/light-blue rectangular background on autofilled inputs in web browsers.
+      */}
+      {Platform.OS === "web" && (
+        <style dangerouslySetInnerHTML={{__html: `
+          input:-webkit-autofill,
+          input:-webkit-autofill:hover,
+          input:-webkit-autofill:focus,
+          input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 1000px ${colors.bgSecondary} inset !important;
+            -webkit-text-fill-color: ${colors.text} !important;
+            caret-color: ${colors.text};
+            transition: background-color 5000s ease-in-out 0s;
+          }
+        `}} />
+      )}
+
       <View style={styles.cardWrapper}>
         {/* Header */}
         <View style={styles.header}>
-          <View style={[styles.iconContainer, { backgroundColor: isDark ? "rgba(230,51,51,0.1)" : "rgba(230,51,51,0.06)" }]}>
-            <Ionicons name="person-add" size={26} color={colors.accent} />
-          </View>
-          <Text style={[styles.title, { color: colors.text }]}>Buat Akun Baru</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Buat Akun</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Daftarkan diri Anda untuk mulai mengoleksi anime favorit
+            Daftarkan akun baru Anda untuk mulai mengoleksi anime
           </Text>
         </View>
 
@@ -138,7 +151,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                 { backgroundColor: isDark ? "rgba(230,51,51,0.1)" : "rgba(230,51,51,0.05)" },
               ]}
             >
-              <Ionicons name="alert-circle" size={18} color={colors.accent} style={styles.messageIcon} />
+              <Ionicons name="alert-circle" size={16} color={colors.accent} style={styles.messageIcon} />
               <Text style={[styles.messageText, { color: colors.accent }]}>
                 {error}
               </Text>
@@ -153,7 +166,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                 { backgroundColor: isDark ? "rgba(76,175,80,0.1)" : "rgba(76,175,80,0.05)" },
               ]}
             >
-              <Ionicons name="checkmark-circle" size={18} color="#4CAF50" style={styles.messageIcon} />
+              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" style={styles.messageIcon} />
               <Text style={[styles.messageText, { color: "#4CAF50" }]}>
                 {success}
               </Text>
@@ -182,7 +195,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
               />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder="Pilih username unik Anda"
+                placeholder="Pilih username unik"
                 placeholderTextColor={colors.textMuted}
                 value={username}
                 onChangeText={(text) => {
@@ -262,20 +275,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
             ]}
             onPress={handleRegister}
             disabled={loading || !!success}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
             {loading ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <>
-                <Ionicons
-                  name="person-add-outline"
-                  size={18}
-                  color="#FFFFFF"
-                  style={styles.buttonIcon}
-                />
-                <Text style={styles.registerButtonText}>Daftar Sekarang</Text>
-              </>
+              <Text style={styles.registerButtonText}>Daftar Sekarang</Text>
             )}
           </TouchableOpacity>
 
@@ -309,14 +314,8 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
             ]}
             onPress={handleContinueAsGuest}
             disabled={loading || !!success}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
-            <Ionicons
-              name="person-outline"
-              size={18}
-              color={colors.textSecondary}
-              style={styles.buttonIcon}
-            />
             <Text
               style={[styles.guestButtonText, { color: colors.textSecondary }]}
             >
@@ -340,56 +339,48 @@ const styles = StyleSheet.create({
   contentContainer: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 20,
+    padding: 24,
     paddingTop: Platform.OS === "web" ? 80 : 40,
     paddingBottom: 40,
   },
   cardWrapper: {
-    maxWidth: 400,
+    maxWidth: 420,
     width: "100%",
     alignSelf: "center",
   },
   header: {
     alignItems: "center",
-    marginBottom: 24,
-  },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: 28,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "800",
-    marginBottom: 8,
+    fontSize: 28,
+    fontWeight: "700",
+    marginBottom: 6,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 13,
     textAlign: "center",
     lineHeight: 18,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   card: {
     borderRadius: 16,
     borderWidth: 1,
-    padding: 24,
+    padding: 32,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 32,
     elevation: 8,
   },
   messageContainer: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     borderRadius: 8,
-    marginBottom: 16,
+    marginBottom: 18,
   },
   messageIcon: {
     marginRight: 8,
@@ -400,13 +391,13 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   label: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    marginBottom: 6,
-    letterSpacing: 0.5,
+    marginBottom: 8,
+    letterSpacing: 0.8,
     textTransform: "uppercase",
   },
   inputContainer: {
@@ -414,11 +405,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 10,
     borderWidth: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     height: 48,
   },
   inputIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   input: {
     flex: 1,
@@ -434,12 +425,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   registerButton: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
-    paddingVertical: 13,
-    marginTop: 8,
+    height: 46,
+    marginTop: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -448,9 +438,6 @@ const styles = StyleSheet.create({
   },
   registerButtonDisabled: {
     opacity: 0.6,
-  },
-  buttonIcon: {
-    marginRight: 8,
   },
   registerButtonText: {
     color: "#FFFFFF",
@@ -472,11 +459,12 @@ const styles = StyleSheet.create({
   dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 20,
+    marginVertical: 24,
   },
   dividerLine: {
     flex: 1,
     height: 1,
+    opacity: 0.6,
   },
   dividerText: {
     fontSize: 11,
@@ -485,11 +473,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   guestButton: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
-    paddingVertical: 12,
+    height: 44,
     borderWidth: 1,
   },
   guestButtonText: {

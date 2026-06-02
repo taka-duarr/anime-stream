@@ -22,6 +22,18 @@ const MENU_ITEMS = [
     label: "Home",
   },
   {
+    name: "OngoingList",
+    iconActive: "play-circle" as const,
+    iconInactive: "play-circle-outline" as const,
+    label: "Ongoing",
+  },
+  {
+    name: "CompletedList",
+    iconActive: "checkmark-circle" as const,
+    iconInactive: "checkmark-circle-outline" as const,
+    label: "Completed",
+  },
+  {
     name: "GenreList",
     iconActive: "list" as const,
     iconInactive: "list-outline" as const,
@@ -49,7 +61,7 @@ export const WebSidebar: React.FC<WebSidebarProps> = ({
   onToggleCollapse,
 }) => {
   const { colors, isDark, toggleTheme } = useTheme();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, profilePicture } = useAuth();
 
   const width = isCollapsed ? COLLAPSED_SIDEBAR_WIDTH : SIDEBAR_WIDTH;
 
@@ -68,14 +80,19 @@ export const WebSidebar: React.FC<WebSidebarProps> = ({
       <View style={[styles.logoSection, isCollapsed && { paddingHorizontal: 0, alignItems: "center" }]}>
         <View style={[styles.logoContainer, isCollapsed && { flexDirection: "column", gap: 12 }]}>
           <Image
-            source={require("../../assets/logo.png")}
-            style={[styles.logoOne, isCollapsed && { marginRight: 0 }]}
+            source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
+            style={[
+              styles.logoOne,
+              isCollapsed
+                ? { width: 36, height: 36, marginRight: 0 }
+                : { width: 50, height: 50, marginRight: 12 },
+            ]}
             contentFit="contain"
           />
           {!isCollapsed && (
             <Image
               source={require("../../assets/nganime.png")}
-              style={styles.logoTwo}
+              style={[styles.logoTwo, { width: 110, height: 40 }]}
               contentFit="contain"
             />
           )}
@@ -124,7 +141,7 @@ export const WebSidebar: React.FC<WebSidebarProps> = ({
 
               <Ionicons
                 name={active ? item.iconActive : item.iconInactive}
-                size={18}
+                size={isCollapsed ? 22 : 18}
                 color={active ? colors.text : colors.textSecondary}
                 style={[styles.menuIcon, isCollapsed && { marginRight: 0 }]}
               />
@@ -162,7 +179,7 @@ export const WebSidebar: React.FC<WebSidebarProps> = ({
         >
           <Ionicons
             name={isDark ? "sunny-outline" : "moon-outline"}
-            size={18}
+            size={isCollapsed ? 22 : 18}
             color={colors.textSecondary}
             style={[styles.menuIcon, isCollapsed && { marginRight: 0 }]}
           />
@@ -182,15 +199,25 @@ export const WebSidebar: React.FC<WebSidebarProps> = ({
           <View
             style={[
               styles.profileAvatar,
-              isCollapsed && { marginRight: 0 },
+              isCollapsed
+                ? { width: 38, height: 38, borderRadius: 19, marginRight: 0 }
+                : { width: 30, height: 30, borderRadius: 15, marginRight: 10 },
               { backgroundColor: isDark ? "#2C2C2C" : "#EEE" },
             ]}
           >
-            <Ionicons
-              name={isAuthenticated ? "person" : "log-in"}
-              size={16}
-              color={colors.accent}
-            />
+            {isAuthenticated && profilePicture ? (
+              <Image
+                source={{ uri: profilePicture }}
+                style={{ width: "100%", height: "100%", borderRadius: isCollapsed ? 19 : 15 }}
+                contentFit="cover"
+              />
+            ) : (
+              <Ionicons
+                name={isAuthenticated ? "person" : "log-in"}
+                size={isCollapsed ? 20 : 16}
+                color={colors.accent}
+              />
+            )}
           </View>
           {!isCollapsed && (
             <Text

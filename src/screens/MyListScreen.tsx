@@ -254,57 +254,76 @@ const MyListScreen = ({ navigation }: any) => {
         >
           <View style={styles.gridRow}>
             {myList.map((item, i) => (
-              <TouchableOpacity
+              <View
                 key={item.animeId ?? i}
                 style={[
                   styles.card,
                   {
                     width: CARD_WIDTH as DimensionValue,
                     backgroundColor: colors.card,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    overflow: "hidden",
                   },
                 ]}
-                activeOpacity={0.82}
-                onPress={() =>
-                  navigation.navigate("Episode", {
-                    bookId: item.animeId,
-                    title: item.title,
-                  })
-                }
               >
-                <View style={styles.imageContainer}>
-                  <Image
-                    source={{
-                      uri: item.poster || "https://via.placeholder.com/180x240",
-                    }}
-                    style={styles.image}
-                    contentFit="cover"
-                  />
-                  <TouchableOpacity
-                    style={styles.removeButton}
-                    onPress={() => removeFromList(item.animeId)}
+                <TouchableOpacity
+                  activeOpacity={0.82}
+                  onPress={() =>
+                    navigation.navigate("Episode", {
+                      bookId: item.animeId,
+                      title: item.title,
+                    })
+                  }
+                  style={{ flex: 1 }}
+                >
+                  <View style={styles.imageContainer}>
+                    <Image
+                      source={{
+                        uri: item.poster || "https://via.placeholder.com/180x240",
+                      }}
+                      style={styles.image}
+                      contentFit="cover"
+                    />
+                    {item.score && (
+                      <View style={styles.ratingBadge}>
+                        <Ionicons name="star" size={10} color="#FBBF24" />
+                        <Text style={styles.ratingText}>{item.score}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text
+                    style={[styles.cardTitle, { color: colors.text }]}
+                    numberOfLines={2}
                   >
-                    <Ionicons name="close-circle" size={24} color="#FF4757" />
-                  </TouchableOpacity>
-                  {item.score && (
-                    <View style={styles.ratingBadge}>
-                      <Ionicons name="star" size={10} color="#FBBF24" />
-                      <Text style={styles.ratingText}>{item.score}</Text>
-                    </View>
-                  )}
-                </View>
-                <Text
-                  style={[styles.cardTitle, { color: colors.text }]}
-                  numberOfLines={2}
+                    {item.title}
+                  </Text>
+                  <Text
+                    style={[styles.cardSub, { color: colors.textSecondary }]}
+                    numberOfLines={1}
+                  >
+                    {item.type || "TV"} • {item.totalEpisodes || "?"} Eps
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Professional Bottom Hapus Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.bottomRemoveBtn,
+                    {
+                      backgroundColor: isDark ? "#2A1A1A" : "#FFF5F5",
+                      borderTopWidth: 1,
+                      borderTopColor: colors.border,
+                    },
+                  ]}
+                  activeOpacity={0.7}
+                  onPress={() => removeFromList(item.animeId)}
                 >
-                  {item.title}
-                </Text>
-                <Text
-                  style={[styles.cardSub, { color: colors.textSecondary }]}
-                  numberOfLines={1}
-                >
-                  {item.type || "TV"} • {item.totalEpisodes || "?"} Eps
-                </Text>
-              </TouchableOpacity>
+                  <Ionicons name="trash-outline" size={14} color="#FF4757" style={{ marginRight: 6 }} />
+                  <Text style={styles.bottomRemoveText}>Hapus List</Text>
+                </TouchableOpacity>
+              </View>
             ))}
           </View>
         </ScrollView>
@@ -387,7 +406,8 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: "100%",
     aspectRatio: 0.67,
-    borderRadius: 12,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
     overflow: "hidden",
     marginBottom: 8,
     backgroundColor: "#E2E8F0",
@@ -395,13 +415,6 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: "100%",
-  },
-  removeButton: {
-    position: "absolute",
-    top: 7,
-    right: 7,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    borderRadius: 12,
   },
   ratingBadge: {
     position: "absolute",
@@ -430,6 +443,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginHorizontal: 8,
     marginBottom: 8,
+  },
+  bottomRemoveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    width: "100%",
+  },
+  bottomRemoveText: {
+    color: "#FF4757",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });
 

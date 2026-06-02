@@ -302,23 +302,6 @@ export default function EpisodeScreen({ route, navigation }: any) {
               >
                 <Ionicons name="arrow-back" size={24} color="#FFF" />
               </TouchableOpacity>
-              <View style={styles.toolbarRight}>
-                <TouchableOpacity
-                  style={[styles.iconButton, { marginLeft: 10 }]}
-                  onPress={toggleBookmark}
-                  disabled={bookmarkLoading}
-                >
-                  {bookmarkLoading ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <Ionicons
-                      name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                      size={22}
-                      color={isBookmarked ? "#FF4757" : "#FFF"}
-                    />
-                  )}
-                </TouchableOpacity>
-              </View>
             </View>
 
             <View style={styles.desktopContentRow}>
@@ -508,23 +491,6 @@ export default function EpisodeScreen({ route, navigation }: any) {
                 >
                   <Ionicons name="arrow-back" size={24} color="#FFF" />
                 </TouchableOpacity>
-                <View style={styles.toolbarRight}>
-                  <TouchableOpacity
-                    style={[styles.iconButton, { marginLeft: 10 }]}
-                    onPress={toggleBookmark}
-                    disabled={bookmarkLoading}
-                  >
-                    {bookmarkLoading ? (
-                      <ActivityIndicator size="small" color="#FFF" />
-                    ) : (
-                      <Ionicons
-                        name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                        size={22}
-                        color={isBookmarked ? "#FF4757" : "#FFF"}
-                      />
-                    )}
-                  </TouchableOpacity>
-                </View>
               </View>
               <LinearGradient
                 colors={[
