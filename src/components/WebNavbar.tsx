@@ -48,10 +48,11 @@ export const WebNavbar: React.FC<WebNavbarProps> = ({
 
   return (
     <View
+      {...({ className: "web-navbar" } as any)}
       style={[
         styles.navbar,
         {
-          backgroundColor: colors.sidebar,
+          backgroundColor: isDark ? "rgba(32, 32, 32, 0.9)" : "rgba(255, 255, 255, 0.75)",
           borderBottomColor: colors.border,
         },
       ]}
@@ -76,7 +77,13 @@ export const WebNavbar: React.FC<WebNavbarProps> = ({
 
       {/* 2. Search Pill (Now next to logo brand) */}
       <TouchableOpacity
-        style={[styles.searchPill, { backgroundColor: colors.searchBg }]}
+        {...({ className: "web-search-pill" } as any)}
+        style={[
+          styles.searchPill,
+          {
+            backgroundColor: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.06)",
+          },
+        ]}
         onPress={() => onNavigate("Search")}
         activeOpacity={0.75}
       >
@@ -87,7 +94,7 @@ export const WebNavbar: React.FC<WebNavbarProps> = ({
           style={styles.searchIcon}
         />
         <Text style={[styles.searchText, { color: colors.textMuted }]}>
-          Cari anime...
+          Search anime...
         </Text>
       </TouchableOpacity>
 
@@ -202,9 +209,13 @@ const styles = StyleSheet.create({
     zIndex: 10,
     ...Platform.select({
       web: {
-        position: "sticky" as any,
+        position: "fixed" as any,
         top: 0,
+        left: 0,
+        right: 0,
         boxShadow: "0 2px 10px rgba(0, 0, 0, 0.04)",
+        backdropFilter: "blur(5px)",
+        webkitBackdropFilter: "blur(5px)",
       } as any,
     }),
   } as any,
@@ -215,12 +226,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   logoOne: {
-    width: 38,
-    height: 38,
+    width: 48,
+    height: 48,
   },
   logoTwo: {
-    width: 100,
-    height: 36,
+    width: 110,
+    height: 38,
+    marginTop: 2,
   },
   searchPill: {
     flexDirection: "row",
@@ -230,6 +242,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     width: 200,
     marginLeft: 16,
+    ...Platform.select({
+      web: {
+        backdropFilter: "blur(0px)",
+        webkitBackdropFilter: "blur(0px)",
+      } as any,
+    }),
   },
   searchIcon: {
     marginRight: 8,

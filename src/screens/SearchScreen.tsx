@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,16 +12,58 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   DimensionValue,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
-import { searchAnime } from "../services/api";
+import { searchAnime, getGenreList } from "../services/api";
 import { useTheme } from "../context/ThemeContext";
 
 const CARD_MARGIN = 8;
 
+const POPULAR_SEARCHES = [
+  "One Piece",
+  "Solo Leveling",
+  "Demon Slayer",
+  "Jujutsu Kaisen",
+  "Chainsaw Man",
+  "Naruto",
+  "Boruto",
+  "Black Clover",
+];
+
+const getGenreIcon = (title: string): any => {
+  const t = title.toLowerCase();
+  if (t.includes("action") || t.includes("aksi")) return "flame-outline";
+  if (t.includes("adventure") || t.includes("petualangan")) return "compass-outline";
+  if (t.includes("comedy") || t.includes("komedi")) return "happy-outline";
+  if (t.includes("drama")) return "people-outline";
+  if (t.includes("fantasy") || t.includes("fantasi")) return "sparkles-outline";
+  if (t.includes("romance") || t.includes("romantis")) return "heart-outline";
+  if (t.includes("sci-fi") || t.includes("science fiction")) return "planet-outline";
+  if (t.includes("slice of life")) return "cafe-outline";
+  if (t.includes("mystery") || t.includes("misteri")) return "search-outline";
+  if (t.includes("horror") || t.includes("horor")) return "skull-outline";
+  if (t.includes("psychological") || t.includes("psikologi")) return "pulse-outline";
+  if (t.includes("mecha")) return "hardware-chip-outline";
+  if (t.includes("sports") || t.includes("olahraga")) return "baseball-outline";
+  if (t.includes("supernatural") || t.includes("supranatural")) return "moon-outline";
+  if (t.includes("thriller")) return "alert-circle-outline";
+  if (t.includes("music") || t.includes("musik")) return "musical-notes-outline";
+  if (t.includes("magic") || t.includes("sihir")) return "color-wand-outline";
+  if (t.includes("game") || t.includes("permainan")) return "game-controller-outline";
+  if (t.includes("martial arts") || t.includes("bela diri")) return "fitness-outline";
+  if (t.includes("school") || t.includes("sekolah")) return "school-outline";
+  if (t.includes("historical") || t.includes("sejarah")) return "hourglass-outline";
+  if (t.includes("military") || t.includes("militer")) return "shield-outline";
+  
+  return "film-outline";
+};
+
 const SearchScreen = ({ navigation }: any) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+
   let numColumns = 2;
   if (width >= 1200) numColumns = 5;
   else if (width >= 900) numColumns = 4;
@@ -34,20 +76,45 @@ const SearchScreen = ({ navigation }: any) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [genres, setGenres] = useState<any[]>([]);
 
-  const handleSearch = async () => {
-    if (!query.trim()) return;
+  useEffect(() => {
+    const fetchPopularGenres = async () => {
+      try {
+        const data = await getGenreList();
+        if (data && Array.isArray(data)) {
+          // Take first 8 genres
+          setGenres(data.slice(0, 8));
+        }
+      } catch (err) {
+        console.error("Error fetching popular genres:", err);
+      }
+    };
+    fetchPopularGenres();
+  }, []);
+
+  const triggerSearch = async (searchVal: string) => {
+    if (!searchVal.trim()) return;
     try {
       setLoading(true);
       setResults([]);
-
-      const animeResults = await searchAnime(query);
+      const animeResults = await searchAnime(searchVal);
       setResults(animeResults || []);
     } catch (e) {
       console.error("Search error:", e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = () => {
+    triggerSearch(query);
+  };
+
+  const handleSearchWithQuery = (searchVal: string) => {
+    setQuery(searchVal);
+    triggerSearch(searchVal);
   };
 
   const clearSearch = () => {
@@ -62,7 +129,13 @@ const SearchScreen = ({ navigation }: any) => {
       <StatusBar style="auto" />
 
       {/* SEARCH BAR */}
-      <View style={[styles.searchHeader, { backgroundColor: colors.bg }]}>
+      <View
+        style={[
+          styles.searchHeader,
+          { backgroundColor: colors.bg },
+          isDesktop && { maxWidth: 800, width: "100%", alignSelf: "center" },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
@@ -72,24 +145,40 @@ const SearchScreen = ({ navigation }: any) => {
         <View
           style={[
             styles.searchBar,
-            { backgroundColor: colors.card, borderColor: colors.border },
+            {
+              backgroundColor: isDark ? "rgba(255, 255, 255, 0.06)" : "rgba(0, 0, 0, 0.03)",
+              borderColor: isFocused ? colors.accent : colors.border,
+            },
+            isFocused && Platform.select({
+              web: {
+                boxShadow: `0 0 0 3px ${colors.accent}33`,
+              } as any,
+              default: {
+                shadowColor: colors.accent,
+                shadowOpacity: 0.15,
+                shadowRadius: 6,
+                elevation: 4,
+              }
+            })
           ]}
         >
           <Ionicons
             name="search"
             size={20}
-            color="#FF4757"
+            color={isFocused ? colors.accent : colors.textSecondary}
             style={styles.searchIcon}
           />
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Cari anime..."
+            placeholder="Search anime..."
             placeholderTextColor={colors.textMuted}
             style={[styles.input, { color: colors.text }]}
             onSubmitEditing={handleSearch}
             returnKeyType="search"
             autoFocus
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={clearSearch} style={styles.clearBtn}>
@@ -105,7 +194,7 @@ const SearchScreen = ({ navigation }: any) => {
 
       {/* RESULT HEADER */}
       {!loading && totalResults > 0 && (
-        <View style={styles.resultInfoRow}>
+        <View style={[styles.resultInfoRow, isDesktop && { maxWidth: 1200, width: "100%", alignSelf: "center" }]}>
           <Text style={[styles.resultTitle, { color: colors.text }]}>
             Hasil untuk <Text style={{ color: "#FF4757" }}>"{query}"</Text>
           </Text>
@@ -121,7 +210,10 @@ const SearchScreen = ({ navigation }: any) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={[
+          { paddingBottom: 40 },
+          isDesktop && { maxWidth: 1200, width: "100%", alignSelf: "center" }
+        ]}
       >
         {/* ===== SEARCH RESULTS ===== */}
         {results.length > 0 && (
@@ -197,6 +289,80 @@ const SearchScreen = ({ navigation }: any) => {
           </View>
         )}
 
+        {/* ===== POPULAR SUGGESTIONS ===== */}
+        {query.trim() === "" && !loading && (
+          <View style={[styles.suggestContainer, isDesktop && styles.desktopSuggestRow]}>
+            {/* Popular Searches Column */}
+            <View style={styles.suggestSection}>
+              <Text style={[styles.suggestTitle, { color: colors.text }]}>
+                Pencarian Populer
+              </Text>
+              <View style={styles.chipsContainer}>
+                {POPULAR_SEARCHES.map((item, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+                        borderColor: colors.border,
+                      },
+                    ]}
+                    onPress={() => handleSearchWithQuery(item)}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons
+                      name="trending-up-outline"
+                      size={14}
+                      color={colors.accent}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={[styles.chipText, { color: colors.text }]}>{item}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Popular Genres Column */}
+            {genres.length > 0 && (
+              <View style={[styles.suggestSection, isDesktop && { marginLeft: 24 }]}>
+                <Text style={[styles.suggestTitle, { color: colors.text }]}>
+                  Genre Terpopuler
+                </Text>
+                <View style={styles.chipsContainer}>
+                  {genres.map((genre, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+                          borderColor: colors.border,
+                        },
+                      ]}
+                      onPress={() =>
+                        navigation.navigate("GenreAnime", {
+                          genreId: genre.genreId,
+                          genreName: genre.title,
+                        })
+                      }
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons
+                        name={getGenreIcon(genre.title)}
+                        size={14}
+                        color={colors.accent}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text style={[styles.chipText, { color: colors.text }]}>{genre.title}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* EMPTY STATE */}
         {!loading && query.trim() !== "" && totalResults === 0 && (
           <View style={styles.emptyContainer}>
@@ -236,8 +402,8 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    borderRadius: 24,
+    paddingHorizontal: 16,
     height: 48,
     borderWidth: 1,
     elevation: 2,
@@ -247,7 +413,16 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   searchIcon: { marginRight: 10 },
-  input: { flex: 1, fontSize: 16, fontWeight: "500" },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "normal",
+    ...Platform.select({
+      web: {
+        outlineStyle: "none",
+      } as any,
+    }),
+  },
   clearBtn: { padding: 6 },
 
   /* RESULT HEADER */
@@ -257,13 +432,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
-  resultTitle: { flex: 1, fontSize: 16, fontWeight: "700" },
+  resultTitle: { flex: 1, fontSize: 16, fontWeight: "bold" },
   resultBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  resultBadgeText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  resultBadgeText: { color: "#fff", fontSize: 13, fontWeight: "bold" },
 
   loader: { marginTop: 40 },
 
@@ -305,7 +480,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     gap: 3,
   },
-  ratingText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  ratingText: { color: "#fff", fontSize: 10, fontWeight: "bold" },
   statusBadge: {
     position: "absolute",
     top: 7,
@@ -314,10 +489,10 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
   },
-  statusText: { color: "#fff", fontSize: 9, fontWeight: "700" },
+  statusText: { color: "#fff", fontSize: 9, fontWeight: "bold" },
   cardTitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "bold",
     marginHorizontal: 8,
     marginBottom: 2,
   },
@@ -331,9 +506,47 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: "700",
+    fontWeight: "bold",
     marginTop: 16,
     textAlign: "center",
   },
   emptySub: { fontSize: 14, marginTop: 8, textAlign: "center" },
+
+  /* SUGGESTIONS */
+  suggestContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    gap: 28,
+  },
+  desktopSuggestRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 0,
+  },
+  suggestSection: {
+    flex: 1,
+  },
+  suggestTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 16,
+    letterSpacing: 0.2,
+  },
+  chipsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
 });

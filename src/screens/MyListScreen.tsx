@@ -10,6 +10,7 @@ import {
   DimensionValue,
   ActivityIndicator,
   Alert,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -25,6 +26,7 @@ const MyListScreen = ({ navigation }: any) => {
   const { colors, isDark } = useTheme();
   const { isAuthenticated } = useAuth();
   const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
 
   let numColumns = 2;
   if (width >= 1200) numColumns = 5;
@@ -38,6 +40,7 @@ const MyListScreen = ({ navigation }: any) => {
   const [myList, setMyList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [animeToDelete, setAnimeToDelete] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     loadMyList();
@@ -139,119 +142,136 @@ const MyListScreen = ({ navigation }: any) => {
     navigation.navigate("Login");
   };
 
+  const renderHeader = (isInsideScroll: boolean = false) => (
+    <View style={[styles.header, { borderBottomColor: colors.border }, (isDesktop && !isInsideScroll) && { paddingTop: 72 }]}>
+      <View style={styles.headerTop}>
+        
+      </View>
+      {myList.length > 0 && (
+        <Text
+          style={[styles.headerSubtitle, { color: colors.textSecondary }]}
+        >
+          {myList.length} anime tersimpan
+        </Text>
+      )}
+    </View>
+  );
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: colors.bg },
+      ]}
+    >
       <StatusBar
         style={isDark ? "light" : "dark"}
         backgroundColor={colors.sidebar}
       />
 
-      {/* HEADER */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <View style={styles.headerTop}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            My List
-          </Text>
-        </View>
-        {myList.length > 0 && (
-          <Text
-            style={[styles.headerSubtitle, { color: colors.textSecondary }]}
-          >
-            {myList.length} anime tersimpan
-          </Text>
-        )}
-      </View>
-
       {/* CONTENT */}
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text
-            style={[
-              styles.text,
-              { color: colors.textSecondary, marginTop: 12 },
-            ]}
-          >
-            Memuat bookmark...
-          </Text>
-        </View>
+        <>
+          {renderHeader(false)}
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={colors.accent} />
+            <Text
+              style={[
+                styles.text,
+                { color: colors.textSecondary, marginTop: 12 },
+              ]}
+            >
+              Memuat bookmark...
+            </Text>
+          </View>
+        </>
       ) : !isAuthenticated ? (
-        <View style={styles.center}>
-          <Ionicons
-            name="bookmark-outline"
-            size={64}
-            color={colors.textMuted}
-          />
-          <Text style={[styles.title, { color: colors.text }]}>
-            Login Diperlukan
-          </Text>
-          <Text style={[styles.text, { color: colors.textSecondary }]}>
-            Login untuk menyimpan anime favorit Anda
-          </Text>
-          <TouchableOpacity
-            style={[styles.exploreButton, { backgroundColor: colors.accent }]}
-            onPress={handleLogin}
-          >
+        <>
+          {renderHeader(false)}
+          <View style={styles.center}>
             <Ionicons
-              name="log-in-outline"
-              size={18}
-              color="#FFF"
-              style={{ marginRight: 8 }}
+              name="bookmark-outline"
+              size={64}
+              color={colors.textMuted}
             />
-            <Text style={styles.exploreButtonText}>Login</Text>
-          </TouchableOpacity>
-        </View>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Login Diperlukan
+            </Text>
+            <Text style={[styles.text, { color: colors.textSecondary }]}>
+              Login untuk menyimpan anime favorit Anda
+            </Text>
+            <TouchableOpacity
+              style={[styles.exploreButton, { backgroundColor: colors.accent }]}
+              onPress={handleLogin}
+            >
+              <Ionicons
+                name="log-in-outline"
+                size={18}
+                color="#FFF"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.exploreButtonText}>Login</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       ) : error ? (
-        <View style={styles.center}>
-          <Ionicons
-            name="alert-circle-outline"
-            size={64}
-            color={colors.accent}
-          />
-          <Text style={[styles.title, { color: colors.text }]}>
-            Terjadi Kesalahan
-          </Text>
-          <Text style={[styles.text, { color: colors.textSecondary }]}>
-            {error}
-          </Text>
-          <TouchableOpacity
-            style={[styles.exploreButton, { backgroundColor: colors.accent }]}
-            onPress={loadMyList}
-          >
+        <>
+          {renderHeader(false)}
+          <View style={styles.center}>
             <Ionicons
-              name="refresh-outline"
-              size={18}
-              color="#FFF"
-              style={{ marginRight: 8 }}
+              name="alert-circle-outline"
+              size={64}
+              color={colors.accent}
             />
-            <Text style={styles.exploreButtonText}>Coba Lagi</Text>
-          </TouchableOpacity>
-        </View>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Terjadi Kesalahan
+            </Text>
+            <Text style={[styles.text, { color: colors.textSecondary }]}>
+              {error}
+            </Text>
+            <TouchableOpacity
+              style={[styles.exploreButton, { backgroundColor: colors.accent }]}
+              onPress={loadMyList}
+            >
+              <Ionicons
+                name="refresh-outline"
+                size={18}
+                color="#FFF"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.exploreButtonText}>Coba Lagi</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       ) : myList.length === 0 ? (
-        <View style={styles.center}>
-          <Ionicons
-            name="bookmark-outline"
-            size={64}
-            color={colors.textMuted}
-          />
-          <Text style={[styles.title, { color: colors.text }]}>
-            Belum Ada Anime
-          </Text>
-          <Text style={[styles.text, { color: colors.textSecondary }]}>
-            Tambahkan anime favorit Anda ke My List
-          </Text>
-          <TouchableOpacity
-            style={[styles.exploreButton, { backgroundColor: colors.accent }]}
-            onPress={() => navigation.navigate("Main", { screen: "HomeTab" })}
-          >
-            <Text style={styles.exploreButtonText}>Jelajahi Anime</Text>
-          </TouchableOpacity>
-        </View>
+        <>
+          {renderHeader(false)}
+          <View style={styles.center}>
+            <Ionicons
+              name="bookmark-outline"
+              size={64}
+              color={colors.textMuted}
+            />
+            <Text style={[styles.title, { color: colors.text }]}>
+              Belum Ada Anime
+            </Text>
+            <Text style={[styles.text, { color: colors.textSecondary }]}>
+              Tambahkan anime favorit Anda ke My List
+            </Text>
+            <TouchableOpacity
+              style={[styles.exploreButton, { backgroundColor: colors.accent }]}
+              onPress={() => navigation.navigate("Main", { screen: "HomeTab" })}
+            >
+              <Text style={styles.exploreButtonText}>Jelajahi Anime</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingTop: isDesktop ? 72 : 0, paddingBottom: 40 }}
         >
+          {renderHeader(true)}
           <View style={styles.gridRow}>
             {myList.map((item, i) => (
               <View
@@ -318,7 +338,7 @@ const MyListScreen = ({ navigation }: any) => {
                     },
                   ]}
                   activeOpacity={0.7}
-                  onPress={() => removeFromList(item.animeId)}
+                  onPress={() => setAnimeToDelete({ id: item.animeId, title: item.title })}
                 >
                   <Ionicons name="trash-outline" size={14} color="#FF4757" style={{ marginRight: 6 }} />
                   <Text style={styles.bottomRemoveText}>Hapus List</Text>
@@ -328,6 +348,98 @@ const MyListScreen = ({ navigation }: any) => {
           </View>
         </ScrollView>
       )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <Modal
+        visible={animeToDelete !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setAnimeToDelete(null)}
+      >
+        <TouchableOpacity
+          style={styles.confirmModalOverlay}
+          activeOpacity={1}
+          onPress={() => setAnimeToDelete(null)}
+        >
+          <TouchableOpacity
+            style={[styles.confirmModalCard, { backgroundColor: colors.card }]}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Icon */}
+            <View
+              style={[
+                styles.confirmModalIconWrap,
+                { backgroundColor: "#FF475720" },
+              ]}
+            >
+              <Ionicons name="trash-outline" size={32} color="#FF4757" />
+            </View>
+
+            {/* Title */}
+            <Text style={[styles.confirmModalTitle, { color: colors.text }]}>
+              Hapus dari List?
+            </Text>
+
+            {/* Subtitle */}
+            <Text
+              style={[
+                styles.confirmModalSubtitle,
+                { color: colors.textSecondary },
+              ]}
+            >
+              Apakah Anda yakin ingin menghapus "{animeToDelete?.title}" dari daftar bookmark Anda?
+            </Text>
+
+            {/* Divider */}
+            <View
+              style={[styles.confirmModalDivider, { backgroundColor: colors.border }]}
+            />
+
+            {/* Delete Button */}
+            <TouchableOpacity
+              style={[styles.confirmModalBtn, { backgroundColor: "#FF4757" }]}
+              activeOpacity={0.85}
+              onPress={() => {
+                if (animeToDelete) {
+                  removeFromList(animeToDelete.id);
+                  setAnimeToDelete(null);
+                }
+              }}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={20}
+                color="#FFF"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.confirmModalBtnText}>Ya, Hapus</Text>
+            </TouchableOpacity>
+
+            {/* Cancel Button */}
+            <TouchableOpacity
+              style={[
+                styles.confirmModalCancelBtn,
+                {
+                  backgroundColor: colors.bgSecondary,
+                  borderColor: colors.border,
+                },
+              ]}
+              activeOpacity={0.8}
+              onPress={() => setAnimeToDelete(null)}
+            >
+              <Text
+                style={[
+                  styles.confirmModalCancelBtnText,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                Batal
+              </Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -455,6 +567,77 @@ const styles = StyleSheet.create({
     color: "#FF4757",
     fontSize: 12,
     fontWeight: "700",
+  },
+  // CONFIRM MODAL STYLES
+  confirmModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  confirmModalCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  confirmModalIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  confirmModalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  confirmModalSubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  confirmModalDivider: {
+    width: "100%",
+    height: 1,
+    marginBottom: 16,
+  },
+  confirmModalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  confirmModalBtnText: {
+    color: "#FFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  confirmModalCancelBtn: {
+    width: "100%",
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmModalCancelBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
 

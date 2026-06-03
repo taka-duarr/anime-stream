@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -26,6 +27,10 @@ const ProfileScreen = ({ navigation }: any) => {
   const { isAuthenticated, username, logout, profilePicture, setProfilePicture } = useAuth();
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -140,7 +145,7 @@ const ProfileScreen = ({ navigation }: any) => {
         Alert.alert(
           "Error",
           "Gagal mengubah foto profil. Coba lagi.\n" +
-            (error.response?.data?.error || error.message || ""),
+          (error.response?.data?.error || error.message || ""),
         );
       }
     } finally {
@@ -155,20 +160,27 @@ const ProfileScreen = ({ navigation }: any) => {
     onPress,
     showArrow = true,
     rightComponent,
+    isLast = false,
   }: any) => (
     <TouchableOpacity
-      style={[styles.settingItem, { backgroundColor: colors.card }]}
+      style={[
+        styles.settingItem,
+        {
+          borderBottomWidth: isLast ? 0 : 1,
+          borderBottomColor: colors.border,
+        }
+      ]}
       onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
+      activeOpacity={onPress ? 0.6 : 1}
       disabled={!onPress}
     >
       <View
         style={[
           styles.iconContainer,
-          { backgroundColor: colors.accent + "20" },
+          { backgroundColor: colors.accent + "12" },
         ]}
       >
-        <Ionicons name={icon} size={22} color={colors.accent} />
+        <Ionicons name={icon} size={20} color={colors.accent} />
       </View>
       <View style={styles.settingContent}>
         <Text style={[styles.settingTitle, { color: colors.text }]}>
@@ -186,8 +198,8 @@ const ProfileScreen = ({ navigation }: any) => {
         (showArrow && (
           <Ionicons
             name="chevron-forward"
-            size={20}
-            color={colors.textSecondary}
+            size={18}
+            color={colors.textMuted}
           />
         ))}
     </TouchableOpacity>
@@ -199,24 +211,31 @@ const ProfileScreen = ({ navigation }: any) => {
     </Text>
   );
 
+  const renderHeader = (isInsideScroll: boolean = false) => (
+    <View style={[styles.header, { borderBottomColor: colors.border }, (isDesktop && !isInsideScroll) && { paddingTop: 72 }]}>
+
+    </View>
+  );
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: colors.bg },
+      ]}
+    >
       <StatusBar
         style={isDark ? "light" : "dark"}
         backgroundColor={colors.sidebar}
       />
 
-      {/* HEADER */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Profile & Settings
-        </Text>
-      </View>
+      {!isDesktop && renderHeader(false)}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: isDesktop ? 72 : 0 }, isDesktop && { maxWidth: 680, width: "100%", alignSelf: "center", paddingHorizontal: 16 }]}
       >
+        {isDesktop && renderHeader(true)}
         {/* PROFILE CARD */}
         <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
           <TouchableOpacity
@@ -256,106 +275,116 @@ const ProfileScreen = ({ navigation }: any) => {
         </View>
 
         {/* ACCOUNT SECTION */}
-        {isAuthenticated ? (
-          <>
-            <SectionHeader title="ACCOUNT" />
+        <SectionHeader title="ACCOUNT" />
+        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {isAuthenticated ? (
             <SettingItem
               icon="log-out"
               title="Logout"
               subtitle="Keluar dari akun Anda"
-              onPress={handleLogout}
+              onPress={() => setShowLogoutConfirm(true)}
+              isLast={true}
             />
-          </>
-        ) : (
-          <>
-            <SectionHeader title="ACCOUNT" />
+          ) : (
             <SettingItem
               icon="log-in"
               title="Login"
               subtitle="Masuk untuk menyimpan bookmark"
               onPress={handleLogin}
+              isLast={true}
             />
-          </>
-        )}
+          )}
+        </View>
 
         {/* APPEARANCE */}
         <SectionHeader title="APPEARANCE" />
-        <SettingItem
-          icon="moon"
-          title="Dark Mode"
-          subtitle={isDark ? "Aktif" : "Nonaktif"}
-          onPress={null}
-          showArrow={false}
-          rightComponent={
-            <Switch
-              value={isDark}
-              onValueChange={toggleTheme}
-              trackColor={{ false: colors.border, true: colors.accent }}
-              thumbColor="#FFF"
-            />
-          }
-        />
+        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingItem
+            icon="moon"
+            title="Dark Mode"
+            subtitle={isDark ? "Aktif" : "Nonaktif"}
+            onPress={null}
+            showArrow={false}
+            isLast={true}
+            rightComponent={
+              <Switch
+                value={isDark}
+                onValueChange={toggleTheme}
+                trackColor={{ false: colors.border, true: colors.accent }}
+                thumbColor="#FFF"
+                // @ts-expect-error - Web-only prop for react-native-web
+                activeThumbColor="#FFF"
+              />
+            }
+          />
+        </View>
 
         {/* APP INFO */}
         <SectionHeader title="ABOUT" />
-        <SettingItem
-          icon="information-circle"
-          title="Tentang Aplikasi"
-          subtitle="Versi 1.0.0"
-          onPress={() => setShowAboutModal(true)}
-        />
-        <SettingItem
-          icon="code-slash"
-          title="API Source"
-          subtitle="Anime Streaming API"
-          onPress={() => openURL("https://www.sankavollerei.com/anime")}
-        />
-        <SettingItem
-          icon="logo-github"
-          title="GitHub Repository"
-          subtitle="View source code"
-          onPress={() => openURL("https://github.com/taka-duarr/anime-stream")}
-        />
+        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingItem
+            icon="information-circle"
+            title="Tentang Aplikasi"
+            subtitle="Versi 1.0.0"
+            onPress={() => setShowAboutModal(true)}
+          />
+          <SettingItem
+            icon="code-slash"
+            title="API Source"
+            subtitle="Anime Streaming API"
+            onPress={() => openURL("https://www.sankavollerei.com/anime")}
+          />
+          <SettingItem
+            icon="logo-github"
+            title="GitHub Repository"
+            subtitle="View source code"
+            onPress={() => openURL("https://github.com/taka-duarr/anime-stream")}
+            isLast={true}
+          />
+        </View>
 
         {/* SUPPORT */}
         <SectionHeader title="SUPPORT" />
-        <SettingItem
-          icon="bug"
-          title="Laporkan Bug"
-          subtitle="Bantu kami memperbaiki aplikasi"
-          onPress={() =>
-            openURL(
-              "https://wa.me/6281357398265?text=Halo,%20saya%20ingin%20melaporkan%20bug%20di%20aplikasi%20anime%20streaming",
-            )
-          }
-        />
-        <SettingItem
-          icon="star"
-          title="Beri Rating"
-          subtitle="Dukung pengembangan aplikasi"
-          onPress={() => {}}
-        />
+        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingItem
+            icon="bug"
+            title="Laporkan Bug"
+            subtitle="Bantu kami memperbaiki aplikasi"
+            onPress={() =>
+              openURL(
+                "https://wa.me/6281357398265?text=Halo,%20saya%20ingin%20melaporkan%20bug%20di%20aplikasi%20anime%20streaming",
+              )
+            }
+          />
+          <SettingItem
+            icon="star"
+            title="Beri Rating"
+            subtitle="Dukung pengembangan aplikasi"
+            onPress={() => { }}
+            isLast={true}
+          />
+        </View>
 
         {/* LEGAL */}
         <SectionHeader title="LEGAL" />
-        <SettingItem
-          icon="document-text"
-          title="Kebijakan Privasi"
-          onPress={() => {}}
-        />
-        <SettingItem
-          icon="shield-checkmark"
-          title="Syarat & Ketentuan"
-          onPress={() => {}}
-        />
+        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingItem
+            icon="document-text"
+            title="Kebijakan Privasi"
+            onPress={() => { }}
+          />
+          <SettingItem
+            icon="shield-checkmark"
+            title="Syarat & Ketentuan"
+            onPress={() => { }}
+            isLast={true}
+          />
+        </View>
 
         {/* FOOTER */}
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.textMuted }]}>
-            Made with ❤️ for Anime Fans
-          </Text>
-          <Text style={[styles.footerText, { color: colors.textMuted }]}>
-            © 2024 MyAnime App
+            © 2026 Nganime App v.1.2.0
           </Text>
         </View>
       </ScrollView>
@@ -525,13 +554,101 @@ const ProfileScreen = ({ navigation }: any) => {
               <View style={styles.modalDivider} />
 
               {/* Footer */}
+
               <Text style={[styles.modalFooter, { color: colors.textMuted }]}>
-                Made with ❤️ for Anime Fans
-              </Text>
-              <Text style={[styles.modalFooter, { color: colors.textMuted }]}>
-                © 2024 MyAnime App
+                © 2026 Nganime v.1.2.0
               </Text>
             </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* LOGOUT CONFIRMATION MODAL */}
+      <Modal
+        visible={showLogoutConfirm}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLogoutConfirm(false)}
+      >
+        <TouchableOpacity
+          style={styles.confirmModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowLogoutConfirm(false)}
+        >
+          <TouchableOpacity
+            style={[styles.confirmModalCard, { backgroundColor: colors.card }]}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Icon */}
+            <View
+              style={[
+                styles.confirmModalIconWrap,
+                { backgroundColor: colors.accent + "20" },
+              ]}
+            >
+              <Ionicons name="log-out-outline" size={32} color={colors.accent} />
+            </View>
+
+            {/* Title */}
+            <Text style={[styles.confirmModalTitle, { color: colors.text }]}>
+              Keluar dari Akun?
+            </Text>
+
+            {/* Subtitle */}
+            <Text
+              style={[
+                styles.confirmModalSubtitle,
+                { color: colors.textSecondary },
+              ]}
+            >
+              Apakah Anda yakin ingin keluar dari akun Anda? Anda harus masuk kembali untuk mengakses bookmark.
+            </Text>
+
+            {/* Divider */}
+            <View
+              style={[styles.confirmModalDivider, { backgroundColor: colors.border }]}
+            />
+
+            {/* Logout Button */}
+            <TouchableOpacity
+              style={[styles.confirmModalBtn, { backgroundColor: colors.accent }]}
+              activeOpacity={0.85}
+              onPress={() => {
+                setShowLogoutConfirm(false);
+                handleLogout();
+              }}
+            >
+              <Ionicons
+                name="log-out-outline"
+                size={20}
+                color="#FFF"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.confirmModalBtnText}>Ya, Keluar</Text>
+            </TouchableOpacity>
+
+            {/* Cancel Button */}
+            <TouchableOpacity
+              style={[
+                styles.confirmModalCancelBtn,
+                {
+                  backgroundColor: colors.bgSecondary,
+                  borderColor: colors.border,
+                },
+              ]}
+              activeOpacity={0.8}
+              onPress={() => setShowLogoutConfirm(false)}
+            >
+              <Text
+                style={[
+                  styles.confirmModalCancelBtnText,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                Batal
+              </Text>
+            </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -611,19 +728,23 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 8,
   },
+  sectionCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.02,
+    shadowRadius: 10,
+    elevation: 2,
+  },
   settingItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 16,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
   },
   iconContainer: {
     width: 40,
@@ -740,6 +861,77 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     marginTop: 4,
+  },
+  // CONFIRM MODAL STYLES
+  confirmModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  confirmModalCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  confirmModalIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  confirmModalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  confirmModalSubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  confirmModalDivider: {
+    width: "100%",
+    height: 1,
+    marginBottom: 16,
+  },
+  confirmModalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  confirmModalBtnText: {
+    color: "#FFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  confirmModalCancelBtn: {
+    width: "100%",
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmModalCancelBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
 

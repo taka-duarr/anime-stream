@@ -37,6 +37,41 @@ export const navigationRef = createNavigationContainerRef();
 
 const isWeb = Platform.OS === "web";
 
+if (isWeb) {
+  const doc = (globalThis as any).document;
+  if (doc) {
+    const style = doc.createElement("style");
+    style.type = "text/css";
+    style.appendChild(
+      doc.createTextNode(`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body, input, select, textarea, button {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        .r-fontFamily-1qd0xha {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+        }
+        .web-navbar {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          z-index: 1000 !important;
+          backdrop-filter: blur(20px) !important;
+          -webkit-backdrop-filter: blur(20px) !important;
+          box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03) !important;
+          transition: background-color 0.3s ease, border-color 0.3s ease !important;
+        }
+        .web-search-pill {
+          backdrop-filter: blur(10px) !important;
+          -webkit-backdrop-filter: blur(10px) !important;
+        }
+      `)
+    );
+    doc.head.appendChild(style);
+  }
+}
+
 // Helper: extract active leaf route name from nested nav state
 const getActiveRouteName = (state: NavigationState | undefined): string => {
   if (!state || state.index === undefined) return "HomeTab";
@@ -143,7 +178,7 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
                 styles.tabLabel,
                 {
                   color: isFocused ? colors.accent : colors.textSecondary,
-                  fontWeight: isFocused ? "700" : "500",
+                  fontWeight: isFocused ? "bold" : "normal",
                 },
               ]}
             >
@@ -171,8 +206,22 @@ const MainTabNavigator = () => (
 const AppNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Main" component={MainTabNavigator} />
-    <Stack.Screen name="Login" component={LoginScreen} />
-    <Stack.Screen name="Register" component={RegisterScreen} />
+    <Stack.Screen
+      name="Login"
+      component={LoginScreen}
+      options={{
+        presentation: "transparentModal",
+        animation: "fade",
+      }}
+    />
+    <Stack.Screen
+      name="Register"
+      component={RegisterScreen}
+      options={{
+        presentation: "transparentModal",
+        animation: "fade",
+      }}
+    />
     <Stack.Screen name="Search" component={SearchScreen} />
     <Stack.Screen name="AnimeList" component={AnimeListScreen} />
     <Stack.Screen name="GenreList" component={GenreListScreen} />
@@ -210,7 +259,7 @@ const WebLayout = () => {
     }
   };
 
-  const isNavbarHidden = activeRoute === "Login" || activeRoute === "Register" || activeRoute === "Episode";
+  const isNavbarHidden = activeRoute === "Login" || activeRoute === "Register" || activeRoute === "Episode" || activeRoute === "Search";
 
   return (
     <View style={{ flex: 1, flexDirection: "column", backgroundColor: colors.bg }}>

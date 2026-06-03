@@ -10,9 +10,10 @@ import {
   useWindowDimensions,
   TextInput,
   ScrollView,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
-import { getOngoingAnime, getCompleteAnime, getAnimeByGenre } from "../services/api";
+import { getOngoingAnime, getCompleteAnime, getAnimeByGenre, getGenreList } from "../services/api";
 import { Anime } from "../types/drama";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -38,8 +39,15 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
   const { type, title } = route?.params || { type: "ongoing", title: "Anime Ongoing" };
   const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+
+  let numColumns = 2;
+  if (width >= 1200) numColumns = 5;
+  else if (width >= 900) numColumns = 4;
+  else if (width >= 600) numColumns = 3;
 
   const [animeList, setAnimeList] = useState<Anime[]>([]);
+  const [genres, setGenres] = useState<any[]>([{ id: "all", label: "ALL CATEGORIES" }]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -48,15 +56,26 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("all");
 
-  const GENRES = [
-    { id: "all", label: "ALL CATEGORIES" },
-    { id: "shounen", label: "SHONEN" },
-    { id: "seinen", label: "SEINEN" },
-    { id: "action", label: "ACTION" },
-    { id: "sci-fi", label: "SCI-FI" },
-    { id: "mystery", label: "MYSTERY" },
-    { id: "isekai", label: "ISEKAI" },
-  ];
+  useEffect(() => {
+    const fetchGenresList = async () => {
+      try {
+        const data = await getGenreList();
+        if (data && Array.isArray(data)) {
+          const mapped = [
+            { id: "all", label: "ALL CATEGORIES" },
+            ...data.map((g: any) => ({
+              id: g.genreId,
+              label: g.title.toUpperCase(),
+            }))
+          ];
+          setGenres(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to load genres in AnimeListScreen:", err);
+      }
+    };
+    fetchGenresList();
+  }, []);
 
   const screenTitle =
     title || (type === "ongoing" ? "Anime Ongoing" : "Anime Completed");
@@ -80,7 +99,8 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
         console.log(`[PAGINATION] Fetching genre ${selectedGenre} page ${page} for ${type} filter`);
         const genreData = await getAnimeByGenre(selectedGenre, page);
         data = genreData.filter((item: Anime) => {
-          const statusLower = item.status?.toLowerCase() || "";
+          if (!item.status) return true; // Fallback if status is missing in genre response
+          const statusLower = item.status.toLowerCase();
           if (type === "ongoing") {
             return statusLower.includes("ongoing");
           } else {
@@ -134,19 +154,16 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
   }, [currentPage, hasMore, loadingMore, loading, type, selectedGenre]);
 
   const renderAnimeItem = ({ item, index }: { item: Anime; index: number }) => {
-    // Calculate responsive columns
-    let numColumns = 2;
-    if (width >= 1200) numColumns = 5;
-    else if (width >= 900) numColumns = 4;
-    else if (width >= 600) numColumns = 3;
-
-    const cardWidth = width / numColumns - 24;
-
     return (
       <TouchableOpacity
         style={[
           styles.card,
-          { backgroundColor: colors.card, width: cardWidth },
+          { 
+            backgroundColor: colors.card, 
+            width: Platform.OS === 'web' 
+              ? `calc((100% - ${(numColumns - 1) * 16}px) / ${numColumns})` as any 
+              : `${100 / numColumns}%` as any
+          },
         ]}
         activeOpacity={0.8}
         onPress={() =>
@@ -236,99 +253,88 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
     item.title?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const renderHeader = (isInsideScroll: boolean = false) => (
+    <View style={[
+      styles.searchGenreContainer,
+      { backgroundColor: colors.sidebar, borderBottomColor: colors.border },
+      (isDesktop && !isInsideScroll) && { paddingTop: 72 },
+      (isDesktop && isInsideScroll) && { paddingHorizontal: 0, backgroundColor: "transparent", borderBottomWidth: 0, paddingTop: 16 }
+    ]}>
+      {/* Genre Tags Wrap */}
+      <View style={styles.genreScroll}>
+        {genres.map((g) => {
+          const isActive = selectedGenre === g.id;
+          return (
+            <TouchableOpacity
+              key={g.id}
+              style={[
+                styles.genreTag,
+                isActive
+                  ? { backgroundColor: colors.accent }
+                  : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }
+              ]}
+              onPress={() => setSelectedGenre(g.id)}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.genreTagText,
+                  { color: isActive ? "#FFF" : colors.textSecondary }
+                ]}
+              >
+                {g.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+
+  const renderLoading = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={colors.accent} />
+      <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+        Loading anime...
+      </Text>
+    </View>
+  );
+
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.bg }]}
+      style={[
+        styles.container,
+        { backgroundColor: colors.bg },
+      ]}
       edges={["top"]}
     >
       <StatusBar style={isDark ? "light" : "dark"} />
 
+      {!isDesktop && renderHeader(false)}
 
-
-      {/* Search & Genre categories */}
-      <View style={[styles.searchGenreContainer, { backgroundColor: colors.sidebar, borderBottomColor: colors.border }]}>
-        {/* Search Bar */}
-        <View style={[styles.searchBar, { backgroundColor: colors.searchBg }]}>
-          <Ionicons name="search" size={18} color={colors.textSecondary} style={styles.searchIcon} />
-          <TextInput
-            placeholder="Search for titles, studios, or genres..."
-            placeholderTextColor={colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={[styles.searchInput, { color: colors.text }]}
+      <FlatList
+        data={filteredAnimeList}
+        renderItem={renderAnimeItem}
+        keyExtractor={(item, index) => `${item.animeId}-${index}`}
+        numColumns={numColumns}
+        key={`flatlist-${numColumns}`} // Force re-render when column size shifts
+        contentContainerStyle={[styles.listContent, isDesktop && { paddingTop: 72 }, { flexGrow: 1 }]}
+        ListHeaderComponent={isDesktop ? renderHeader(true) : null}
+        columnWrapperStyle={styles.columnWrapper}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.accent]}
+            tintColor={colors.accent}
           />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearBtn}>
-              <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Genre Tags Scroll */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.genreScroll}
-        >
-          {GENRES.map((g) => {
-            const isActive = selectedGenre === g.id;
-            return (
-              <TouchableOpacity
-                key={g.id}
-                style={[
-                  styles.genreTag,
-                  isActive
-                    ? { backgroundColor: colors.accent }
-                    : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }
-                ]}
-                onPress={() => setSelectedGenre(g.id)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.genreTagText,
-                    { color: isActive ? "#FFF" : colors.textSecondary }
-                  ]}
-                >
-                  {g.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Anime List */}
-      {loading && currentPage === 1 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Loading anime...
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredAnimeList}
-          renderItem={renderAnimeItem}
-          keyExtractor={(item, index) => `${item.animeId}-${index}`}
-          numColumns={1}
-          key={`flatlist-${width}`} // Force re-render on width change
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.accent]}
-              tintColor={colors.accent}
-            />
-          }
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={renderFooter}
-          ListEmptyComponent={renderEmpty}
-        />
-      )}
+        }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={loading && currentPage === 1 ? renderLoading : renderEmpty}
+      />
     </SafeAreaView>
   );
 };
@@ -368,6 +374,7 @@ const styles = StyleSheet.create({
   },
   genreScroll: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
   },
@@ -375,11 +382,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 4,
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 80,
   },
   genreTagText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "bold",
     letterSpacing: 0.5,
+    textAlign: "center",
   },
   header: {
     flexDirection: "row",
@@ -397,7 +409,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontWeight: "bold",
   },
   headerSubtitle: {
     fontSize: 12,
@@ -414,9 +426,11 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 12,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
+  },
+  columnWrapper: {
+    justifyContent: "flex-start",
+    gap: 16,
+    marginBottom: 16,
   },
   card: {
     borderRadius: 10,
@@ -449,7 +463,7 @@ const styles = StyleSheet.create({
   rankText: {
     color: "#FFF",
     fontSize: 10,
-    fontWeight: "800",
+    fontWeight: "bold",
   },
   typeBadge: {
     position: "absolute",
@@ -462,7 +476,7 @@ const styles = StyleSheet.create({
   typeText: {
     color: "#FFF",
     fontSize: 9,
-    fontWeight: "700",
+    fontWeight: "bold",
     letterSpacing: 0.5,
   },
   cardInfo: {
@@ -470,7 +484,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "bold",
     lineHeight: 18,
     marginBottom: 6,
   },
@@ -481,11 +495,11 @@ const styles = StyleSheet.create({
   },
   cardEpisode: {
     fontSize: 11,
-    fontWeight: "500",
+    fontWeight: "normal",
   },
   cardScore: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "bold",
   },
   footerLoader: {
     paddingVertical: 20,
@@ -505,7 +519,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "bold",
     marginTop: 16,
     marginBottom: 16,
   },
@@ -517,6 +531,6 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "bold",
   },
 });

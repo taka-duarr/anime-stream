@@ -35,19 +35,19 @@ export const DARK_COLORS: ThemeColors = {
 };
 
 export const LIGHT_COLORS: ThemeColors = {
-  bg: "#F0F0F0",
-  bgSecondary: "#E8E8E8",
+  bg: "#F5F6F8",
+  bgSecondary: "#EAECEF",
   sidebar: "#FFFFFF",
   card: "#FFFFFF",
-  text: "#1A1A1A",
-  textSecondary: "#555555",
-  textMuted: "#999999",
-  accent: "#E63333",
-  accentDark: "#B82222",
-  border: "#E0E0E0",
-  searchBg: "#F5F5F5",
-  tabBg: "#EEEEEE",
-  overlay: "rgba(0,0,0,0.5)",
+  text: "#1E293B",
+  textSecondary: "#475569",
+  textMuted: "#64748B",
+  accent: "#FF4757",
+  accentDark: "#E11D48",
+  border: "#E2E8F0",
+  searchBg: "#F1F5F9",
+  tabBg: "#E2E8F0",
+  overlay: "rgba(15, 23, 42, 0.4)",
 };
 
 interface ThemeContextType {

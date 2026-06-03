@@ -156,6 +156,15 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
     );
   };
 
+  const renderLoading = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={colors.accent} />
+      <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+        Loading genres...
+      </Text>
+    </View>
+  );
+
   const renderEmpty = () => {
     if (loading) return null;
 
@@ -179,66 +188,64 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
     g.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const renderHeader = (isInsideScroll: boolean = false) => (
+    <View
+      style={[
+        styles.header,
+        { backgroundColor: colors.sidebar, borderBottomColor: colors.border, paddingVertical: 14 },
+        (isDesktop && !isInsideScroll) && { paddingTop: 72 },
+        (isDesktop && isInsideScroll) && { paddingHorizontal: 0, backgroundColor: "transparent", borderBottomWidth: 0 }
+      ]}
+    >
+      <View style={[styles.searchBar, { backgroundColor: colors.searchBg }]}>
+        <Ionicons name="search" size={18} color={colors.textSecondary} style={styles.searchIcon} />
+        <TextInput
+          placeholder="Cari genre..."
+          placeholderTextColor={colors.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          style={[styles.searchInput, { color: colors.text }]}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearBtn}>
+            <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.bg }]}
+      style={[
+        styles.container,
+        { backgroundColor: colors.bg },
+      ]}
       edges={["top"]}
     >
       <StatusBar style={isDark ? "light" : "dark"} />
 
-      {/* Search Header replacing old titles and back button */}
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: colors.sidebar, borderBottomColor: colors.border, paddingVertical: 14 }
-        ]}
-      >
-        <View style={[styles.searchBar, { backgroundColor: colors.searchBg }]}>
-          <Ionicons name="search" size={18} color={colors.textSecondary} style={styles.searchIcon} />
-          <TextInput
-            placeholder="Cari genre..."
-            placeholderTextColor={colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={[styles.searchInput, { color: colors.text }]}
+      {!isDesktop && renderHeader(false)}
+      <FlatList
+        data={filteredGenres}
+        renderItem={renderGenreItem}
+        keyExtractor={(item, index) => `${item.genreId}-${index}`}
+        numColumns={numColumns}
+        key={`genre-grid-${numColumns}`} // Force re-layout when column size shifts
+        contentContainerStyle={[styles.listContent, isDesktop && { paddingTop: 72 }, { flexGrow: 1 }]}
+        ListHeaderComponent={isDesktop ? renderHeader(true) : null}
+        columnWrapperStyle={styles.columnWrapper}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.accent]}
+            tintColor={colors.accent}
           />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearBtn}>
-              <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* Genre List Grid */}
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Loading genres...
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredGenres}
-          renderItem={renderGenreItem}
-          keyExtractor={(item, index) => `${item.genreId}-${index}`}
-          numColumns={numColumns}
-          key={`genre-grid-${numColumns}`} // Force re-layout when column size shifts
-          contentContainerStyle={styles.listContent}
-          columnWrapperStyle={styles.columnWrapper}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.accent]}
-              tintColor={colors.accent}
-            />
-          }
-          ListEmptyComponent={renderEmpty}
-        />
-      )}
+        }
+        ListEmptyComponent={loading && !refreshing ? renderLoading : renderEmpty}
+      />
     </SafeAreaView>
   );
 };

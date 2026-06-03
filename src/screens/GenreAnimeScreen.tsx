@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   useWindowDimensions,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { getAnimeByGenre } from "../services/api";
@@ -34,6 +35,8 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
   const { genreId, genreName } = route?.params || { genreId: "", genreName: "" };
   const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+
 
   const [animeList, setAnimeList] = useState<Anime[]>([]);
   const [loading, setLoading] = useState(false);
@@ -126,7 +129,9 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
           styles.card,
           {
             backgroundColor: colors.card,
-            width: `${100 / numColumns}%` as any,
+            width: Platform.OS === 'web' 
+              ? `calc((100% - ${(numColumns - 1) * 16}px) / ${numColumns})` as any 
+              : `${100 / numColumns}%` as any,
           },
         ]}
         activeOpacity={0.8}
@@ -197,6 +202,15 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
     );
   };
 
+  const renderLoading = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color={colors.accent} />
+      <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+        Loading anime...
+      </Text>
+    </View>
+  );
+
   const renderEmpty = () => {
     if (loading) return null;
 
@@ -216,70 +230,68 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
     );
   };
 
+  const renderHeader = (isInsideScroll: boolean = false) => (
+    <View
+      style={[
+        styles.header,
+        { backgroundColor: colors.sidebar, borderBottomColor: colors.border },
+        (isDesktop && !isInsideScroll) && { paddingTop: 72 },
+        (isDesktop && isInsideScroll) && { paddingHorizontal: 0, backgroundColor: "transparent", borderBottomWidth: 0 }
+      ]}
+    >
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={styles.backButton}
+      >
+        <Ionicons name="arrow-back" size={24} color={colors.text} />
+      </TouchableOpacity>
+      <View style={styles.headerTitleContainer}>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          {genreName}
+        </Text>
+        <Text
+          style={[styles.headerSubtitle, { color: colors.textSecondary }]}
+        >
+          {animeList.length} anime • Page {currentPage}
+        </Text>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.bg }]}
+      style={[
+        styles.container,
+        { backgroundColor: colors.bg },
+      ]}
       edges={["top"]}
     >
       <StatusBar style={isDark ? "light" : "dark"} />
 
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: colors.sidebar, borderBottomColor: colors.border },
-        ]}
-      >
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            {genreName}
-          </Text>
-          <Text
-            style={[styles.headerSubtitle, { color: colors.textSecondary }]}
-          >
-            {animeList.length} anime • Page {currentPage}
-          </Text>
-        </View>
-      </View>
-
-      {/* Anime List */}
-      {loading && currentPage === 1 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Loading anime...
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={animeList}
-          renderItem={renderAnimeItem}
-          keyExtractor={(item, index) => `${item.animeId}-${index}`}
-          numColumns={numColumns}
-          key={`genre-anime-${numColumns}-columns`}
-          contentContainerStyle={styles.listContent}
-          columnWrapperStyle={styles.columnWrapper}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.accent]}
-              tintColor={colors.accent}
-            />
-          }
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={renderFooter}
-          ListEmptyComponent={renderEmpty}
-        />
-      )}
+      {!isDesktop && renderHeader(false)}
+      <FlatList
+        data={animeList}
+        renderItem={renderAnimeItem}
+        keyExtractor={(item, index) => `${item.animeId}-${index}`}
+        numColumns={numColumns}
+        key={`genre-anime-${numColumns}-columns`}
+        contentContainerStyle={[styles.listContent, isDesktop && { paddingTop: 72 }, { flexGrow: 1 }]}
+        ListHeaderComponent={isDesktop ? renderHeader(true) : null}
+        columnWrapperStyle={styles.columnWrapper}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.accent]}
+            tintColor={colors.accent}
+          />
+        }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={loading && currentPage === 1 ? renderLoading : renderEmpty}
+      />
     </SafeAreaView>
   );
 };
@@ -326,6 +338,8 @@ const styles = StyleSheet.create({
   },
   columnWrapper: {
     justifyContent: "flex-start",
+    gap: 16,
+    marginBottom: 16,
   },
   card: {
     borderRadius: 10,

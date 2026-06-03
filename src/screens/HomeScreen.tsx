@@ -10,6 +10,8 @@ import {
   RefreshControl,
   Platform,
   useWindowDimensions,
+  Linking,
+  PanResponder,
 } from "react-native";
 import { Image } from "expo-image";
 import { getHomeData } from "../services/api";
@@ -42,6 +44,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [ongoingAnime, setOngoingAnime] = useState<Anime[]>([]);
   const [completedAnime, setCompletedAnime] = useState<Anime[]>([]);
   const [carouselItems, setCarouselItems] = useState<any[]>([]);
+  const [desktopCarouselIndex, setDesktopCarouselIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -49,10 +52,117 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
   const scrollViewRef = useRef<ScrollView>(null);
+  const swiperRef = useRef<any>(null);
+  const dragScrollRef = useRef<any>(null);
+  const isDragging = useRef(false);
+  const [spotlightWidth, setSpotlightWidth] = useState(800);
+  const isMouseDown = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
+
+  const onMouseDown = (e: any) => {
+    if (Platform.OS !== "web") return;
+    isMouseDown.current = true;
+    startX.current = e.clientX;
+    const domNode = dragScrollRef.current?.getScrollableNode?.() || dragScrollRef.current;
+    if (domNode) {
+      scrollLeft.current = domNode.scrollLeft;
+      domNode.style.cursor = "grabbing";
+      domNode.style.userSelect = "none";
+    }
+  };
+
+  const onMouseMove = (e: any) => {
+    if (!isMouseDown.current || Platform.OS !== "web") return;
+    const domNode = dragScrollRef.current?.getScrollableNode?.() || dragScrollRef.current;
+    if (domNode) {
+      const x = e.clientX;
+      const walk = (startX.current - x);
+      domNode.scrollLeft = scrollLeft.current + walk;
+      isDragging.current = Math.abs(walk) > 10;
+    }
+  };
+
+  const onMouseUpOrLeave = () => {
+    if (!isMouseDown.current || Platform.OS !== "web") return;
+    isMouseDown.current = false;
+    const domNode = dragScrollRef.current?.getScrollableNode?.() || dragScrollRef.current;
+    if (domNode) {
+      domNode.style.cursor = "grab";
+      domNode.style.removeProperty("user-select");
+      
+      const cardWidth = domNode.clientWidth || spotlightWidth;
+      const index = Math.round(domNode.scrollLeft / cardWidth);
+      setDesktopCarouselIndex(index);
+      domNode.scrollTo({
+        left: index * cardWidth,
+        behavior: "smooth",
+      });
+      setTimeout(() => {
+        isDragging.current = false;
+      }, 80);
+    }
+  };
+
+  const mobilePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        if (Platform.OS !== "web") return false;
+        const { dx, dy } = gestureState;
+        return Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy);
+      },
+      onPanResponderGrant: () => {
+        isDragging.current = true;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const { dx } = gestureState;
+        if (Math.abs(dx) > 40) {
+          if (dx < 0) {
+            swiperRef.current?.scrollBy(1, true);
+          } else {
+            swiperRef.current?.scrollBy(-1, true);
+          }
+        }
+        setTimeout(() => {
+          isDragging.current = false;
+        }, 80);
+      },
+    })
+  ).current;
+
+  // Auto-scroll for desktop carousel
+  useEffect(() => {
+    if (carouselItems.length > 0) {
+      const interval = setInterval(() => {
+        setDesktopCarouselIndex((prev) => (prev + 1) % carouselItems.length);
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [carouselItems]);
+
+  // Sync scroll offset with desktopCarouselIndex
+  useEffect(() => {
+    if (carouselItems.length > 0 && !isMouseDown.current) {
+      const domNode = dragScrollRef.current?.getScrollableNode?.() || dragScrollRef.current;
+      if (domNode) {
+        domNode.scrollTo({
+          left: desktopCarouselIndex * spotlightWidth,
+          behavior: "smooth",
+        });
+      } else {
+        dragScrollRef.current?.scrollTo({
+          x: desktopCarouselIndex * spotlightWidth,
+          animated: true,
+        });
+      }
+    }
+  }, [desktopCarouselIndex, spotlightWidth, carouselItems.length]);
 
   const fetchAll = async () => {
     try {
       setLoading(true);
+      setDesktopCarouselIndex(0);
 
       const homeData = await getHomeData();
 
@@ -71,17 +181,47 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         // Setup carousel dari ongoing anime (top 6)
         const carouselData = homeData.ongoingAnime
           .slice(0, 6)
-          .map((anime: any) => ({
-            id: anime.animeId,
-            cover: anime.poster,
-            title: anime.title,
-            meta: `${anime.episodes || anime.totalEpisodes || "?"} Episode`,
-            description: anime.synopsis?.paragraphs?.[0] || "",
-            label: "ONGOING",
-            labelColor: "#FF4757",
-            navTarget: "Episode",
-            navBookId: anime.animeId,
-          }));
+          .map((anime: any) => {
+            // Pick genres based on keywords in title, or default genres
+            let genres = ["Action", "Sci-Fi"];
+            const titleLower = anime.title.toLowerCase();
+            if (titleLower.includes("gundam") || titleLower.includes("mecha") || titleLower.includes("witch from mercury")) {
+              genres = ["Action", "Mecha"];
+            } else if (titleLower.includes("romance") || titleLower.includes("love") || titleLower.includes("marriage")) {
+              genres = ["Romance", "Comedy"];
+            } else if (titleLower.includes("fantasy") || titleLower.includes("isekai") || titleLower.includes("reincarnat")) {
+              genres = ["Fantasy", "Isekai"];
+            } else if (titleLower.includes("slice") || titleLower.includes("life") || titleLower.includes("school")) {
+              genres = ["Slice of Life", "School"];
+            } else if (titleLower.includes("adventure") || titleLower.includes("quest") || titleLower.includes("world")) {
+              genres = ["Adventure", "Fantasy"];
+            } else {
+              const defaultGenres = [
+                ["Action", "Fantasy"],
+                ["Comedy", "School"],
+                ["Sci-Fi", "Adventure"],
+                ["Drama", "Mystery"],
+              ];
+              let hash = 0;
+              for (let i = 0; i < anime.title.length; i++) {
+                hash += anime.title.charCodeAt(i);
+              }
+              genres = defaultGenres[hash % defaultGenres.length];
+            }
+
+            return {
+              id: anime.animeId,
+              cover: anime.poster,
+              title: anime.title,
+              meta: `${anime.episodes || anime.totalEpisodes || "?"} Episode`,
+              description: anime.synopsis?.paragraphs?.[0] || "",
+              label: "ONGOING",
+              labelColor: "#FF4757",
+              navTarget: "Episode",
+              navBookId: anime.animeId,
+              genres,
+            };
+          });
 
         setCarouselItems(carouselData);
       } else {
@@ -202,6 +342,88 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     );
   };
 
+  const renderWebFooter = () => {
+    if (!isWeb) return null;
+
+    return (
+      <View style={[styles.webFooterContainer, { backgroundColor: isDark ? "#121212" : colors.bgSecondary, borderTopColor: colors.border }]}>
+        <View style={[styles.webFooterContent, isDesktop && { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }]}>
+          {/* Logo & Brand Info */}
+          <View style={[styles.footerBrandCol, isDesktop ? { width: "35%" } : { marginBottom: 24 }]}>
+            <View style={styles.footerLogoRow}>
+              <Image
+                source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
+                style={styles.footerLogoImg as any}
+                contentFit="contain"
+              />
+              <Image
+                source={require("../../assets/nganime.png")}
+                style={styles.footerLogoTextImg as any}
+                contentFit="contain"
+              />
+            </View>
+            <Text style={[styles.footerDescription, { color: colors.textSecondary }]}>
+              Nganime adalah platform streaming anime sub Indo terupdate. Nikmati ratusan judul anime Ongoing dan Completed terlengkap secara gratis dengan pemutar responsif dan stabil.
+            </Text>
+            {/* Social Icons */}
+            <View style={styles.footerSocialsRow}>
+              <TouchableOpacity onPress={() => Linking.openURL("https://github.com/taka-duarr/anime-stream")} style={[styles.socialIconCircle, { backgroundColor: colors.card }]}>
+                <Ionicons name="logo-github" size={18} color={colors.text} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => Linking.openURL("https://wa.me/6281357398265")} style={[styles.socialIconCircle, { backgroundColor: colors.card }]}>
+                <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.socialIconCircle, { backgroundColor: colors.card }]}>
+                <Ionicons name="paper-plane" size={18} color="#0088cc" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Quick Links Column */}
+          <View style={[styles.footerLinkCol, isDesktop ? { width: "20%" } : { marginBottom: 20 }]}>
+            <Text style={[styles.footerColTitle, { color: colors.text }]}>Menu Utama</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("HomeTab")} style={styles.footerLinkBtn}>
+              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Beranda</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate("AnimeList", { type: "ongoing" })} style={styles.footerLinkBtn}>
+              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Anime Ongoing</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate("AnimeList", { type: "completed" })} style={styles.footerLinkBtn}>
+              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Anime Completed</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate("GenreList")} style={styles.footerLinkBtn}>
+              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Genre List</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Features / Support Column */}
+          <View style={[styles.footerLinkCol, isDesktop ? { width: "25%" } : { marginBottom: 20 }]}>
+            <Text style={[styles.footerColTitle, { color: colors.text }]}>Dukungan & Legalitas</Text>
+            <TouchableOpacity onPress={() => Linking.openURL("https://wa.me/6281357398265")} style={styles.footerLinkBtn}>
+              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Laporkan Bug</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.footerLinkBtn}>
+              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Kebijakan Privasi</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.footerLinkBtn}>
+              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Syarat & Ketentuan</Text>
+            </TouchableOpacity>
+            <View style={styles.taglineBadge}>
+              <Ionicons name="shield-checkmark-outline" size={14} color={colors.accent} style={{ marginRight: 4 }} />
+              <Text style={[styles.taglineBadgeText, { color: colors.accent }]}>Safe & Secure</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.footerBottomRow, { borderTopColor: colors.border }]}>
+          <Text style={[styles.copyrightText, { color: colors.textMuted }]}>
+            © {new Date().getFullYear()} Nganime App. Built with React Native Web & Expo 
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <StatusBar
@@ -308,7 +530,11 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <ScrollView
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, isDesktop && styles.desktopScrollContent]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          isDesktop && styles.desktopScrollContent,
+          isWeb && { paddingBottom: 0, flexGrow: 1 }
+        ]}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         refreshControl={
@@ -320,59 +546,89 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           />
         }
       >
-        {isDesktop ? (
-          <View style={styles.desktopContainer}>
+        <View style={{ flex: 1 }}>
+          {isDesktop ? (
+            <View style={styles.desktopContainer}>
             {/* Left Main Column */}
             <View style={styles.leftColumn}>
 
               {/* Spotlight / Featured Card */}
               {carouselItems.length > 0 && (
-                <TouchableOpacity
-                  style={[styles.spotlightCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                  activeOpacity={0.85}
-                  onPress={() =>
-                    navigation.navigate("Episode", {
-                      bookId: carouselItems[0].navBookId,
-                      title: carouselItems[0].title,
-                    })
-                  }
+                <View 
+                  onLayout={(e) => {
+                    const w = e.nativeEvent.layout.width;
+                    if (w > 0) setSpotlightWidth(w);
+                  }}
+                  style={styles.spotlightWrapper}
                 >
-                  <Image
-                    source={{ uri: carouselItems[0].cover }}
-                    style={styles.spotlightPoster as any}
-                    contentFit="cover"
-                  />
-                  <View style={styles.spotlightInfo}>
-                    <View style={styles.spotlightBadgeRow}>
-                      <View style={[styles.spotlightBadge, { backgroundColor: "rgba(230,51,51,0.12)" }]}>
-                        <Text style={[styles.spotlightBadgeText, { color: colors.accent }]}>Action</Text>
-                      </View>
-                      <View style={[styles.spotlightBadge, { backgroundColor: "rgba(230,51,51,0.12)" }]}>
-                        <Text style={[styles.spotlightBadgeText, { color: colors.accent }]}>Mecha</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.spotlightTitle} numberOfLines={2}>
-                      {carouselItems[0].title}
-                    </Text>
-                    <Text style={[styles.spotlightSynopsis, { color: colors.textSecondary }]} numberOfLines={3}>
-                      {carouselItems[0].description || "In an era when a multitude of corporations have entered space and built a huge economic system, Suletta Mercury transfers..."}
-                    </Text>
+                  <ScrollView
+                    ref={dragScrollRef}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    scrollEventThrottle={16}
+                    onMomentumScrollEnd={(e) => {
+                      const x = e.nativeEvent.contentOffset.x;
+                      const index = Math.round(x / spotlightWidth);
+                      setDesktopCarouselIndex(index);
+                    }}
+                    {...(Platform.OS === "web" ? {
+                      onMouseDown: onMouseDown,
+                      onMouseMove: onMouseMove,
+                      onMouseUp: onMouseUpOrLeave,
+                      onMouseLeave: onMouseUpOrLeave,
+                      style: { cursor: "grab" } as any,
+                    } : {})}
+                  >
+                    {carouselItems.map((item, index) => (
+                      <View key={`spotlight-${item.id}-${index}`} style={{ width: spotlightWidth }}>
+                        <TouchableOpacity
+                          style={[styles.spotlightCard, { borderColor: colors.border }]}
+                          activeOpacity={0.85}
+                          onPress={() => {
+                            if (isDragging.current) return;
+                            navigation.navigate("Episode", {
+                              bookId: item.navBookId,
+                              title: item.title,
+                            });
+                          }}
+                        >
+                          <Image
+                            source={{ uri: item.cover }}
+                            style={styles.spotlightBackground as any}
+                            contentFit="cover"
+                            blurRadius={10}
+                          />
+                          <LinearGradient
+                            colors={["rgba(13,13,13,0.2)", "rgba(13,13,13,0.6)", "rgba(13,13,13,0.95)"]}
+                            style={styles.spotlightGradient}
+                          />
 
-                    <TouchableOpacity
-                      style={[styles.spotlightBtn, { backgroundColor: colors.accent }]}
-                      activeOpacity={0.8}
-                      onPress={() =>
-                        navigation.navigate("Episode", {
-                          bookId: carouselItems[0].navBookId,
-                          title: carouselItems[0].title,
-                        })
-                      }
-                    >
-                      <Ionicons name="play" size={14} color="#FFF" style={{ marginRight: 6 }} />
-                      <Text style={styles.spotlightBtnText}>Watch Now</Text>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
+                          <Image
+                            source={{ uri: item.cover }}
+                            style={styles.spotlightPoster as any}
+                            contentFit="cover"
+                          />
+                          <View style={styles.spotlightInfo}>
+                            <View style={styles.spotlightBadgeRow}>
+                              {item.genres.map((genre: string, idx: number) => (
+                                <View key={idx} style={styles.spotlightBadge}>
+                                  <Text style={styles.spotlightBadgeText}>{genre}</Text>
+                                </View>
+                              ))}
+                            </View>
+                            <Text style={styles.spotlightTitle} numberOfLines={2}>
+                              {item.title}
+                            </Text>
+                            <Text style={[styles.spotlightSynopsis, { color: "#CCCCCC" }]} numberOfLines={3}>
+                              {item.description || `Tonton streaming ${item.title} Subtitle Indonesia gratis lengkap dengan kualitas terbaik. Ikuti kisah serunya sekarang juga!`}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
               )}
 
               {/* Recently Updated Section (first 5 ongoing items) */}
@@ -479,7 +735,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   Selamat datang di Project tugas kuliah kami,disini kalian bisa streaming anime tanpa iklan dan bebas nonton kapanpun
                 </Text>
                 <Text style={[styles.announcementText, { color: colors.textSecondary }]}>
-                  Enjoy! 🔥
+                  Enjoy Guys! 
                 </Text>
               </View>
 
@@ -493,69 +749,79 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               </TouchableOpacity>
 
               {/* Top Rating Widget */}
-              <View style={[styles.sidebarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.sidebarCardTitle, { color: colors.text, marginBottom: 8 }]}>Top Rated Anime</Text>
+              <View style={styles.sidebarSection}>
+                <View style={styles.sidebarHeaderRow}>
+                  <View style={styles.sidebarIndicator} />
+                  <Text style={[styles.sidebarSectionTitle, { color: colors.text }]}>Top Rated Anime</Text>
+                </View>
 
-                {completedAnime.slice(0, 3).map((item, index) => (
-                  <TouchableOpacity
-                    key={`top-rated-${item.animeId}-${index}`}
-                    style={[styles.sidebarItemRow, { borderBottomColor: colors.border, borderBottomWidth: index === 2 ? 0 : 1 }]}
-                    activeOpacity={0.7}
-                    onPress={() =>
-                      navigation.navigate("Episode", {
-                        bookId: item.animeId,
-                        title: item.title,
-                      })
-                    }
-                  >
-                    <Image
-                      source={{ uri: item.poster }}
-                      style={styles.sidebarThumb as any}
-                      contentFit="cover"
-                    />
-                    <View style={styles.sidebarItemInfo}>
-                      <Text style={[styles.sidebarItemTitle, { color: colors.text }]} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={[styles.sidebarItemScore, { color: colors.accent }]}>
-                        ⭐ {item.score || "9.0"}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                <View style={styles.sidebarItemsList}>
+                  {completedAnime.slice(0, 3).map((item, index) => (
+                    <TouchableOpacity
+                      key={`top-rated-${item.animeId}-${index}`}
+                      style={styles.sidebarItemRow}
+                      activeOpacity={0.7}
+                      onPress={() =>
+                        navigation.navigate("Episode", {
+                          bookId: item.animeId,
+                          title: item.title,
+                        })
+                      }
+                    >
+                      <Image
+                        source={{ uri: item.poster }}
+                        style={styles.sidebarPoster as any}
+                        contentFit="cover"
+                      />
+                      <View style={styles.sidebarItemInfo}>
+                        <Text style={[styles.sidebarItemTitle, { color: colors.text }]} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        <Text style={[styles.sidebarItemSubtitle, { color: colors.textSecondary }]}>
+                          ⭐ {item.score || "9.0"}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
 
               {/* Ongoing Series */}
-              <View style={[styles.sidebarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.sidebarCardTitle, { color: colors.text, marginBottom: 8 }]}>Ongoing Series</Text>
+              <View style={styles.sidebarSection}>
+                <View style={styles.sidebarHeaderRow}>
+                  <View style={styles.sidebarIndicator} />
+                  <Text style={[styles.sidebarSectionTitle, { color: colors.text }]}>Ongoing Series</Text>
+                </View>
 
-                {ongoingAnime.slice(0, 4).map((item, index) => (
-                  <TouchableOpacity
-                    key={`ongoing-series-${item.animeId}-${index}`}
-                    style={[styles.sidebarItemRow, { borderBottomColor: colors.border, borderBottomWidth: index === 3 ? 0 : 1 }]}
-                    activeOpacity={0.7}
-                    onPress={() =>
-                      navigation.navigate("Episode", {
-                        bookId: item.animeId,
-                        title: item.title,
-                      })
-                    }
-                  >
-                    <Image
-                      source={{ uri: item.poster }}
-                      style={styles.sidebarThumbSquare as any}
-                      contentFit="cover"
-                    />
-                    <View style={styles.sidebarItemInfo}>
-                      <Text style={[styles.sidebarItemTitle, { color: colors.text }]} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={[styles.sidebarItemEpisodes, { color: colors.textSecondary }]}>
-                        {item.totalEpisodes ? `${item.totalEpisodes} Episodes` : "Ongoing"}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                <View style={styles.sidebarItemsList}>
+                  {ongoingAnime.slice(0, 4).map((item, index) => (
+                    <TouchableOpacity
+                      key={`ongoing-series-${item.animeId}-${index}`}
+                      style={styles.sidebarItemRow}
+                      activeOpacity={0.7}
+                      onPress={() =>
+                        navigation.navigate("Episode", {
+                          bookId: item.animeId,
+                          title: item.title,
+                        })
+                      }
+                    >
+                      <Image
+                        source={{ uri: item.poster }}
+                        style={styles.sidebarPoster as any}
+                        contentFit="cover"
+                      />
+                      <View style={styles.sidebarItemInfo}>
+                        <Text style={[styles.sidebarItemTitle, { color: colors.text }]} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        <Text style={[styles.sidebarItemSubtitle, { color: colors.textSecondary }]}>
+                          {item.totalEpisodes ? `Episode ${item.totalEpisodes}` : "Episode 1"}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             </View>
           </View>
@@ -564,10 +830,17 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <View>
             {/* HERO CAROUSEL */}
             {carouselItems.length > 0 && (
-              <View style={styles.heroContainer}>
+              <View 
+                {...Platform.select({
+                  web: mobilePanResponder.panHandlers,
+                  default: {},
+                })}
+                style={styles.heroContainer}
+              >
                 <Swiper
+                  ref={swiperRef}
                   showsButtons={false}
-                  autoplay
+                  autoplay={!isDragging.current}
                   autoplayTimeout={5}
                   showsPagination
                   dot={<View style={styles.heroDot} />}
@@ -586,7 +859,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         source={{ uri: item.cover }}
                         style={styles.heroImage}
                         contentFit="cover"
-                        blurRadius={8}
+                        blurRadius={5}
                       />
                       <LinearGradient
                         colors={[
@@ -632,12 +905,13 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                               { backgroundColor: item.labelColor },
                             ]}
                             activeOpacity={0.85}
-                            onPress={() =>
+                            onPress={() => {
+                              if (isDragging.current) return;
                               navigation.navigate(item.navTarget, {
                                 bookId: item.navBookId,
                                 title: item.title,
-                              })
-                            }
+                              });
+                            }}
                           >
                             <Ionicons
                               name="play"
@@ -722,6 +996,9 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             )}
           </View>
         )}
+        </View>
+
+        {renderWebFooter()}
       </ScrollView>
 
       {/* SCROLL TO TOP BUTTON */}
@@ -776,12 +1053,12 @@ const styles = StyleSheet.create({
   },
   mobileWelcomeTitle: {
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "bold",
     marginBottom: 2,
   },
   mobileWelcomeSubtitle: {
     fontSize: 11,
-    fontWeight: "500",
+    fontWeight: "normal",
   },
   mobileWelcomeRight: {
     flexDirection: "row",
@@ -902,23 +1179,23 @@ const styles = StyleSheet.create({
   heroLabel: {
     color: "#A8A8A8",
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: "bold",
     letterSpacing: 1.5,
     marginBottom: 6,
     textTransform: "uppercase",
   },
   heroTitle: {
-    fontFamily: "calibri",
+    fontFamily: "Inter",
     color: "#FFFFFF",
     fontSize: isWeb ? 22 : 17,
-    fontWeight: "800",
+    fontWeight: "bold",
     lineHeight: isWeb ? 28 : 23,
     marginBottom: 4,
   },
   heroEpisodeCount: {
     color: "#CCCCCC",
     fontSize: 12,
-    fontWeight: "500",
+    fontWeight: "normal",
     marginBottom: 6,
   },
   heroDescription: {
@@ -1021,7 +1298,7 @@ const styles = StyleSheet.create({
   rankText: {
     color: "#FFF",
     fontSize: 10,
-    fontWeight: "800",
+    fontWeight: "bold",
   },
   typeBadge: {
     position: "absolute",
@@ -1034,7 +1311,7 @@ const styles = StyleSheet.create({
   typeText: {
     color: "#FFF",
     fontSize: 9,
-    fontWeight: "700",
+    fontWeight: "bold",
     letterSpacing: 0.5,
   },
   cardInfo: {
@@ -1042,7 +1319,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "bold",
     lineHeight: 18,
     marginBottom: 6,
   },
@@ -1053,11 +1330,11 @@ const styles = StyleSheet.create({
   },
   cardEpisode: {
     fontSize: 11,
-    fontWeight: "500",
+    fontWeight: "normal",
   },
   cardViews: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "bold",
   },
   scrollToTopButton: {
     position: "absolute",
@@ -1075,6 +1352,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   desktopScrollContent: {
+    paddingTop: 72,
     paddingBottom: 60,
   },
   desktopContainer: {
@@ -1094,22 +1372,49 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 24,
   },
+  spotlightWrapper: {
+    position: "relative",
+    width: "100%",
+  },
+
   spotlightCard: {
     flexDirection: "row",
     padding: 24,
-    borderRadius: 12,
+    borderRadius: 5,
     borderWidth: 1,
     alignItems: "center",
+    position: "relative",
+    overflow: "hidden",
+    minHeight: 240,
+  },
+  spotlightBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100%",
+    height: "100%",
+    opacity: 0.5,
+  },
+  spotlightGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   spotlightPoster: {
     width: 140,
     height: 200,
-    borderRadius: 8,
+    borderRadius: 5,
     marginRight: 24,
+    zIndex: 1,
   },
   spotlightInfo: {
     flex: 1,
     justifyContent: "center",
+    zIndex: 1,
   },
   spotlightBadgeRow: {
     flexDirection: "row",
@@ -1117,19 +1422,21 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   spotlightBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(155, 92, 92, 0.25)",
   },
   spotlightBadgeText: {
-    fontSize: 10,
-    fontWeight: "800",
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#e30000ff",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   spotlightTitle: {
     fontSize: 22,
-    fontWeight: "800",
+    fontWeight: "bold",
     color: "#FFF",
     marginBottom: 8,
   },
@@ -1144,12 +1451,12 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     paddingHorizontal: 16,
     paddingVertical: 9,
-    borderRadius: 6,
+    borderRadius: 10,
   },
   spotlightBtnText: {
     color: "#FFF",
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "bold",
   },
   desktopSection: {
     gap: 16,
@@ -1163,11 +1470,11 @@ const styles = StyleSheet.create({
     width: 4,
     height: 18,
     backgroundColor: "#E63333",
-    borderRadius: 2,
+    borderRadius: 20,
   },
   desktopSectionTitle: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "bold",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -1183,15 +1490,15 @@ const styles = StyleSheet.create({
   recentPoster: {
     width: "100%",
     aspectRatio: 3 / 4,
-    borderRadius: 8,
+    borderRadius: 5,
   },
   recentEpisode: {
     fontSize: 11,
-    fontWeight: "500",
+    fontWeight: "normal",
   },
   recentTitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "bold",
   },
   tabBar: {
     flexDirection: "row",
@@ -1205,7 +1512,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "bold",
   },
   activeTabIndicator: {
     position: "absolute",
@@ -1229,23 +1536,24 @@ const styles = StyleSheet.create({
   gridPoster: {
     width: "100%",
     aspectRatio: 3 / 4,
-    borderRadius: 8,
+    borderRadius: 5,
   },
   sidebarCard: {
     padding: 20,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     gap: 12,
   },
   sidebarCardTitle: {
     fontSize: 14,
-    fontWeight: "800",
+    fontWeight: "bold",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   announcementText: {
     fontSize: 13,
     lineHeight: 18,
+    textAlign: 'justify',
   },
   discordButton: {
     flexDirection: "row",
@@ -1253,44 +1561,152 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#5865F2",
     paddingVertical: 12,
-    borderRadius: 15,
+    borderRadius: 10,
   },
   discordButtonText: {
     color: "#FFF",
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "bold",
+  },
+  sidebarSection: {
+    marginBottom: 28,
+  },
+  sidebarHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  sidebarIndicator: {
+    width: 4,
+    height: 18,
+    backgroundColor: "#E63333",
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  sidebarSectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+  sidebarItemsList: {
+    gap: 16,
   },
   sidebarItemRow: {
     flexDirection: "row",
-    paddingVertical: 12,
-    gap: 12,
     alignItems: "center",
+    gap: 16,
   },
-  sidebarThumb: {
-    width: 32,
-    height: 48,
-    borderRadius: 4,
-  },
-  sidebarThumbSquare: {
-    width: 38,
-    height: 38,
-    borderRadius: 6,
+  sidebarPoster: {
+    width: 70,
+    height: 95,
+    borderRadius: 3,
   },
   sidebarItemInfo: {
     flex: 1,
     justifyContent: "center",
+    gap: 4,
   },
   sidebarItemTitle: {
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  sidebarItemSubtitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "normal",
   },
-  sidebarItemScore: {
-    fontSize: 11,
-    fontWeight: "700",
-    marginTop: 2,
+  webFooterContainer: {
+    paddingTop: 48,
+    borderTopWidth: 1,
+    width: "100%",
+    marginTop: 48,
+    marginBottom: 0,
   },
-  sidebarItemEpisodes: {
-    fontSize: 11,
-    marginTop: 2,
+  webFooterContent: {
+    maxWidth: 1200,
+    width: "100%",
+    alignSelf: "center",
+    paddingHorizontal: 24,
+    flexWrap: "wrap",
+    gap: 32,
+  },
+  footerBrandCol: {
+    gap: 16,
+  },
+  footerLogoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  footerLogoImg: {
+    width: 48,
+    height: 48,
+  },
+  footerLogoTextImg: {
+    width: 120,
+    height: 38,
+  },
+  footerDescription: {
+    fontSize: 14,
+    lineHeight: 22,
+    maxWidth: 450,
+  },
+  footerSocialsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  socialIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  footerLinkCol: {
+    gap: 12,
+  },
+  footerColTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  footerLinkBtn: {
+    paddingVertical: 2,
+  },
+  footerLinkText: {
+    fontSize: 14,
+  },
+  taglineBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(230, 51, 51, 0.1)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  taglineBadgeText: {
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  footerBottomRow: {
+    maxWidth: 1200,
+    width: "100%",
+    alignSelf: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    borderTopWidth: 1,
+    marginTop: 40,
+    alignItems: "center",
+  },
+  copyrightText: {
+    fontSize: 13,
+    textAlign: "center",
   },
 });

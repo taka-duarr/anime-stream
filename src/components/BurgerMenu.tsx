@@ -114,7 +114,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
       {/* ☰ Burger Button */}
       <TouchableOpacity
         onPress={open}
-        style={[styles.burgerBtn, { backgroundColor: isDark ? "#2A2A2A" : "#F0F0F0" }]}
+        style={[styles.burgerBtn, { backgroundColor: isDark ? "#2A2A2A" : colors.bgSecondary }]}
         activeOpacity={0.7}
       >
         <Ionicons name="menu-outline" size={26} color={colors.accent} />
@@ -152,7 +152,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                 Nonton drama kapan saja
               </Text>
             </View>
-            <TouchableOpacity onPress={close} style={[styles.closeBtn, { backgroundColor: isDark ? "#2A2A2A" : "#F0F0F0" }]} activeOpacity={0.7}>
+            <TouchableOpacity onPress={close} style={[styles.closeBtn, { backgroundColor: isDark ? "#2A2A2A" : colors.bgSecondary }]} activeOpacity={0.7}>
               <Ionicons name="close" size={20} color={colors.accent} />
             </TouchableOpacity>
           </View>
@@ -166,7 +166,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                   key={item.name}
                   style={[
                     styles.menuItem,
-                    active && { backgroundColor: isDark ? "#2C2C2C" : "#F5F0F0" },
+                    active && { backgroundColor: isDark ? "#2C2C2C" : colors.bgSecondary },
                   ]}
                   onPress={() => navigate(item.name)}
                   activeOpacity={0.75}
@@ -174,7 +174,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                   {active && (
                     <View style={[styles.activeBar, { backgroundColor: colors.accent }]} />
                   )}
-                  <View style={[styles.menuIconBox, { backgroundColor: active ? colors.accent : (isDark ? "#2A2A2A" : "#EEE") }]}>
+                  <View style={[styles.menuIconBox, { backgroundColor: active ? colors.accent : (isDark ? "#2A2A2A" : colors.searchBg) }]}>
                     <Ionicons
                       name={active ? item.iconActive : item.iconInactive}
                       size={18}

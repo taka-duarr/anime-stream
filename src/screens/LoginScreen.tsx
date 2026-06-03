@@ -92,7 +92,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
   // ============================================
 
   const handleNavigateToRegister = () => {
-    navigation.navigate("Register");
+    navigation.replace("Register");
   };
 
   // ============================================
@@ -116,19 +116,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
 
   if (isDesktop) {
     return (
-      <View style={[styles.desktopWrapper, { backgroundColor: isDark ? "#0A0B0E" : "#F0F0F0" }]}>
-        {/* Absolute page background image for high-fidelity desaturated look */}
-        <Image
-          source={{ uri: "https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1200&auto=format&fit=crop" }}
-          style={styles.bgImageBackdrop as any}
-          contentFit="cover"
+      <View style={[styles.desktopWrapper, { backgroundColor: isDark ? "rgba(10, 11, 14, 0.78)" : "rgba(15, 23, 42, 0.65)" }]}>
+        {/* Tap backdrop to go back */}
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject}
+          activeOpacity={1}
+          onPress={() => navigation.goBack()}
         />
-        <View style={styles.bgOverlay as any} />
 
         {/* 
           Inject global CSS rules to override default browser autofill behavior.
         */}
-        <style dangerouslySetInnerHTML={{__html: `
+        <style dangerouslySetInnerHTML={{
+          __html: `
           input:-webkit-autofill,
           input:-webkit-autofill:hover,
           input:-webkit-autofill:focus,
@@ -155,26 +155,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
             />
 
             <View style={styles.splitLeftContent}>
-              {Platform.OS === "web" ? (
-                // Beautiful custom infinity-loop SVG in Accent Red color
-                <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginBottom: 32 }}>
-                  <path
-                    d="M18 22C24.5 22 28.5 27 32 32C35.5 37 39.5 42 46 42C53 42 58 37 58 32C58 27 53 22 46 22C39.5 22 35.5 27 32 32C28.5 37 24.5 42 18 42C11 42 6 37 6 32C6 27 11 22 18 22Z"
-                    stroke={colors.accent}
-                    strokeWidth="5.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              ) : (
-                <Image
-                  source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
-                  style={styles.splitLogo as any}
-                  contentFit="contain"
-                />
-              )}
+              <Image
+                source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
+                style={styles.splitLogo as any}
+                contentFit="contain"
+              />
               <Text style={styles.splitText}>
-                Stream,{"\n"}watch and{"\n"}discover{"\n"}anime<Text style={{ color: colors.accent }}>.</Text>
+                Nonton Anime{"\n"}Sepuasnya,{"\n"}Tanpa iklan<Text style={{ color: colors.accent }}>.</Text>
               </Text>
             </View>
           </View>
@@ -184,7 +171,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
             {/* Close Button */}
             <TouchableOpacity
               style={styles.closeBtn}
-              onPress={handleContinueAsGuest}
+              onPress={() => navigation.goBack()}
               activeOpacity={0.7}
             >
               <Ionicons name="close" size={20} color={colors.textSecondary} />
@@ -340,7 +327,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
                 Don't have an account yet?{" "}
               </Text>
               <TouchableOpacity onPress={handleNavigateToRegister} disabled={loading}>
-                <Text style={[styles.registerLink, { color: colors.accent }]}>Join Now</Text>
+                <Text style={[styles.registerLink, { color: colors.accent }]}>Register Now</Text>
               </TouchableOpacity>
             </View>
 
@@ -351,204 +338,187 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
   }
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.bg }]}
-      contentContainerStyle={styles.contentContainer}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* 
-        Inject global CSS rules to override default browser autofill behavior.
-      */}
-      {Platform.OS === "web" && (
-        <style dangerouslySetInnerHTML={{__html: `
-          input:-webkit-autofill,
-          input:-webkit-autofill:hover,
-          input:-webkit-autofill:focus,
-          input:-webkit-autofill:active {
-            -webkit-box-shadow: 0 0 0 1000px ${colors.bgSecondary} inset !important;
-            -webkit-text-fill-color: ${colors.text} !important;
-            caret-color: ${colors.text};
-            transition: background-color 5000s ease-in-out 0s;
-          }
-        `}} />
-      )}
+    <View style={[styles.mobileWrapper, { backgroundColor: isDark ? "rgba(10, 11, 14, 0.78)" : "rgba(15, 23, 42, 0.65)" }]}>
+      {/* Tap backdrop to go back */}
+      <TouchableOpacity
+        style={StyleSheet.absoluteFillObject}
+        activeOpacity={1}
+        onPress={() => navigation.goBack()}
+      />
+      <ScrollView
+        style={[styles.container, { backgroundColor: "transparent" }]}
+        contentContainerStyle={styles.mobileContentContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 
+          Inject global CSS rules to override default browser autofill behavior.
+        */}
+        {Platform.OS === "web" && (
+          <style dangerouslySetInnerHTML={{
+            __html: `
+            input:-webkit-autofill,
+            input:-webkit-autofill:hover,
+            input:-webkit-autofill:focus,
+            input:-webkit-autofill:active {
+              -webkit-box-shadow: 0 0 0 1000px ${colors.bgSecondary} inset !important;
+              -webkit-text-fill-color: ${colors.text} !important;
+              caret-color: ${colors.text};
+              transition: background-color 5000s ease-in-out 0s;
+            }
+          `}} />
+        )}
 
-      <View style={styles.cardWrapper}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Login</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Silakan masuk untuk menyelaraskan koleksi anime Anda
-          </Text>
-        </View>
-
-        {/* Form Card */}
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {/* Error Message */}
-          {error ? (
-            <View
-              style={[
-                styles.errorContainer,
-                { backgroundColor: isDark ? "rgba(230,51,51,0.1)" : "rgba(230,51,51,0.05)" },
-              ]}
-            >
-              <Ionicons name="alert-circle" size={16} color={colors.accent} style={styles.errorIcon} />
-              <Text style={[styles.errorText, { color: colors.accent }]}>
-                {error}
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Username Input */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
-              Username
+        <View style={styles.cardWrapper}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: colors.text }]}>Login</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              Silakan masuk untuk menyelaraskan koleksi anime Anda
             </Text>
-            <View
-              style={[
-                styles.inputContainer,
-                {
-                  backgroundColor: colors.bgSecondary,
-                  borderColor: isUsernameFocused ? colors.accent : colors.border,
-                },
-              ]}
-            >
-              <Ionicons
-                name="person-outline"
-                size={18}
-                color={isUsernameFocused ? colors.accent : colors.textSecondary}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder="Masukkan username"
-                placeholderTextColor={colors.textMuted}
-                value={username}
-                onChangeText={(text) => {
-                  setUsername(text);
-                  setError("");
-                }}
-                onFocus={() => setIsUsernameFocused(true)}
-                onBlur={() => setIsUsernameFocused(false)}
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!loading}
-              />
-            </View>
           </View>
 
-          {/* Password Input */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
-              Password
-            </Text>
-            <View
-              style={[
-                styles.inputContainer,
-                {
-                  backgroundColor: colors.bgSecondary,
-                  borderColor: isPasswordFocused ? colors.accent : colors.border,
-                },
-              ]}
-            >
-              <Ionicons
-                name="lock-closed-outline"
-                size={18}
-                color={isPasswordFocused ? colors.accent : colors.textSecondary}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder="Masukkan password"
-                placeholderTextColor={colors.textMuted}
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  setError("");
-                }}
-                onFocus={() => setIsPasswordFocused(true)}
-                onBlur={() => setIsPasswordFocused(false)}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!loading}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeIcon}
-                disabled={loading}
+          {/* Form Card */}
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {/* Error Message */}
+            {error ? (
+              <View
+                style={[
+                  styles.errorContainer,
+                  { backgroundColor: isDark ? "rgba(230,51,51,0.1)" : "rgba(230,51,51,0.05)" },
+                ]}
+              >
+                <Ionicons name="alert-circle" size={16} color={colors.accent} style={styles.errorIcon} />
+                <Text style={[styles.errorText, { color: colors.accent }]}>
+                  {error}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Username Input */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                Username
+              </Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: colors.bgSecondary,
+                    borderColor: isUsernameFocused ? colors.accent : colors.border,
+                  },
+                ]}
               >
                 <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  name="person-outline"
                   size={18}
-                  color={colors.textSecondary}
+                  color={isUsernameFocused ? colors.accent : colors.textSecondary}
+                  style={styles.inputIcon}
                 />
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="Masukkan username"
+                  placeholderTextColor={colors.textMuted}
+                  value={username}
+                  onChangeText={(text) => {
+                    setUsername(text);
+                    setError("");
+                  }}
+                  onFocus={() => setIsUsernameFocused(true)}
+                  onBlur={() => setIsUsernameFocused(false)}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                />
+              </View>
+            </View>
+
+            {/* Password Input */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                Password
+              </Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  {
+                    backgroundColor: colors.bgSecondary,
+                    borderColor: isPasswordFocused ? colors.accent : colors.border,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={18}
+                  color={isPasswordFocused ? colors.accent : colors.textSecondary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="Masukkan password"
+                  placeholderTextColor={colors.textMuted}
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    setError("");
+                  }}
+                  onFocus={() => setIsPasswordFocused(true)}
+                  onBlur={() => setIsPasswordFocused(false)}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeIcon}
+                  disabled={loading}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={18}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Login Button */}
+            <TouchableOpacity
+              style={[
+                styles.loginButton,
+                { backgroundColor: colors.accent },
+                loading && styles.loginButtonDisabled,
+              ]}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.loginButtonText}>Masuk Ke Akun</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Register Link */}
+            <View style={styles.registerContainer}>
+              <Text style={[styles.registerText, { color: colors.textSecondary }]}>
+                Belum memiliki akun?{" "}
+              </Text>
+              <TouchableOpacity
+                onPress={handleNavigateToRegister}
+                disabled={loading}
+              >
+                <Text style={[styles.registerLink, { color: colors.accent }]}>
+                  Daftar sekarang
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
-
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[
-              styles.loginButton,
-              { backgroundColor: colors.accent },
-              loading && styles.loginButtonDisabled,
-            ]}
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.loginButtonText}>Masuk Ke Akun</Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Register Link */}
-          <View style={styles.registerContainer}>
-            <Text style={[styles.registerText, { color: colors.textSecondary }]}>
-              Belum memiliki akun?{" "}
-            </Text>
-            <TouchableOpacity
-              onPress={handleNavigateToRegister}
-              disabled={loading}
-            >
-              <Text style={[styles.registerLink, { color: colors.accent }]}>
-                Daftar sekarang
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Divider */}
-          <View style={styles.dividerContainer}>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-            <Text style={[styles.dividerText, { color: colors.textMuted }]}>ATAU</Text>
-            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-          </View>
-
-          {/* Guest Button */}
-          <TouchableOpacity
-            style={[
-              styles.guestButton,
-              {
-                backgroundColor: "transparent",
-                borderColor: colors.border,
-              },
-            ]}
-            onPress={handleContinueAsGuest}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[styles.guestButtonText, { color: colors.textSecondary }]}
-            >
-              Masuk sebagai Guest
-            </Text>
-          </TouchableOpacity>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -640,6 +610,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     height: "100%",
     paddingVertical: 0,
+    ...Platform.select({
+      web: {
+        outlineStyle: "none",
+      } as any,
+    }),
   },
   eyeIcon: {
     padding: 4,
@@ -697,7 +672,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 10,
     height: 44,
-    borderWidth: 1,
+    borderWidth: 2,
+    borderColor: '#ff0000ff',
   },
   guestButtonText: {
     fontSize: 14,
@@ -781,9 +757,9 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   splitLogo: {
-    width: 64,
-    height: 64,
-    marginBottom: 32,
+    width: 80,
+    height: 80,
+
   },
   splitText: {
     color: "#FFF",
@@ -805,7 +781,7 @@ const styles = StyleSheet.create({
   },
   splitTitle: {
     fontSize: 24,
-    fontWeight: "800",
+    fontWeight: "600",
   },
   splitSubtitle: {
     fontSize: 13,
@@ -832,6 +808,17 @@ const styles = StyleSheet.create({
   forgotText: {
     fontSize: 12.5,
     fontWeight: "700",
+  },
+  mobileWrapper: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  mobileContentContainer: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: 24,
+    paddingTop: Platform.OS === "web" ? 80 : 40,
+    paddingBottom: 40,
   },
 });
 

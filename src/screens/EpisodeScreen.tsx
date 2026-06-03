@@ -112,12 +112,14 @@ export default function EpisodeScreen({ route, navigation }: any) {
       
       // Top Rated / Completed series
       const completedData = await api.getCompleteAnime(1);
-      const filteredCompleted = (completedData.animeList || []).filter((item: any) => item.animeId !== bookId);
+      const completedList = Array.isArray(completedData) ? completedData : (completedData as any)?.animeList || [];
+      const filteredCompleted = completedList.filter((item: any) => item.animeId !== bookId);
       setRelatedSeries(filteredCompleted.slice(0, 4));
 
       // Ongoing series
       const ongoingData = await api.getOngoingAnime(1);
-      const filteredOngoing = (ongoingData.animeList || []).filter((item: any) => item.animeId !== bookId);
+      const ongoingList = Array.isArray(ongoingData) ? ongoingData : (ongoingData as any)?.animeList || [];
+      const filteredOngoing = ongoingList.filter((item: any) => item.animeId !== bookId);
       setSuggestedSeries(filteredOngoing.slice(0, 4));
     } catch (err) {
       console.error("[EPISODE SCREEN] Error loading recommendations:", err);
@@ -878,26 +880,65 @@ export default function EpisodeScreen({ route, navigation }: any) {
                   </View>
                 </View>
 
-                {/* Download Button */}
-                <TouchableOpacity
-                  style={[styles.desktopDownloadBtn, { backgroundColor: colors.accent }]}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    if (episodeDetail?.downloadUrlqualities && episodeDetail.downloadUrlqualities.length > 0) {
-                      const urls = episodeDetail.downloadUrlqualities[0].urls;
-                      if (urls && urls.length > 0) {
-                        if (typeof globalThis !== "undefined" && (globalThis as any).window) {
-                          (globalThis as any).window.open(urls[0].url, "_blank");
+                {/* Action Buttons: Save to My List & Download */}
+                <View style={styles.desktopActionBtnGroup}>
+                  {/* Save to My List Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.desktopBookmarkBtn,
+                      {
+                        backgroundColor: isBookmarked ? colors.card : colors.accent,
+                        borderColor: colors.border,
+                        borderWidth: isBookmarked ? 1 : 0,
+                      },
+                    ]}
+                    activeOpacity={0.85}
+                    onPress={toggleBookmark}
+                    disabled={bookmarkLoading}
+                  >
+                    {bookmarkLoading ? (
+                      <ActivityIndicator size="small" color={isBookmarked ? colors.accent : "white"} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                          size={16}
+                          color={isBookmarked ? colors.accent : "white"}
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text
+                          style={[
+                            styles.downloadBtnText,
+                            { color: isBookmarked ? colors.accent : "white" },
+                          ]}
+                        >
+                          {isBookmarked ? "Saved to List" : "Save to List"}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Download Button */}
+                  <TouchableOpacity
+                    style={[styles.desktopDownloadBtn, { backgroundColor: colors.accent }]}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      if (episodeDetail?.downloadUrlqualities && episodeDetail.downloadUrlqualities.length > 0) {
+                        const urls = episodeDetail.downloadUrlqualities[0].urls;
+                        if (urls && urls.length > 0) {
+                          if (typeof globalThis !== "undefined" && (globalThis as any).window) {
+                            (globalThis as any).window.open(urls[0].url, "_blank");
+                          }
                         }
+                      } else {
+                        Alert.alert("Unduh", "Tautan unduhan tidak tersedia untuk episode ini.");
                       }
-                    } else {
-                      Alert.alert("Unduh", "Tautan unduhan tidak tersedia untuk episode ini.");
-                    }
-                  }}
-                >
-                  <Ionicons name="download" size={16} color="white" style={{ marginRight: 6 }} />
-                  <Text style={styles.downloadBtnText}>Download</Text>
-                </TouchableOpacity>
+                    }}
+                  >
+                    <Ionicons name="download" size={16} color="white" style={{ marginRight: 6 }} />
+                    <Text style={styles.downloadBtnText}>Download</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* COMMENTS SECTION */}
@@ -1142,9 +1183,9 @@ const styles = StyleSheet.create({
     marginTop: -20, // Menarik konten naik sedikit menyatu dengan gradient
   },
   titleText: {
-    fontFamily: "calibri",
+    fontFamily: "Inter",
     fontSize: 26,
-    fontWeight: "800",
+    fontWeight: "bold",
     color: "#001F3F", // Warna biru sangat gelap hampir hitam
     marginBottom: 8,
     lineHeight: 32,
@@ -1156,7 +1197,7 @@ const styles = StyleSheet.create({
   },
   scoreText: {
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "bold",
     color: "#FF4757",
     marginLeft: 4,
   },
@@ -1168,7 +1209,7 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 14,
     color: "#4B5563",
-    fontWeight: "500",
+    fontWeight: "normal",
   },
   tagsRow: {
     flexDirection: "row",
@@ -1185,7 +1226,7 @@ const styles = StyleSheet.create({
   tagText: {
     color: "#FF4757",
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "bold",
   },
   actionsRow: {
     flexDirection: "row",
@@ -1253,7 +1294,7 @@ const styles = StyleSheet.create({
   },
   desktopBackText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "bold",
   },
   desktopMainRow: {
     flexDirection: "row",
@@ -1305,7 +1346,7 @@ const styles = StyleSheet.create({
   },
   desktopWatchNowText: {
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: "bold",
   },
   controlsCard: {
     borderRadius: 12,
@@ -1324,7 +1365,7 @@ const styles = StyleSheet.create({
   },
   controlLabel: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "bold",
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
@@ -1353,10 +1394,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  desktopBookmarkBtn: {
+    flexDirection: "row",
+    height: 38,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  desktopActionBtnGroup: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+  },
   downloadBtnText: {
     color: "white",
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "bold",
   },
   sidebarGroup: {
     width: "100%",
@@ -1369,25 +1423,25 @@ const styles = StyleSheet.create({
   },
   sidebarTitle: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "bold",
   },
   viewAllLink: {
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "bold",
   },
   sidebarList: {
     gap: 12,
   },
   sidebarCard: {
     flexDirection: "row",
-    borderRadius: 10,
+    borderRadius: 5,
     padding: 8,
     gap: 12,
   },
   sidebarPoster: {
     width: 50,
     height: 70,
-    borderRadius: 6,
+    borderRadius: 3,
   },
   sidebarInfo: {
     flex: 1,
@@ -1395,12 +1449,12 @@ const styles = StyleSheet.create({
   },
   sidebarCardTitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "medium",
     lineHeight: 17,
     marginBottom: 4,
   },
   sidebarCardSub: {
     fontSize: 11,
-    fontWeight: "500",
+    fontWeight: "normal",
   },
 });
