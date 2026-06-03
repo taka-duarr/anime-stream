@@ -594,6 +594,20 @@ export const resetCircuitBreaker = () => {
 // ============================================
 
 let authToken: string | null = null;
+let refreshTokenInMemory: string | null = null;
+let isRefreshing = false;
+let failedQueue: { resolve: (token: string) => void; reject: (err: any) => void }[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token!);
+    }
+  });
+  failedQueue = [];
+};
 
 /**
  * Set authentication token
@@ -606,8 +620,16 @@ export const setAuthToken = (token: string | null) => {
     console.log("[AUTH] Token set successfully");
   } else {
     delete authApi.defaults.headers.common["Authorization"];
+    refreshTokenInMemory = null;
     console.log("[AUTH] Token cleared");
   }
+};
+
+/**
+ * Set refresh token in memory
+ */
+export const setRefreshToken = (token: string | null) => {
+  refreshTokenInMemory = token;
 };
 
 /**
@@ -622,6 +644,97 @@ export const getAuthToken = (): string | null => {
  */
 export const isAuthenticated = (): boolean => {
   return authToken !== null && authToken !== "";
+};
+
+// ============================================
+// AXIOS INTERCEPTOR — AUTO REFRESH TOKEN
+// Saat API membalas 401, interceptor ini akan otomatis
+// memanggil /api/auth/refresh dan mengulang request asli.
+// ============================================
+
+let onForceLogout: (() => void) | null = null;
+
+/**
+ * Daftarkan callback yang akan dipanggil saat refresh token gagal
+ * (biasanya: logout user secara paksa)
+ */
+export const setForceLogoutCallback = (callback: () => void) => {
+  onForceLogout = callback;
+};
+
+authApi.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Kalau bukan 401, atau ini sudah request retry, lempar error langsung
+    if (error.response?.status !== 401 || originalRequest._retry) {
+      return Promise.reject(error);
+    }
+
+    // Kalau tidak ada refresh token, langsung force logout
+    if (!refreshTokenInMemory) {
+      console.log("[AUTH INTERCEPTOR] Tidak ada refresh token, force logout.");
+      onForceLogout?.();
+      return Promise.reject(error);
+    }
+
+    // Kalau sedang proses refresh, antrekan request yang gagal
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      })
+        .then((newToken) => {
+          originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
+          return authApi(originalRequest);
+        })
+        .catch((err) => Promise.reject(err));
+    }
+
+    originalRequest._retry = true;
+    isRefreshing = true;
+
+    try {
+      console.log("[AUTH INTERCEPTOR] Access token expired, mencoba refresh...");
+      const response = await authApi.post("/api/auth/refresh", {
+        refresh_token: refreshTokenInMemory,
+      });
+
+      const { token: newAccessToken, refresh_token: newRefreshToken } = response.data;
+
+      // Update token di memori
+      setAuthToken(newAccessToken);
+      setRefreshToken(newRefreshToken);
+
+      // Simpan token baru ke AsyncStorage (via callback dari AuthContext)
+      onTokenRefreshed?.(newAccessToken, newRefreshToken);
+
+      console.log("[AUTH INTERCEPTOR] Token berhasil diperbarui (rolling).");
+
+      processQueue(null, newAccessToken);
+
+      // Ulangi request asli dengan token baru
+      originalRequest.headers["Authorization"] = `Bearer ${newAccessToken}`;
+      return authApi(originalRequest);
+    } catch (refreshError) {
+      console.log("[AUTH INTERCEPTOR] Refresh token gagal/expired, force logout.");
+      processQueue(refreshError, null);
+      onForceLogout?.();
+      return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
+    }
+  }
+);
+
+let onTokenRefreshed: ((newAccessToken: string, newRefreshToken: string) => void) | null = null;
+
+/**
+ * Daftarkan callback yang dipanggil saat token berhasil di-refresh
+ * (digunakan AuthContext untuk menyimpan token baru ke AsyncStorage)
+ */
+export const setTokenRefreshedCallback = (callback: (newAccessToken: string, newRefreshToken: string) => void) => {
+  onTokenRefreshed = callback;
 };
 
 // ============================================
@@ -667,9 +780,12 @@ export const login = async (username: string, password: string) => {
     });
     console.log("[AUTH] Login successful");
 
-    // Automatically set token after successful login
+    // Set access token dan refresh token
     if (response.data.token) {
       setAuthToken(response.data.token);
+    }
+    if (response.data.refresh_token) {
+      setRefreshToken(response.data.refresh_token);
     }
 
     return response.data;

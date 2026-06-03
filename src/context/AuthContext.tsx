@@ -3,6 +3,7 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useCallback,
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -90,6 +91,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // Retrieve stored token and username from AsyncStorage
       const storedToken = await AsyncStorage.getItem("@auth_token");
+      const storedRefreshToken = await AsyncStorage.getItem("@refresh_token");
       const storedUsername = await AsyncStorage.getItem("@username");
       const storedProfilePicture = await AsyncStorage.getItem("@profile_picture");
 
@@ -106,6 +108,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         // Configure API service with token
         api.setAuthToken(storedToken);
+        if (storedRefreshToken) {
+          api.setRefreshToken(storedRefreshToken);
+        }
 
         console.log("[AUTH CONTEXT] Authentication restored successfully");
 
@@ -132,6 +137,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Run checkAuth on component mount
   useEffect(() => {
     checkAuth();
+
+    // Daftarkan callback agar interceptor bisa menyimpan token baru ke AsyncStorage
+    api.setTokenRefreshedCallback(async (newAccessToken, newRefreshToken) => {
+      console.log("[AUTH CONTEXT] Token di-refresh oleh interceptor, menyimpan ke storage...");
+      await AsyncStorage.setItem("@auth_token", newAccessToken);
+      await AsyncStorage.setItem("@refresh_token", newRefreshToken);
+      setToken(newAccessToken);
+    });
+
+    // Daftarkan callback force logout saat refresh token habis
+    api.setForceLogoutCallback(async () => {
+      console.log("[AUTH CONTEXT] Force logout dipanggil oleh interceptor.");
+      await AsyncStorage.multiRemove(["@auth_token", "@refresh_token", "@username", "@profile_picture"]);
+      api.setAuthToken(null);
+      setToken(null);
+      setUsername(null);
+      setProfilePictureState(null);
+      setIsAuthenticated(false);
+    });
   }, []);
 
   // ============================================
@@ -152,6 +176,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Store token and username in AsyncStorage
       await AsyncStorage.setItem("@auth_token", response.token);
       await AsyncStorage.setItem("@username", response.user.username);
+      if (response.refresh_token) {
+        await AsyncStorage.setItem("@refresh_token", response.refresh_token);
+        api.setRefreshToken(response.refresh_token);
+      }
 
       // Update context state
       setToken(response.token);
@@ -227,7 +255,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("[AUTH CONTEXT] Logging out...");
 
       // Remove token, username, and profile picture from AsyncStorage
-      await AsyncStorage.multiRemove(["@auth_token", "@username", "@profile_picture"]);
+      await AsyncStorage.multiRemove(["@auth_token", "@refresh_token", "@username", "@profile_picture"]);
 
       // Clear API service token
       api.logout();
