@@ -68,12 +68,10 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
 
   // Initialize orientation on mount and cleanup on unmount
   useEffect(() => {
-    // Set initial orientation to portrait
+    // Set initial orientation to allow auto-rotate (unlock)
     const initOrientation = async () => {
       try {
-        await ScreenOrientation.lockAsync(
-          ScreenOrientation.OrientationLock.PORTRAIT_UP,
-        );
+        await ScreenOrientation.unlockAsync();
         setIsFullscreen(false);
       } catch (error) {
         console.error("[SCREEN] Failed to set initial orientation:", error);

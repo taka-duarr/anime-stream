@@ -144,12 +144,14 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   // Sync scroll offset with desktopCarouselIndex
   useEffect(() => {
     if (carouselItems.length > 0 && !isMouseDown.current) {
-      const domNode = dragScrollRef.current?.getScrollableNode?.() || dragScrollRef.current;
-      if (domNode) {
-        domNode.scrollTo({
-          left: desktopCarouselIndex * spotlightWidth,
-          behavior: "smooth",
-        });
+      if (Platform.OS === "web") {
+        const domNode = dragScrollRef.current?.getScrollableNode?.() || dragScrollRef.current;
+        if (domNode && typeof domNode.scrollTo === 'function') {
+          domNode.scrollTo({
+            left: desktopCarouselIndex * spotlightWidth,
+            behavior: "smooth",
+          });
+        }
       } else {
         dragScrollRef.current?.scrollTo({
           x: desktopCarouselIndex * spotlightWidth,

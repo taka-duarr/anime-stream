@@ -44,7 +44,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const { isAuthenticated } = useAuth();
 
   const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  const isDesktop = Platform.OS === "web" && width >= 768;
 
   // Desktop Streaming States
   const [activeEpisode, setActiveEpisode] = useState<Episode | null>(null);

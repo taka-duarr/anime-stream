@@ -14,6 +14,7 @@ import {
   NavigationState,
   CommonActions,
 } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import HomeScreen from "./src/screens/HomeScreen";
@@ -85,6 +86,7 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { isAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
 
   // Kembalikan kotak kosong jika layer mode WebNavbar sedang mengudara di PC/Desktop
   if (width >= 768) return <View style={{ height: 0 }} />;
@@ -93,7 +95,12 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
     <View
       style={[
         styles.tabBarContainer,
-        { backgroundColor: colors.sidebar, borderTopColor: colors.border },
+        { 
+          backgroundColor: colors.sidebar, 
+          borderTopColor: colors.border,
+          paddingBottom: (Platform.OS === "ios" ? 12 : 6) + insets.bottom,
+          height: 64 + insets.bottom,
+        },
       ]}
     >
       {state.routes.map((route: any, index: number) => {
@@ -325,9 +332,7 @@ export default function App() {
 const styles = StyleSheet.create({
   tabBarContainer: {
     flexDirection: "row",
-    height: 64,
     borderTopWidth: 1,
-    paddingBottom: Platform.OS === "ios" ? 12 : 6,
     paddingTop: 6,
     elevation: 10,
     shadowColor: "#000",
