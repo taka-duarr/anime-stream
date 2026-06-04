@@ -29,6 +29,32 @@ import * as api from "../services/api";
 import EpisodeList from "../components/EpisodeList";
 import CommentSection from "../components/CommentSection";
 
+const getCleanEpisodeTitle = (episodeName: string, animeTitle?: string) => {
+  if (!episodeName) return "";
+
+  const episodePattern = /(Episode\s+\d+|Ep\s+\d+|OVA\s+\d+|Special\s+\d+|Movie\s+\d+|SP\s+\d+)/i;
+  const match = episodeName.match(episodePattern);
+
+  if (match) {
+    return match[0];
+  }
+
+  let cleanName = episodeName;
+  if (animeTitle) {
+    const escapedTitle = animeTitle.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const regex = new RegExp(escapedTitle, 'gi');
+    cleanName = cleanName.replace(regex, '').trim();
+  }
+
+  cleanName = cleanName.replace(/Subtitle Indonesia/gi, '')
+                        .replace(/Sub Indo/gi, '')
+                        .trim();
+
+  cleanName = cleanName.replace(/^[:\-\s\s]+/, '').trim();
+
+  return cleanName || episodeName;
+};
+
 const { width, height } = Dimensions.get("window");
 
 export default function EpisodeScreen({ route, navigation }: any) {
@@ -236,13 +262,28 @@ export default function EpisodeScreen({ route, navigation }: any) {
         }),
       );
 
-      setEpisodes(mappedEpisodes);
+      // Sort episodes from newest to oldest
+      const getEpisodeNumber = (title: string): number => {
+        const match = title.match(/(?:Episode|Ep)\s*(\d+)/i);
+        return match ? parseInt(match[1], 10) : 0;
+      };
+
+      const sortedEpisodes = [...mappedEpisodes].sort((a, b) => {
+        const numA = getEpisodeNumber(a.chapterName);
+        const numB = getEpisodeNumber(b.chapterName);
+        if (numA !== numB) {
+          return numB - numA; // Descending: newest (larger number) first
+        }
+        return 0; // Keep original order if numbers are same
+      });
+
+      setEpisodes(sortedEpisodes);
       setDetail(animeDetail);
 
       // Hot-select first episode on desktop load
-      if (isDesktop && mappedEpisodes.length > 0) {
-        setActiveEpisode(mappedEpisodes[0]);
-        loadStreamingUrl(mappedEpisodes[0].chapterId);
+      if (isDesktop && sortedEpisodes.length > 0) {
+        setActiveEpisode(sortedEpisodes[0]);
+        loadStreamingUrl(sortedEpisodes[0].chapterId);
       }
     } catch (e: any) {
       console.error("Gagal memuat detail anime:", e);
@@ -637,8 +678,9 @@ export default function EpisodeScreen({ route, navigation }: any) {
                 activeOpacity={0.8}
                 onPress={() => {
                   if (episodes.length > 0) {
+                    // Mulai dari Ep 1 (episode tertua = index terakhir karena urutan terbaru ke lama)
                     navigation.navigate("Video", {
-                      episode: episodes[0],
+                      episode: episodes[episodes.length - 1],
                       episodes,
                       animeId: bookId,
                     });
@@ -791,11 +833,14 @@ export default function EpisodeScreen({ route, navigation }: any) {
                           cursor: "pointer",
                         }}
                       >
-                        {episodes.map((ep) => (
-                          <option key={ep.chapterId} value={ep.chapterId}>
-                            {ep.chapterName}
-                          </option>
-                        ))}
+                        {episodes.map((ep) => {
+                          const cleanTitle = getCleanEpisodeTitle(ep.chapterName, detail?.title || title);
+                          return (
+                            <option key={ep.chapterId} value={ep.chapterId}>
+                              {cleanTitle}
+                            </option>
+                          );
+                        })}
                       </select>
                       
                       {/* Arrows Nav */}
@@ -804,13 +849,13 @@ export default function EpisodeScreen({ route, navigation }: any) {
                           style={[
                             styles.navArrowBtn,
                             { backgroundColor: colors.card, borderColor: colors.border },
-                            episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === 0 && { opacity: 0.5 }
+                            episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === episodes.length - 1 && { opacity: 0.5 }
                           ]}
-                          disabled={episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === 0}
+                          disabled={episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === episodes.length - 1}
                           onPress={() => {
                             const curIdx = episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId);
-                            if (curIdx > 0) {
-                              const prevEp = episodes[curIdx - 1];
+                            if (curIdx < episodes.length - 1) {
+                              const prevEp = episodes[curIdx + 1];
                               setActiveEpisode(prevEp);
                               loadStreamingUrl(prevEp.chapterId);
                             }
@@ -822,13 +867,13 @@ export default function EpisodeScreen({ route, navigation }: any) {
                           style={[
                             styles.navArrowBtn,
                             { backgroundColor: colors.card, borderColor: colors.border },
-                            episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === episodes.length - 1 && { opacity: 0.5 }
+                            episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === 0 && { opacity: 0.5 }
                           ]}
-                          disabled={episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === episodes.length - 1}
+                          disabled={episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === 0}
                           onPress={() => {
                             const curIdx = episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId);
-                            if (curIdx < episodes.length - 1) {
-                              const nextEp = episodes[curIdx + 1];
+                            if (curIdx > 0) {
+                              const nextEp = episodes[curIdx - 1];
                               setActiveEpisode(nextEp);
                               loadStreamingUrl(nextEp.chapterId);
                             }
@@ -1087,6 +1132,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
         <EpisodeList
           episodes={episodes}
           posterUrl={detail?.poster}
+          animeTitle={detail?.title || title}
           onEpisodePress={(episode) =>
             navigation.navigate("Video", {
               episode,
@@ -1094,7 +1140,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
               animeId: bookId,
             })
           }
-          maxHeight={400}
+          maxHeight={episodes.length > 0 ? Math.min(episodes.length * 94 + 20, 380) : 380}
         />
 
         {/* Comment Section */}

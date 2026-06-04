@@ -55,6 +55,7 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
   const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("all");
+  const [showMobileGenres, setShowMobileGenres] = useState(false);
 
   useEffect(() => {
     const fetchGenresList = async () => {
@@ -310,7 +311,45 @@ const AnimeListScreen: React.FC<AnimeListScreenProps> = ({
     >
       <StatusBar style={isDark ? "light" : "dark"} />
 
-      {!isDesktop && renderHeader(false)}
+      {!isDesktop && (
+        <View style={[styles.mobileHeader, { backgroundColor: colors.sidebar, borderBottomColor: colors.border }]}>
+          <View style={styles.mobileHeaderLeft}>
+            <TouchableOpacity
+              style={styles.mobileBackButton}
+              onPress={() => navigation?.goBack()}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.mobileHeaderTitle, { color: colors.text }]}>
+              {screenTitle}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.filterToggleBtn,
+              {
+                backgroundColor: showMobileGenres ? colors.accent : colors.card,
+                borderColor: showMobileGenres ? colors.accent : colors.border,
+              },
+            ]}
+            onPress={() => setShowMobileGenres(!showMobileGenres)}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={showMobileGenres ? "funnel" : "funnel-outline"}
+              size={14}
+              color={showMobileGenres ? "#FFF" : colors.textSecondary}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.filterToggleText, { color: showMobileGenres ? "#FFF" : colors.textSecondary }]}>
+              Filter
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {(!isDesktop && showMobileGenres) && renderHeader(false)}
 
       <FlatList
         data={filteredAnimeList}
@@ -532,5 +571,37 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "bold",
+  },
+  mobileHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  mobileHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  mobileBackButton: {
+    padding: 4,
+    marginRight: 12,
+  },
+  mobileHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  filterToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  filterToggleText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

@@ -13,13 +13,42 @@ import { Episode } from "../types/episode";
 interface EpisodeListProps {
   episodes: Episode[];
   posterUrl?: string;
+  animeTitle?: string;
   onEpisodePress: (episode: Episode) => void;
   maxHeight?: number;
 }
 
+const getCleanEpisodeTitle = (episodeName: string, animeTitle?: string) => {
+  if (!episodeName) return "";
+
+  // Ekstrak pola episode/OVA/Movie/Special secara cerdas
+  const episodePattern = /(Episode\s+\d+|Ep\s+\d+|OVA\s+\d+|Special\s+\d+|Movie\s+\d+|SP\s+\d+)/i;
+  const match = episodeName.match(episodePattern);
+
+  if (match) {
+    return match[0];
+  }
+
+  let cleanName = episodeName;
+  if (animeTitle) {
+    const escapedTitle = animeTitle.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const regex = new RegExp(escapedTitle, 'gi');
+    cleanName = cleanName.replace(regex, '').trim();
+  }
+
+  cleanName = cleanName.replace(/Subtitle Indonesia/gi, '')
+                        .replace(/Sub Indo/gi, '')
+                        .trim();
+
+  cleanName = cleanName.replace(/^[:\-\s\s]+/, '').trim();
+
+  return cleanName || episodeName;
+};
+
 const EpisodeList: React.FC<EpisodeListProps> = ({
   episodes,
   posterUrl,
+  animeTitle,
   onEpisodePress,
   maxHeight = 400,
 }) => {
@@ -32,44 +61,47 @@ const EpisodeList: React.FC<EpisodeListProps> = ({
         nestedScrollEnabled={true}
         showsVerticalScrollIndicator={true}
       >
-        {episodes.map((item, index) => (
-          <TouchableOpacity
-            key={item.chapterId}
-            style={[styles.episodeCard, { backgroundColor: colors.card }]}
-            activeOpacity={0.8}
-            onPress={() => onEpisodePress(item)}
-          >
-            <View style={styles.episodeImageWrapper}>
-              <Image
-                source={{ uri: item.chapterImg || posterUrl }}
-                style={styles.episodeImage}
-              />
-              <View style={styles.durationBadge}>
-                <Text style={styles.durationText}>
-                  {item.duration || "N/A"}
+        {episodes.map((item, index) => {
+          const cleanTitle = getCleanEpisodeTitle(item.chapterName, animeTitle);
+          return (
+            <TouchableOpacity
+              key={item.chapterId}
+              style={[styles.episodeCard, { backgroundColor: colors.card }]}
+              activeOpacity={0.8}
+              onPress={() => onEpisodePress(item)}
+            >
+              <View style={styles.episodeImageWrapper}>
+                <Image
+                  source={{ uri: item.chapterImg || posterUrl }}
+                  style={styles.episodeImage}
+                />
+                <View style={styles.durationBadge}>
+                  <Text style={styles.durationText}>
+                    {item.duration || "N/A"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.episodeInfo}>
+                <Text
+                  style={[styles.episodeTitle, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  {cleanTitle}
+                </Text>
+                <Text
+                  style={[
+                    styles.episodeSubtitle,
+                    { color: colors.textSecondary },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {item.releaseTime || "Release date unknown"}
                 </Text>
               </View>
-            </View>
-
-            <View style={styles.episodeInfo}>
-              <Text
-                style={[styles.episodeTitle, { color: colors.text }]}
-                numberOfLines={1}
-              >
-                {item.chapterName}
-              </Text>
-              <Text
-                style={[
-                  styles.episodeSubtitle,
-                  { color: colors.textSecondary },
-                ]}
-                numberOfLines={2}
-              >
-                {item.releaseTime || "Release date unknown"}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
     </View>
   );

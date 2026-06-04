@@ -25,6 +25,33 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { useTheme } from "../context/ThemeContext";
 import { getEpisodeDetail, getServerStreamingUrl } from "../services/api";
 
+const getCleanEpisodeTitle = (episodeName: string, animeTitle?: string) => {
+  if (!episodeName) return "";
+
+  // Ekstrak pola episode/OVA/Movie/Special secara cerdas (termasuk tanda End jika ada)
+  const episodePattern = /(Episode\s+\d+(\s*\(End\))?|Ep\s+\d+(\s*\(End\))?|OVA\s+\d+|Special\s+\d+|Movie\s+\d+|SP\s+\d+)/i;
+  const match = episodeName.match(episodePattern);
+
+  if (match) {
+    return match[0];
+  }
+
+  let cleanName = episodeName;
+  if (animeTitle) {
+    const escapedTitle = animeTitle.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const regex = new RegExp(escapedTitle, 'gi');
+    cleanName = cleanName.replace(regex, '').trim();
+  }
+
+  cleanName = cleanName.replace(/Subtitle Indonesia/gi, '')
+                        .replace(/Sub Indo/gi, '')
+                        .trim();
+
+  cleanName = cleanName.replace(/^[:\-\s\s]+/, '').trim();
+
+  return cleanName || episodeName;
+};
+
 const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
   useKeepAwake();
   const navigation = useNavigation();
@@ -447,8 +474,9 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
       (ep) => ep.chapterId === currentEpisode.chapterId,
     );
 
-    if (currentIndex !== -1 && currentIndex < episodes.length - 1) {
-      const nextEpisode = episodes[currentIndex + 1];
+    // Ke episode yang lebih baru (indeks lebih kecil)
+    if (currentIndex > 0) {
+      const nextEpisode = episodes[currentIndex - 1];
       setCurrentEpisode(nextEpisode);
       resetAutoHideTimer();
     }
@@ -459,8 +487,9 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
       (ep) => ep.chapterId === currentEpisode.chapterId,
     );
 
-    if (currentIndex > 0) {
-      const prevEpisode = episodes[currentIndex - 1];
+    // Ke episode yang lebih lama (indeks lebih besar)
+    if (currentIndex !== -1 && currentIndex < episodes.length - 1) {
+      const prevEpisode = episodes[currentIndex + 1];
       setCurrentEpisode(prevEpisode);
       resetAutoHideTimer();
     }
@@ -987,10 +1016,10 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
             <Text style={styles.iconText}>EP</Text>
           </TouchableOpacity>
 
-          {/* PREV EPISODE */}
+          {/* PREV EPISODE (ke yang lebih lama, indeks lebih besar) */}
           {episodes.findIndex(
             (ep) => ep.chapterId === currentEpisode.chapterId,
-          ) > 0 && (
+          ) < episodes.length - 1 && (
             <TouchableOpacity
               style={styles.iconButton}
               onPress={playPreviousEpisode}
@@ -1000,11 +1029,10 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
             </TouchableOpacity>
           )}
 
-          {/* NEXT EPISODE */}
+          {/* NEXT EPISODE (ke yang lebih baru, indeks lebih kecil) */}
           {episodes.findIndex(
             (ep) => ep.chapterId === currentEpisode.chapterId,
-          ) <
-            episodes.length - 1 && (
+          ) > 0 && (
             <TouchableOpacity
               style={styles.iconButton}
               onPress={playNextEpisode}
@@ -1375,7 +1403,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
                       },
                     ]}
                   >
-                    {item.chapterName}
+                    {getCleanEpisodeTitle(item.chapterName, episodeDetail?.title)}
                   </Text>
                 </TouchableOpacity>
               )}

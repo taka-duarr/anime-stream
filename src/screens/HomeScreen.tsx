@@ -441,21 +441,25 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             { backgroundColor: colors.sidebar, borderBottomColor: colors.border },
           ]}
         >
-          {/* Mobile Top Welcome Header */}
+          {/* Mobile Top Brand Logo & Right Controls */}
           <View style={styles.mobileWelcomeRow}>
-            <View style={styles.mobileWelcomeTextCol}>
-              <Text style={[styles.mobileWelcomeTitle, { color: colors.text }]}>
-                Halo {isAuthenticated && username ? username : "Guest"}
-              </Text>
-              <Text
-                style={[
-                  styles.mobileWelcomeSubtitle,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Tonton anime favoritmu di MyAnime
-              </Text>
-            </View>
+            <TouchableOpacity
+              style={styles.mobileLogoSection}
+              onPress={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
+              activeOpacity={0.7}
+            >
+              <Image
+                source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
+                style={styles.mobileLogoOne as any}
+                contentFit="contain"
+              />
+              <Image
+                source={require("../../assets/nganime.png")}
+                style={styles.mobileLogoTwo as any}
+                contentFit="contain"
+              />
+            </TouchableOpacity>
+
             <View style={styles.mobileWelcomeRight}>
               <TouchableOpacity
                 onPress={toggleTheme}
@@ -494,6 +498,21 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 </View>
               </TouchableOpacity>
             </View>
+          </View>
+
+          {/* Mobile User Welcome Row (below the brand logo) */}
+          <View style={styles.mobileUserGreetingRow}>
+            <Text style={[styles.mobileWelcomeTitle, { color: colors.text }]}>
+              Halo {isAuthenticated && username ? username : "Guest"}
+            </Text>
+            <Text
+              style={[
+                styles.mobileWelcomeSubtitle,
+                { color: colors.textSecondary },
+              ]}
+            >
+              Tonton anime favoritmu di MyAnime
+            </Text>
           </View>
 
           <View style={styles.headerRow}>
@@ -1710,5 +1729,24 @@ const styles = StyleSheet.create({
   copyrightText: {
     fontSize: 13,
     textAlign: "center",
+  },
+  mobileLogoSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  mobileLogoOne: {
+    width: 32,
+    height: 32,
+  },
+  mobileLogoTwo: {
+    width: 80,
+    height: 28,
+    marginTop: 1,
+  },
+  mobileUserGreetingRow: {
+    paddingHorizontal: 4,
+    marginTop: 12,
+    marginBottom: 4,
   },
 });
