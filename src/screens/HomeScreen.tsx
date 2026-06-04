@@ -21,6 +21,7 @@ import Swiper from "react-native-swiper";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
+import { WebFooter } from "../components/WebFooter";
 
 const isWeb = Platform.OS === "web";
 
@@ -345,85 +346,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   };
 
   const renderWebFooter = () => {
-    if (!isWeb) return null;
-
-    return (
-      <View style={[styles.webFooterContainer, { backgroundColor: isDark ? "#121212" : colors.bgSecondary, borderTopColor: colors.border }]}>
-        <View style={[styles.webFooterContent, isDesktop && { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }]}>
-          {/* Logo & Brand Info */}
-          <View style={[styles.footerBrandCol, isDesktop ? { width: "35%" } : { marginBottom: 24 }]}>
-            <View style={styles.footerLogoRow}>
-              <Image
-                source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
-                style={styles.footerLogoImg as any}
-                contentFit="contain"
-              />
-              <Image
-                source={require("../../assets/nganime.png")}
-                style={styles.footerLogoTextImg as any}
-                contentFit="contain"
-              />
-            </View>
-            <Text style={[styles.footerDescription, { color: colors.textSecondary }]}>
-              Nganime adalah platform streaming anime sub Indo terupdate. Nikmati ratusan judul anime Ongoing dan Completed terlengkap secara gratis dengan pemutar responsif dan stabil.
-            </Text>
-            {/* Social Icons */}
-            <View style={styles.footerSocialsRow}>
-              <TouchableOpacity onPress={() => Linking.openURL("https://github.com/taka-duarr/anime-stream")} style={[styles.socialIconCircle, { backgroundColor: colors.card }]}>
-                <Ionicons name="logo-github" size={18} color={colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => Linking.openURL("https://wa.me/6281357398265")} style={[styles.socialIconCircle, { backgroundColor: colors.card }]}>
-                <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.socialIconCircle, { backgroundColor: colors.card }]}>
-                <Ionicons name="paper-plane" size={18} color="#0088cc" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Quick Links Column */}
-          <View style={[styles.footerLinkCol, isDesktop ? { width: "20%" } : { marginBottom: 20 }]}>
-            <Text style={[styles.footerColTitle, { color: colors.text }]}>Menu Utama</Text>
-            <TouchableOpacity onPress={() => navigation.navigate("HomeTab")} style={styles.footerLinkBtn}>
-              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Beranda</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate("AnimeList", { type: "ongoing" })} style={styles.footerLinkBtn}>
-              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Anime Ongoing</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate("AnimeList", { type: "completed" })} style={styles.footerLinkBtn}>
-              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Anime Completed</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate("GenreList")} style={styles.footerLinkBtn}>
-              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Genre List</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Features / Support Column */}
-          <View style={[styles.footerLinkCol, isDesktop ? { width: "25%" } : { marginBottom: 20 }]}>
-            <Text style={[styles.footerColTitle, { color: colors.text }]}>Dukungan & Legalitas</Text>
-            <TouchableOpacity onPress={() => Linking.openURL("https://wa.me/6281357398265")} style={styles.footerLinkBtn}>
-              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Laporkan Bug</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.footerLinkBtn}>
-              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Kebijakan Privasi</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.footerLinkBtn}>
-              <Text style={[styles.footerLinkText, { color: colors.textSecondary }]}>Syarat & Ketentuan</Text>
-            </TouchableOpacity>
-            <View style={styles.taglineBadge}>
-              <Ionicons name="shield-checkmark-outline" size={14} color={colors.accent} style={{ marginRight: 4 }} />
-              <Text style={[styles.taglineBadgeText, { color: colors.accent }]}>Safe & Secure</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={[styles.footerBottomRow, { borderTopColor: colors.border }]}>
-          <Text style={[styles.copyrightText, { color: colors.textMuted }]}>
-            © {new Date().getFullYear()} Nganime App. Built with React Native Web & Expo 
-          </Text>
-        </View>
-      </View>
-    );
+    return <WebFooter />;
   };
 
   return (

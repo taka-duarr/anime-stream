@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
+import { WebFooter } from "../components/WebFooter";
 
 interface GenreAnimeScreenProps {
   route?: {
@@ -28,6 +29,8 @@ interface GenreAnimeScreenProps {
   navigation?: any;
 }
 
+const TouchableOpacityWeb = TouchableOpacity as any;
+
 const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
   route,
   navigation,
@@ -38,93 +41,70 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
   const isDesktop = width >= 768;
 
 
+  let numColumns = 3;
+  if (width >= 768) numColumns = 6;
+
+  const flatListRef = useRef<FlatList>(null);
+
   const [animeList, setAnimeList] = useState<Anime[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  // Calculate numColumns based on window width
-  let numColumns = 2;
-  if (width >= 1200) numColumns = 5;
-  else if (width >= 900) numColumns = 4;
-  else if (width >= 600) numColumns = 3;
+  // Sync state to reset pagination and list when genreId parameter changes
+  const [prevGenreId, setPrevGenreId] = useState(genreId);
+  if (genreId !== prevGenreId) {
+    setPrevGenreId(genreId);
+    setCurrentPage(1);
+    setAnimeList([]);
+    setHasMore(true);
+  }
 
   const fetchAnime = async (page: number, isRefresh: boolean = false) => {
-    if (loading || loadingMore) return;
+    if (loading) return;
 
-    if (page === 1) {
-      isRefresh ? setRefreshing(true) : setLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
+    isRefresh ? setRefreshing(true) : setLoading(true);
 
     try {
       console.log(`[GENRE PAGINATION] Fetching genre ${genreId} page ${page}`);
 
       const data = await getAnimeByGenre(genreId, page);
 
-      // Data is already animeList array from API
       if (data && Array.isArray(data) && data.length > 0) {
-        if (page === 1) {
-          setAnimeList(data);
-        } else {
-          setAnimeList((prev) => [...prev, ...data]);
-        }
-
-        // Only set hasMore to false if we get 0 items or less than 10 items
-        // This allows for pages with varying item counts
-        if (data.length === 0) {
-          setHasMore(false);
-        } else if (data.length < 10) {
-          // If less than 10 items, likely the last page
-          setHasMore(false);
-        } else {
-          setHasMore(true);
-        }
-
-        console.log(
-          `[GENRE PAGINATION] Loaded ${data.length} items, total: ${page === 1 ? data.length : animeList.length + data.length}, hasMore: ${data.length >= 10}`,
-        );
+        // Slice to exactly 24 items (4 rows of 6 cards)
+        const slicedData = data.slice(0, 24);
+        setAnimeList(slicedData);
+        setHasMore(data.length >= 25);
+        
+        console.log(`[GENRE PAGINATION] Loaded ${slicedData.length} items (sliced from ${data.length}), hasMore: ${data.length >= 25}`);
       } else {
+        setAnimeList([]);
         setHasMore(false);
-        console.log(`[GENRE PAGINATION] No more data available`);
+        console.log(`[GENRE PAGINATION] No data available`);
       }
     } catch (error) {
-      console.error(
-        `[GENRE PAGINATION ERROR] Failed to fetch page ${page}:`,
-        error,
-      );
+      console.error(`[GENRE PAGINATION ERROR] Failed to fetch page ${page}:`, error);
       setHasMore(false);
     } finally {
       setLoading(false);
       setRefreshing(false);
-      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    fetchAnime(1);
-  }, [genreId]);
+    fetchAnime(currentPage);
+  }, [genreId, currentPage]);
 
   const onRefresh = useCallback(() => {
-    setCurrentPage(1);
-    setHasMore(true);
-    fetchAnime(1, true);
-  }, [genreId]);
-
-  const loadMore = useCallback(() => {
-    if (!loadingMore && hasMore && !loading) {
-      const nextPage = currentPage + 1;
-      setCurrentPage(nextPage);
-      fetchAnime(nextPage);
-    }
-  }, [currentPage, hasMore, loadingMore, loading]);
+    fetchAnime(currentPage, true);
+  }, [genreId, currentPage]);
 
   const renderAnimeItem = ({ item, index }: { item: Anime; index: number }) => {
+    const displayIndex = (currentPage - 1) * 24 + index + 1;
     return (
-      <TouchableOpacity
+      <TouchableOpacityWeb
+        className="web-card-hover"
         style={[
           styles.card,
           {
@@ -153,7 +133,7 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
           />
           {/* Rank badge */}
           <View style={[styles.rankBadge, { backgroundColor: colors.accent }]}>
-            <Text style={styles.rankText}>#{index + 1}</Text>
+            <Text style={styles.rankText}>#{displayIndex}</Text>
           </View>
           {/* Status badge */}
           {item.status && (
@@ -185,19 +165,91 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
             </Text>
           </View>
         </View>
-      </TouchableOpacity>
+      </TouchableOpacityWeb>
+    );
+  };
+
+  const renderPagination = () => {
+    if (loading || animeList.length === 0) return null;
+
+    return (
+      <View style={styles.paginationContainer}>
+        <TouchableOpacity
+          style={[
+            styles.paginationButton,
+            { backgroundColor: colors.card, borderColor: colors.border },
+            currentPage === 1 && styles.disabledButton,
+          ]}
+          disabled={currentPage === 1 || loading}
+          onPress={() => {
+            setCurrentPage((prev) => Math.max(prev - 1, 1));
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name="chevron-back"
+            size={16}
+            color={currentPage === 1 ? colors.textMuted : colors.accent}
+          />
+          <Text
+            style={[
+              styles.paginationButtonText,
+              { color: currentPage === 1 ? colors.textMuted : colors.text },
+            ]}
+          >
+            Sebelumnya
+          </Text>
+        </TouchableOpacity>
+
+        <View
+          style={[
+            styles.pageIndicator,
+            { backgroundColor: isDark ? "rgba(255, 71, 87, 0.15)" : "rgba(255, 71, 87, 0.08)" },
+          ]}
+        >
+          <Text style={[styles.pageIndicatorText, { color: colors.accent }]}>
+            Halaman {currentPage}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.paginationButton,
+            { backgroundColor: colors.card, borderColor: colors.border },
+            !hasMore && styles.disabledButton,
+          ]}
+          disabled={!hasMore || loading}
+          onPress={() => {
+            setCurrentPage((prev) => prev + 1);
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+          }}
+          activeOpacity={0.7}
+        >
+          <Text
+            style={[
+              styles.paginationButtonText,
+              { color: !hasMore ? colors.textMuted : colors.text },
+            ]}
+          >
+            Berikutnya
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={!hasMore ? colors.textMuted : colors.accent}
+          />
+        </TouchableOpacity>
+      </View>
     );
   };
 
   const renderFooter = () => {
-    if (!loadingMore) return null;
-
+    if (loading && currentPage === 1) return null;
     return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={colors.accent} />
-        <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-          Loading more...
-        </Text>
+      <View style={{ width: "100%" }}>
+        {renderPagination()}
+        <WebFooter />
       </View>
     );
   };
@@ -270,6 +322,7 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
 
       {!isDesktop && renderHeader(false)}
       <FlatList
+        ref={flatListRef}
         data={animeList}
         renderItem={renderAnimeItem}
         keyExtractor={(item, index) => `${item.animeId}-${index}`}
@@ -287,8 +340,6 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
             tintColor={colors.accent}
           />
         }
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={loading && currentPage === 1 ? renderLoading : renderEmpty}
       />
@@ -345,12 +396,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: "hidden",
     marginBottom: 16,
-    padding: 4,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
   },
   cardImageWrap: {
     width: "100%",
@@ -364,40 +414,40 @@ const styles = StyleSheet.create({
   },
   rankBadge: {
     position: "absolute",
-    top: 8,
-    left: 8,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 5,
+    top: 6,
+    left: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   rankText: {
     color: "#FFF",
-    fontSize: 10,
-    fontWeight: "800",
+    fontSize: 9,
+    fontWeight: "bold",
   },
   statusBadge: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    top: 6,
+    right: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
     borderRadius: 4,
   },
   statusText: {
     color: "#FFF",
-    fontSize: 9,
-    fontWeight: "700",
+    fontSize: 8,
+    fontWeight: "bold",
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
   cardInfo: {
-    padding: 10,
+    padding: 8,
   },
   cardTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    lineHeight: 18,
-    marginBottom: 6,
+    fontSize: 11,
+    fontWeight: "bold",
+    lineHeight: 15,
+    marginBottom: 4,
   },
   cardMeta: {
     flexDirection: "row",
@@ -405,12 +455,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   cardEpisode: {
-    fontSize: 11,
-    fontWeight: "500",
+    fontSize: 10,
+    fontWeight: "normal",
   },
   cardScore: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 10,
+    fontWeight: "bold",
   },
   footerLoader: {
     paddingVertical: 20,
@@ -420,6 +470,47 @@ const styles = StyleSheet.create({
   footerText: {
     marginTop: 8,
     fontSize: 12,
+  },
+  paginationContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 24,
+    width: "100%",
+  },
+  paginationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  paginationButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  pageIndicator: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 90,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pageIndicatorText: {
+    fontSize: 13,
+    fontWeight: "bold",
   },
   emptyContainer: {
     flex: 1,

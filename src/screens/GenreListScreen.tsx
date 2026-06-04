@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 import { getGenreList } from "../services/api";
+import { WebFooter } from "../components/WebFooter";
 
 interface Genre {
   genreId: string;
@@ -43,8 +44,8 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const numColumns = isDesktop ? 4 : 2;
-  const cardPercent = isDesktop ? "23.5%" : "48%";
+  const numColumns = isDesktop ? 6 : 2;
+  const cardPercent = isDesktop ? "15.5%" : "48%";
 
   const fetchGenres = async (isRefresh: boolean = false) => {
     if (loading) return;
@@ -244,6 +245,7 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
             tintColor={colors.accent}
           />
         }
+        ListFooterComponent={WebFooter}
         ListEmptyComponent={loading && !refreshing ? renderLoading : renderEmpty}
       />
     </SafeAreaView>

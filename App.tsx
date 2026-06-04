@@ -70,6 +70,21 @@ if (isWeb) {
           backdrop-filter: blur(10px) !important;
           -webkit-backdrop-filter: blur(10px) !important;
         }
+        .web-card-hover {
+          transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        .web-card-hover:hover {
+          transform: translateY(-4px) scale(1.02) !important;
+          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18) !important;
+        }
+        .web-genre-tag-hover {
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        .web-genre-tag-hover:hover {
+          transform: translateY(-1.5px) !important;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06) !important;
+          opacity: 0.95 !important;
+        }
       `)
     );
     doc.head.appendChild(style);
@@ -98,8 +113,8 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
     <View
       style={[
         styles.tabBarContainer,
-        { 
-          backgroundColor: colors.sidebar, 
+        {
+          backgroundColor: colors.sidebar,
           borderTopColor: colors.border,
           paddingBottom: (Platform.OS === "ios" ? 12 : 6) + insets.bottom,
           height: 64 + insets.bottom,

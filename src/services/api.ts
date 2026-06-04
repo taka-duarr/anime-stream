@@ -370,6 +370,38 @@ export const getOngoingAnime = async (page: number = 1) => {
   });
 };
 
+let cachedOngoingIds: Set<string> | null = null;
+
+/**
+ * FETCH AND MAP ALL ONGOING ANIME IDS
+ * Fetches all ongoing anime pages sequentially to build a cached set of ongoing anime IDs.
+ * Used to filter genre results.
+ */
+export const getOngoingAnimeIds = async (): Promise<Set<string>> => {
+  if (cachedOngoingIds) return cachedOngoingIds;
+
+  const ids = new Set<string>();
+  let page = 1;
+  while (page <= 12) {
+    try {
+      const list = await getOngoingAnime(page);
+      if (!list || list.length === 0) break;
+      list.forEach((item: any) => {
+        if (item.animeId) ids.add(item.animeId);
+      });
+      if (list.length < 20) break;
+      page++;
+    } catch (err) {
+      console.warn(`[API] Error fetching ongoing page ${page} for ID mapping:`, err);
+      break;
+    }
+  }
+
+  cachedOngoingIds = ids;
+  return ids;
+};
+
+
 /**
  * SEARCH ANIME
  * Endpoint: /search/{query}

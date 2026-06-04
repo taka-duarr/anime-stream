@@ -60,15 +60,18 @@ const getGenreIcon = (title: string): any => {
   return "film-outline";
 };
 
+const TouchableOpacityWeb = TouchableOpacity as any;
+
 const SearchScreen = ({ navigation }: any) => {
   const { colors, isDark } = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
-  let numColumns = 2;
-  if (width >= 1200) numColumns = 5;
-  else if (width >= 900) numColumns = 4;
-  else if (width >= 600) numColumns = 3;
+  let numColumns = 3;
+  if (width >= 1400) numColumns = 7;
+  else if (width >= 1100) numColumns = 6;
+  else if (width >= 850) numColumns = 5;
+  else if (width >= 600) numColumns = 4;
 
   const listPadding = 16;
   const availableWidth = width - listPadding * 2;
@@ -209,9 +212,6 @@ const SearchScreen = ({ navigation }: any) => {
           <Text style={[styles.resultTitle, { color: colors.text }]}>
             Hasil untuk <Text style={{ color: "#FF4757" }}>"{query}"</Text>
           </Text>
-          <View style={[styles.resultBadge, { backgroundColor: "#FF4757" }]}>
-            <Text style={styles.resultBadgeText}>{totalResults}</Text>
-          </View>
         </View>
       )}
 
@@ -232,8 +232,9 @@ const SearchScreen = ({ navigation }: any) => {
             <View style={styles.gridRow}>
               {results.map((item, i) => {
                 return (
-                  <TouchableOpacity
+                  <TouchableOpacityWeb
                     key={item.animeId ?? i}
+                    className="web-card-hover"
                     style={[
                       styles.card,
                       {
@@ -293,7 +294,7 @@ const SearchScreen = ({ navigation }: any) => {
                     >
                       {item.type || "TV"} • {item.totalEpisodes || "?"} Eps
                     </Text>
-                  </TouchableOpacity>
+                  </TouchableOpacityWeb>
                 );
               })}
             </View>
@@ -489,33 +490,34 @@ const styles = StyleSheet.create({
   image: { width: "100%", height: "100%" },
   ratingBadge: {
     position: "absolute",
-    top: 7,
-    right: 7,
+    top: 6,
+    right: 6,
     backgroundColor: "rgba(15,23,42,0.8)",
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 2,
   },
-  ratingText: { color: "#fff", fontSize: 10, fontWeight: "bold" },
+  ratingText: { color: "#fff", fontSize: 9, fontWeight: "bold" },
   statusBadge: {
     position: "absolute",
-    top: 7,
-    left: 7,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
+    top: 6,
+    left: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  statusText: { color: "#fff", fontSize: 9, fontWeight: "bold" },
+  statusText: { color: "#fff", fontSize: 8, fontWeight: "bold" },
   cardTitle: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "bold",
-    marginHorizontal: 8,
+    marginHorizontal: 6,
     marginBottom: 2,
+    lineHeight: 15,
   },
-  cardSub: { fontSize: 11, marginHorizontal: 8, marginBottom: 8 },
+  cardSub: { fontSize: 10, marginHorizontal: 6, marginBottom: 8 },
 
   /* EMPTY */
   emptyContainer: {

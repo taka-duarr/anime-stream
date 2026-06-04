@@ -20,6 +20,7 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
+import { WebFooter } from "../components/WebFooter";
 import * as api from "../services/api";
 
 const ProfileScreen = ({ navigation }: any) => {
@@ -382,11 +383,15 @@ const ProfileScreen = ({ navigation }: any) => {
         </View>
 
         {/* FOOTER */}
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.textMuted }]}>
-            © 2026 Nganime App v.1.2.0
-          </Text>
-        </View>
+        {Platform.OS === "web" ? (
+          <WebFooter />
+        ) : (
+          <View style={styles.footer}>
+            <Text style={[styles.footerText, { color: colors.textMuted }]}>
+              © 2026 Nganime App v.1.2.0
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* ABOUT APP MODAL */}

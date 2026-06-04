@@ -19,8 +19,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
+import { WebFooter } from "../components/WebFooter";
 
-const CARD_MARGIN = 8;
+const CARD_MARGIN = 10;
+const ViewWeb = View as any;
 
 const MyListScreen = ({ navigation }: any) => {
   const { colors, isDark } = useTheme();
@@ -29,8 +31,7 @@ const MyListScreen = ({ navigation }: any) => {
   const isDesktop = width >= 768;
 
   let numColumns = 2;
-  if (width >= 1200) numColumns = 5;
-  else if (width >= 900) numColumns = 4;
+  if (width >= 768) numColumns = 6;
   else if (width >= 600) numColumns = 3;
 
   const listPadding = 16;
@@ -145,7 +146,7 @@ const MyListScreen = ({ navigation }: any) => {
   const renderHeader = (isInsideScroll: boolean = false) => (
     <View style={[styles.header, { borderBottomColor: colors.border }, (isDesktop && !isInsideScroll) && { paddingTop: 72 }]}>
       <View style={styles.headerTop}>
-        
+
       </View>
       {myList.length > 0 && (
         <Text
@@ -156,6 +157,186 @@ const MyListScreen = ({ navigation }: any) => {
       )}
     </View>
   );
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text
+            style={[
+              styles.text,
+              { color: colors.textSecondary, marginTop: 12 },
+            ]}
+          >
+            Memuat bookmark...
+          </Text>
+        </View>
+      );
+    }
+
+    if (!isAuthenticated) {
+      return (
+        <View style={styles.center}>
+          <Ionicons
+            name="bookmark-outline"
+            size={64}
+            color={colors.textMuted}
+          />
+          <Text style={[styles.title, { color: colors.text }]}>
+            Login Diperlukan
+          </Text>
+          <Text style={[styles.text, { color: colors.textSecondary }]}>
+            Login untuk menyimpan anime favorit Anda
+          </Text>
+          <TouchableOpacity
+            style={[styles.exploreButton, { backgroundColor: colors.accent }]}
+            onPress={handleLogin}
+          >
+            <Ionicons
+              name="log-in-outline"
+              size={18}
+              color="#FFF"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.exploreButtonText}>Login</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={styles.center}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={colors.accent}
+          />
+          <Text style={[styles.title, { color: colors.text }]}>
+            Terjadi Kesalahan
+          </Text>
+          <Text style={[styles.text, { color: colors.textSecondary }]}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            style={[styles.exploreButton, { backgroundColor: colors.accent }]}
+            onPress={loadMyList}
+          >
+            <Ionicons
+              name="refresh-outline"
+              size={18}
+              color="#FFF"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.exploreButtonText}>Coba Lagi</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (myList.length === 0) {
+      return (
+        <View style={styles.center}>
+          <Ionicons
+            name="bookmark-outline"
+            size={64}
+            color={colors.textMuted}
+          />
+          <Text style={[styles.title, { color: colors.text }]}>
+            Belum Ada Anime
+          </Text>
+          <Text style={[styles.text, { color: colors.textSecondary }]}>
+            Tambahkan anime favorit Anda ke My List
+          </Text>
+          <TouchableOpacity
+            style={[styles.exploreButton, { backgroundColor: colors.accent }]}
+            onPress={() => navigation.navigate("Main", { screen: "HomeTab" })}
+          >
+            <Text style={styles.exploreButtonText}>Jelajahi Anime</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.gridRow}>
+        {myList.map((item, i) => (
+          <ViewWeb
+            key={item.animeId ?? i}
+            className="web-card-hover"
+            style={[
+              styles.card,
+              {
+                width: CARD_WIDTH as DimensionValue,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 12,
+                overflow: "hidden",
+              },
+            ]}
+          >
+            <TouchableOpacity
+              activeOpacity={0.82}
+              onPress={() =>
+                navigation.navigate("Episode", {
+                  bookId: item.animeId,
+                  title: item.title,
+                })
+              }
+              style={{ flex: 1 }}
+            >
+              <View style={styles.imageContainer}>
+                <Image
+                  source={{
+                    uri: item.poster || "https://via.placeholder.com/180x240",
+                  }}
+                  style={styles.image}
+                  contentFit="cover"
+                />
+                {item.score && (
+                  <View style={styles.ratingBadge}>
+                    <Ionicons name="star" size={10} color="#FBBF24" />
+                    <Text style={styles.ratingText}>{item.score}</Text>
+                  </View>
+                )}
+              </View>
+              <Text
+                style={[styles.cardTitle, { color: colors.text }]}
+                numberOfLines={2}
+              >
+                {item.title}
+              </Text>
+              <Text
+                style={[styles.cardSub, { color: colors.textSecondary }]}
+                numberOfLines={1}
+              >
+                {item.type || "TV"} • {item.totalEpisodes || "?"} Eps
+              </Text>
+            </TouchableOpacity>
+
+            {/* Professional Bottom Hapus Button */}
+            <TouchableOpacity
+              style={[
+                styles.bottomRemoveBtn,
+                {
+                  backgroundColor: isDark ? "#2A1A1A" : "#FFF5F5",
+                  borderTopWidth: 1,
+                  borderTopColor: colors.border,
+                },
+              ]}
+              activeOpacity={0.7}
+              onPress={() => setAnimeToDelete({ id: item.animeId, title: item.title })}
+            >
+              <Ionicons name="trash-outline" size={14} color="#FF4757" style={{ marginRight: 6 }} />
+              <Text style={styles.bottomRemoveText}>Hapus List</Text>
+            </TouchableOpacity>
+          </ViewWeb>
+        ))}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView
@@ -169,185 +350,22 @@ const MyListScreen = ({ navigation }: any) => {
         backgroundColor={colors.sidebar}
       />
 
-      {/* CONTENT */}
-      {loading ? (
-        <>
-          {renderHeader(false)}
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={colors.accent} />
-            <Text
-              style={[
-                styles.text,
-                { color: colors.textSecondary, marginTop: 12 },
-              ]}
-            >
-              Memuat bookmark...
-            </Text>
-          </View>
-        </>
-      ) : !isAuthenticated ? (
-        <>
-          {renderHeader(false)}
-          <View style={styles.center}>
-            <Ionicons
-              name="bookmark-outline"
-              size={64}
-              color={colors.textMuted}
-            />
-            <Text style={[styles.title, { color: colors.text }]}>
-              Login Diperlukan
-            </Text>
-            <Text style={[styles.text, { color: colors.textSecondary }]}>
-              Login untuk menyimpan anime favorit Anda
-            </Text>
-            <TouchableOpacity
-              style={[styles.exploreButton, { backgroundColor: colors.accent }]}
-              onPress={handleLogin}
-            >
-              <Ionicons
-                name="log-in-outline"
-                size={18}
-                color="#FFF"
-                style={{ marginRight: 8 }}
-              />
-              <Text style={styles.exploreButtonText}>Login</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      ) : error ? (
-        <>
-          {renderHeader(false)}
-          <View style={styles.center}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={64}
-              color={colors.accent}
-            />
-            <Text style={[styles.title, { color: colors.text }]}>
-              Terjadi Kesalahan
-            </Text>
-            <Text style={[styles.text, { color: colors.textSecondary }]}>
-              {error}
-            </Text>
-            <TouchableOpacity
-              style={[styles.exploreButton, { backgroundColor: colors.accent }]}
-              onPress={loadMyList}
-            >
-              <Ionicons
-                name="refresh-outline"
-                size={18}
-                color="#FFF"
-                style={{ marginRight: 8 }}
-              />
-              <Text style={styles.exploreButtonText}>Coba Lagi</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      ) : myList.length === 0 ? (
-        <>
-          {renderHeader(false)}
-          <View style={styles.center}>
-            <Ionicons
-              name="bookmark-outline"
-              size={64}
-              color={colors.textMuted}
-            />
-            <Text style={[styles.title, { color: colors.text }]}>
-              Belum Ada Anime
-            </Text>
-            <Text style={[styles.text, { color: colors.textSecondary }]}>
-              Tambahkan anime favorit Anda ke My List
-            </Text>
-            <TouchableOpacity
-              style={[styles.exploreButton, { backgroundColor: colors.accent }]}
-              onPress={() => navigation.navigate("Main", { screen: "HomeTab" })}
-            >
-              <Text style={styles.exploreButtonText}>Jelajahi Anime</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingTop: isDesktop ? 72 : 0, paddingBottom: 40 }}
-        >
-          {renderHeader(true)}
-          <View style={styles.gridRow}>
-            {myList.map((item, i) => (
-              <View
-                key={item.animeId ?? i}
-                style={[
-                  styles.card,
-                  {
-                    width: CARD_WIDTH as DimensionValue,
-                    backgroundColor: colors.card,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 12,
-                    overflow: "hidden",
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  activeOpacity={0.82}
-                  onPress={() =>
-                    navigation.navigate("Episode", {
-                      bookId: item.animeId,
-                      title: item.title,
-                    })
-                  }
-                  style={{ flex: 1 }}
-                >
-                  <View style={styles.imageContainer}>
-                    <Image
-                      source={{
-                        uri: item.poster || "https://via.placeholder.com/180x240",
-                      }}
-                      style={styles.image}
-                      contentFit="cover"
-                    />
-                    {item.score && (
-                      <View style={styles.ratingBadge}>
-                        <Ionicons name="star" size={10} color="#FBBF24" />
-                        <Text style={styles.ratingText}>{item.score}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text
-                    style={[styles.cardTitle, { color: colors.text }]}
-                    numberOfLines={2}
-                  >
-                    {item.title}
-                  </Text>
-                  <Text
-                    style={[styles.cardSub, { color: colors.textSecondary }]}
-                    numberOfLines={1}
-                  >
-                    {item.type || "TV"} • {item.totalEpisodes || "?"} Eps
-                  </Text>
-                </TouchableOpacity>
+      {!isDesktop && renderHeader(false)}
 
-                {/* Professional Bottom Hapus Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.bottomRemoveBtn,
-                    {
-                      backgroundColor: isDark ? "#2A1A1A" : "#FFF5F5",
-                      borderTopWidth: 1,
-                      borderTopColor: colors.border,
-                    },
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => setAnimeToDelete({ id: item.animeId, title: item.title })}
-                >
-                  <Ionicons name="trash-outline" size={14} color="#FF4757" style={{ marginRight: 6 }} />
-                  <Text style={styles.bottomRemoveText}>Hapus List</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-      )}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingTop: isDesktop ? 72 : 0,
+          paddingBottom: isDesktop ? 0 : 40,
+        }}
+      >
+        {isDesktop && renderHeader(true)}
+
+        {renderContent()}
+
+        {Platform.OS === "web" && <WebFooter />}
+      </ScrollView>
 
       {/* DELETE CONFIRMATION MODAL */}
       <Modal
@@ -508,11 +526,12 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     paddingHorizontal: 16 - CARD_MARGIN / 2,
     paddingTop: 16,
+    paddingBottom: 64,
   },
   card: {
     marginBottom: 20,
     marginHorizontal: CARD_MARGIN / 2,
-    borderRadius: 12,
+    borderRadius: 8,
     overflow: "hidden",
   },
   imageContainer: {
