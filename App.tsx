@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -17,6 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import HomeScreen from "./src/screens/HomeScreen";
 import MyListScreen from "./src/screens/MyListScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
@@ -28,6 +30,7 @@ import SearchScreen from "./src/screens/SearchScreen";
 import AnimeListScreen from "./src/screens/AnimeListScreen";
 import GenreListScreen from "./src/screens/GenreListScreen";
 import GenreAnimeScreen from "./src/screens/GenreAnimeScreen";
+import OnboardingScreen from "./src/screens/OnboardingScreen";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { WebNavbar } from "./src/components/WebNavbar";
@@ -210,8 +213,12 @@ const MainTabNavigator = () => (
 );
 
 // The stack navigator (shared between web/mobile)
-const AppNavigator = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+const AppNavigator = ({ showOnboarding = false }: { showOnboarding?: boolean }) => (
+  <Stack.Navigator
+    screenOptions={{ headerShown: false }}
+    initialRouteName={showOnboarding ? "Onboarding" : "Main"}
+  >
+    <Stack.Screen name="Onboarding" component={OnboardingScreen} />
     <Stack.Screen name="Main" component={MainTabNavigator} />
     <Stack.Screen
       name="Login"
@@ -315,11 +322,41 @@ const WebLayout = () => {
 };
 
 // Mobile layout: normal NavigationContainer (BurgerMenu inside screens)
-const MobileLayout = () => (
-  <NavigationContainer>
-    <AppNavigator />
-  </NavigationContainer>
-);
+const MobileLayout = () => {
+  const { colors } = useTheme();
+  const [isLoading, setIsLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  React.useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const hasSeen = await AsyncStorage.getItem("@has_seen_onboarding");
+        if (hasSeen !== "true") {
+          setShowOnboarding(true);
+        }
+      } catch (err) {
+        console.error("Error reading onboarding status:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    checkOnboarding();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      <AppNavigator showOnboarding={showOnboarding} />
+    </NavigationContainer>
+  );
+};
 
 export default function App() {
   return (
