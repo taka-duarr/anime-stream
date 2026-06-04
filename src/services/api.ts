@@ -265,6 +265,7 @@ const cache: Record<string, { data: any; timestamp: number }> = {};
 const fetchWithCache = async <T>(
   url: string,
   fetcher: () => Promise<T>,
+  maxRetries?: number,
 ): Promise<T> => {
   const now = Date.now();
   if (cache[url] && now - cache[url].timestamp < CACHE_EXPIRATION_MS) {
@@ -275,12 +276,16 @@ const fetchWithCache = async <T>(
   console.log(`[FETCHING API] Menarik data dari Endpoint: ${url}`);
   try {
     // Use manual retry with rate limit tracking
-    const data = await retryWithRateLimit(fetcher);
+    const data = await retryWithRateLimit(fetcher, maxRetries);
     cache[url] = { data, timestamp: now };
     console.log(`[API SUCCESS] Berhasil menarik data: ${url}`);
     return data;
   } catch (error) {
-    console.error(`[API ERROR] Gagal menarik data dari: ${url}`, error);
+    if (maxRetries === 0) {
+      console.log(`[API ERROR] Gagal menarik data dari: ${url} (Silently handled)`);
+    } else {
+      console.error(`[API ERROR] Gagal menarik data dari: ${url}`, error);
+    }
     throw error;
   }
 };
@@ -375,7 +380,7 @@ export const searchAnime = async (query: string) => {
   return fetchWithCache(`/search/${encodedQuery}`, async () => {
     const response = await api.get(`/search/${encodedQuery}`);
     return response.data.data.animeList;
-  });
+  }, 0);
 };
 
 /**

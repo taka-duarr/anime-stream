@@ -15,6 +15,7 @@ import {
   Platform,
 } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { searchAnime, getGenreList } from "../services/api";
 import { useTheme } from "../context/ThemeContext";
 
@@ -99,10 +100,20 @@ const SearchScreen = ({ navigation }: any) => {
     try {
       setLoading(true);
       setResults([]);
-      const animeResults = await searchAnime(searchVal);
+
+      const timeoutPromise = new Promise<any[]>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout")), 7000)
+      );
+
+      const animeResults = await Promise.race([
+        searchAnime(searchVal),
+        timeoutPromise,
+      ]);
+
       setResults(animeResults || []);
     } catch (e) {
-      console.error("Search error:", e);
+      console.log("Search error or timeout (silently handled):", e);
+      setResults([]);
     } finally {
       setLoading(false);
     }
@@ -366,16 +377,24 @@ const SearchScreen = ({ navigation }: any) => {
         {/* EMPTY STATE */}
         {!loading && query.trim() !== "" && totalResults === 0 && (
           <View style={styles.emptyContainer}>
-            <Ionicons
-              name="search-outline"
-              size={64}
-              color={colors.textMuted}
-            />
-            <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>
-              Tidak ada hasil untuk "{query}"
+            <View style={styles.emptyIconWrapper}>
+              <LinearGradient
+                colors={isDark ? ["rgba(255, 71, 87, 0.15)", "rgba(255, 71, 87, 0.03)"] as const : ["rgba(255, 71, 87, 0.08)", "rgba(255, 71, 87, 0.01)"] as const}
+                style={styles.emptyGlow}
+              />
+              <View style={[styles.emptyIconCircle, { backgroundColor: isDark ? "rgba(255, 71, 87, 0.12)" : "rgba(255, 71, 87, 0.06)" }]}>
+                <Ionicons
+                  name="search"
+                  size={36}
+                  color={colors.accent}
+                />
+              </View>
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              Hasil Tidak Ditemukan
             </Text>
-            <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-              Coba kata kunci yang berbeda
+            <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
+              Tidak ada hasil penelusuran untuk <Text style={{ color: colors.accent, fontWeight: "600" }}>"{query}"</Text>. Silakan coba gunakan kata kunci yang berbeda.
             </Text>
           </View>
         )}
@@ -504,13 +523,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 32,
   },
+  emptyIconWrapper: {
+    justifyContent: "center",
+    alignItems: "center",
+    width: 120,
+    height: 120,
+    marginBottom: 10,
+  },
+  emptyGlow: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   emptyTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "bold",
-    marginTop: 16,
+    marginTop: 12,
     textAlign: "center",
   },
-  emptySub: { fontSize: 14, marginTop: 8, textAlign: "center" },
+  emptySub: { 
+    fontSize: 14, 
+    marginTop: 8, 
+    textAlign: "center",
+    lineHeight: 20,
+    maxWidth: 300,
+  },
 
   /* SUGGESTIONS */
   suggestContainer: {
