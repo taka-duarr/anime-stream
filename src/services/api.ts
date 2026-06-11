@@ -845,6 +845,60 @@ export const logout = () => {
 };
 
 // ============================================
+// WATCH HISTORY ENDPOINTS (PROTECTED)
+// ============================================
+
+/**
+ * SAVE WATCH HISTORY
+ * Endpoint: POST /api/history
+ * Body: { anime_id: string, episode_id: string }
+ * Returns: { message: string, history: ... }
+ */
+export const saveWatchHistory = async (animeId: string, episodeId: string) => {
+  try {
+    if (!isAuthenticated()) {
+      return null;
+    }
+    console.log(`[HISTORY] Saving watch history: ${animeId} - ${episodeId}`);
+    const response = await authApi.post("/api/history", {
+      anime_id: animeId,
+      episode_id: episodeId,
+    });
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      "[HISTORY ERROR] Failed to save watch history:",
+      error.response?.data || error.message,
+    );
+    throw error;
+  }
+};
+
+/**
+ * GET WATCH HISTORY FOR ANIME
+ * Endpoint: GET /api/history/:anime_id
+ * Returns: Array of watched episode string IDs
+ */
+export const getWatchHistory = async (animeId: string): Promise<string[]> => {
+  try {
+    if (!isAuthenticated()) {
+      return [];
+    }
+    console.log(`[HISTORY] Fetching watch history for anime: ${animeId}`);
+    const response = await authApi.get(`/api/history/${animeId}`);
+    const watchedEpisodes = response.data.watched_episodes || [];
+    console.log(`[HISTORY] Fetched ${watchedEpisodes.length} watched episodes for ${animeId}`);
+    return watchedEpisodes;
+  } catch (error: any) {
+    console.error(
+      "[HISTORY ERROR] Failed to fetch watch history:",
+      error.response?.data || error.message,
+    );
+    return [];
+  }
+};
+
+// ============================================
 // BOOKMARK ENDPOINTS (PROTECTED)
 // ============================================
 

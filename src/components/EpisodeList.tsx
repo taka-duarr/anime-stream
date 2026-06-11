@@ -16,6 +16,7 @@ interface EpisodeListProps {
   animeTitle?: string;
   onEpisodePress: (episode: Episode) => void;
   maxHeight?: number;
+  watchedEpisodes?: string[];
 }
 
 const getCleanEpisodeTitle = (episodeName: string, animeTitle?: string) => {
@@ -51,6 +52,7 @@ const EpisodeList: React.FC<EpisodeListProps> = ({
   animeTitle,
   onEpisodePress,
   maxHeight = 400,
+  watchedEpisodes = [],
 }) => {
   const { colors } = useTheme();
 
@@ -63,10 +65,15 @@ const EpisodeList: React.FC<EpisodeListProps> = ({
       >
         {episodes.map((item, index) => {
           const cleanTitle = getCleanEpisodeTitle(item.chapterName, animeTitle);
+          const isWatched = watchedEpisodes.includes(item.chapterId);
           return (
             <TouchableOpacity
               key={item.chapterId}
-              style={[styles.episodeCard, { backgroundColor: colors.card }]}
+              style={[
+                styles.episodeCard,
+                { backgroundColor: colors.card },
+                isWatched && { opacity: 0.45 },
+              ]}
               activeOpacity={0.8}
               onPress={() => onEpisodePress(item)}
             >

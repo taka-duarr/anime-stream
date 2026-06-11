@@ -65,6 +65,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const [error, setError] = useState<string | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [watchedEpisodes, setWatchedEpisodes] = useState<string[]>([]);
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const { isAuthenticated } = useAuth();
@@ -88,6 +89,24 @@ export default function EpisodeScreen({ route, navigation }: any) {
       console.log("[EPISODE SCREEN] Loading streaming url for:", episodeId);
       const epDetail = await api.getEpisodeDetail(episodeId);
       setEpisodeDetail(epDetail);
+
+      // Save watch history on desktop if logged in
+      if (isAuthenticated && bookId && episodeId) {
+        try {
+          api.saveWatchHistory(bookId, episodeId)
+            .then(() => {
+              setWatchedEpisodes((prev) => {
+                if (!prev.includes(episodeId)) {
+                  return [...prev, episodeId];
+                }
+                return prev;
+              });
+            })
+            .catch((err) => console.error("Gagal menyimpan riwayat tontonan desktop:", err));
+        } catch (err) {
+          console.error("Gagal menyimpan riwayat tontonan desktop:", err);
+        }
+      }
 
       if (server) {
         setActiveServer(server);
@@ -233,6 +252,19 @@ export default function EpisodeScreen({ route, navigation }: any) {
     try {
       setLoading(true);
       setError(null);
+
+      // Fetch watch history if logged in
+      if (isAuthenticated) {
+        try {
+          const watched = await api.getWatchHistory(bookId);
+          setWatchedEpisodes(watched || []);
+        } catch (err) {
+          console.error("Gagal memuat riwayat tontonan:", err);
+        }
+      } else {
+        setWatchedEpisodes([]);
+      }
+
       const animeDetail = await getAnimeDetail(bookId);
 
       // Map anime detail to episodes format
@@ -534,8 +566,21 @@ export default function EpisodeScreen({ route, navigation }: any) {
                     activeOpacity={0.8}
                     onPress={() => {
                       if (episodes.length > 0) {
+                        const targetEp = episodes[episodes.length - 1];
+                        if (isAuthenticated && bookId && targetEp.chapterId) {
+                          api.saveWatchHistory(bookId, targetEp.chapterId)
+                            .then(() => {
+                              setWatchedEpisodes(prev => {
+                                if (!prev.includes(targetEp.chapterId)) {
+                                  return [...prev, targetEp.chapterId];
+                                }
+                                return prev;
+                              });
+                            })
+                            .catch(err => console.error("Gagal menyimpan riwayat:", err));
+                        }
                         navigation.navigate("Video", {
-                          episode: episodes[0],
+                          episode: targetEp,
                           episodes,
                           animeId: bookId,
                         });
@@ -678,9 +723,21 @@ export default function EpisodeScreen({ route, navigation }: any) {
                 activeOpacity={0.8}
                 onPress={() => {
                   if (episodes.length > 0) {
-                    // Mulai dari Ep 1 (episode tertua = index terakhir karena urutan terbaru ke lama)
+                    const targetEp = episodes[episodes.length - 1];
+                    if (isAuthenticated && bookId && targetEp.chapterId) {
+                      api.saveWatchHistory(bookId, targetEp.chapterId)
+                        .then(() => {
+                          setWatchedEpisodes(prev => {
+                            if (!prev.includes(targetEp.chapterId)) {
+                              return [...prev, targetEp.chapterId];
+                            }
+                            return prev;
+                          });
+                        })
+                        .catch(err => console.error("Gagal menyimpan riwayat:", err));
+                    }
                     navigation.navigate("Video", {
-                      episode: episodes[episodes.length - 1],
+                      episode: targetEp,
                       episodes,
                       animeId: bookId,
                     });
@@ -835,8 +892,13 @@ export default function EpisodeScreen({ route, navigation }: any) {
                       >
                         {episodes.map((ep) => {
                           const cleanTitle = getCleanEpisodeTitle(ep.chapterName, detail?.title || title);
+                          const isWatched = watchedEpisodes.includes(ep.chapterId);
                           return (
-                            <option key={ep.chapterId} value={ep.chapterId}>
+                            <option
+                              key={ep.chapterId}
+                              value={ep.chapterId}
+                              style={{ color: isWatched ? colors.textMuted : colors.text }}
+                            >
                               {cleanTitle}
                             </option>
                           );
@@ -1133,13 +1195,26 @@ export default function EpisodeScreen({ route, navigation }: any) {
           episodes={episodes}
           posterUrl={detail?.poster}
           animeTitle={detail?.title || title}
-          onEpisodePress={(episode) =>
+          watchedEpisodes={watchedEpisodes}
+          onEpisodePress={(episode) => {
+            if (isAuthenticated && bookId && episode.chapterId) {
+              api.saveWatchHistory(bookId, episode.chapterId)
+                .then(() => {
+                  setWatchedEpisodes(prev => {
+                    if (!prev.includes(episode.chapterId)) {
+                      return [...prev, episode.chapterId];
+                    }
+                    return prev;
+                  });
+                })
+                .catch(err => console.error("Gagal menyimpan riwayat:", err));
+            }
             navigation.navigate("Video", {
               episode,
               episodes,
               animeId: bookId,
-            })
-          }
+            });
+          }}
           maxHeight={episodes.length > 0 ? Math.min(episodes.length * 94 + 20, 380) : 380}
         />
 
