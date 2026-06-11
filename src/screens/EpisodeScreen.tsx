@@ -66,6 +66,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [watchedEpisodes, setWatchedEpisodes] = useState<string[]>([]);
+  const [isPlayingWeb, setIsPlayingWeb] = useState(false);
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const { isAuthenticated } = useAuth();
@@ -90,23 +91,8 @@ export default function EpisodeScreen({ route, navigation }: any) {
       const epDetail = await api.getEpisodeDetail(episodeId);
       setEpisodeDetail(epDetail);
 
-      // Save watch history on desktop if logged in
-      if (isAuthenticated && bookId && episodeId) {
-        try {
-          api.saveWatchHistory(bookId, episodeId)
-            .then(() => {
-              setWatchedEpisodes((prev) => {
-                if (!prev.includes(episodeId)) {
-                  return [...prev, episodeId];
-                }
-                return prev;
-              });
-            })
-            .catch((err) => console.error("Gagal menyimpan riwayat tontonan desktop:", err));
-        } catch (err) {
-          console.error("Gagal menyimpan riwayat tontonan desktop:", err);
-        }
-      }
+      // We no longer trigger watch history on page load/mount
+      // History is strictly logged upon explicit clicks on play or dropdown changes.
 
       if (server) {
         setActiveServer(server);
@@ -173,6 +159,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (!bookId) return;
+    setIsPlayingWeb(false);
     fetchData();
     checkBookmarkStatus();
   }, [bookId, isAuthenticated]);
@@ -829,7 +816,37 @@ export default function EpisodeScreen({ route, navigation }: any) {
               
               {/* VIDEO PLAYER WINDOW */}
               <View style={[styles.playerContainer, { backgroundColor: "black" }]}>
-                {streamingUrl ? (
+                {!isPlayingWeb ? (
+                  <TouchableOpacity
+                    style={styles.desktopPlayPlaceholder}
+                    activeOpacity={0.9}
+                    onPress={() => {
+                      setIsPlayingWeb(true);
+                      if (isAuthenticated && bookId && activeEpisode?.chapterId) {
+                        api.saveWatchHistory(bookId, activeEpisode.chapterId)
+                          .then(() => {
+                            setWatchedEpisodes((prev) => {
+                              if (!prev.includes(activeEpisode.chapterId)) {
+                                  return [...prev, activeEpisode.chapterId];
+                              }
+                              return prev;
+                            });
+                          })
+                          .catch((err) => console.error("Gagal menyimpan riwayat tontonan desktop:", err));
+                      }
+                    }}
+                  >
+                    <Image
+                      source={{ uri: detail?.poster || "https://via.placeholder.com/400x600" }}
+                      style={StyleSheet.absoluteFillObject}
+                      contentFit="cover"
+                    />
+                    <View style={styles.playOverlay}>
+                      <Ionicons name="play-circle" size={80} color={colors.accent} />
+                      <Text style={styles.playPlaceholderText}>Klik untuk Memutar Video</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : streamingUrl ? (
                   <iframe
                     src={streamingUrl}
                     style={{
@@ -848,7 +865,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
                     <Text style={{ color: "white", marginTop: 16 }}>Memuat Video...</Text>
                   </View>
                 )}
-                {loadingVideo && (
+                {loadingVideo && isPlayingWeb && (
                   <View style={styles.playerLoadingOverlay}>
                     <ActivityIndicator size="large" color={colors.accent} />
                   </View>
@@ -874,6 +891,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
                           const selectedEp = episodes.find(ep => ep.chapterId === (e.target as any).value);
                           if (selectedEp) {
                             setActiveEpisode(selectedEp);
+                            setIsPlayingWeb(false);
                             loadStreamingUrl(selectedEp.chapterId);
                           }
                         }}
@@ -919,6 +937,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
                             if (curIdx < episodes.length - 1) {
                               const prevEp = episodes[curIdx + 1];
                               setActiveEpisode(prevEp);
+                              setIsPlayingWeb(false);
                               loadStreamingUrl(prevEp.chapterId);
                             }
                           }}
@@ -937,6 +956,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
                             if (curIdx > 0) {
                               const nextEp = episodes[curIdx - 1];
                               setActiveEpisode(nextEp);
+                              setIsPlayingWeb(false);
                               loadStreamingUrl(nextEp.chapterId);
                             }
                           }}
@@ -1577,5 +1597,25 @@ const styles = StyleSheet.create({
   sidebarCardSub: {
     fontSize: 11,
     fontWeight: "normal",
+  },
+  desktopPlayPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  playPlaceholderText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+    marginTop: 12,
   },
 });
