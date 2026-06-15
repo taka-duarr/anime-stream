@@ -108,10 +108,8 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
     return "film-outline";
   };
 
-  const getGenreColor = (title: string, isDesktopView: boolean): string => {
-    if (!isDesktopView) return colors.accent; // Mobile: all same color
-
-    // Desktop: different colors based on simple hash
+  const getGenreColor = (title: string): string => {
+    // Both Mobile & Desktop use the same hash-based diverse colors
     let hash = 0;
     for (let i = 0; i < title.length; i++) {
       hash = title.charCodeAt(i) + ((hash << 5) - hash);
@@ -121,7 +119,7 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
   };
 
   const renderGenreItem = ({ item }: { item: Genre }) => {
-    const iconColor = getGenreColor(item.title, isDesktop);
+    const iconColor = getGenreColor(item.title);
 
     return (
       <TouchableOpacity
@@ -141,9 +139,16 @@ const GenreListScreen: React.FC<GenreListScreenProps> = ({ navigation }) => {
           })
         }
       >
-        {/* Icon Container */}
-        <View style={[styles.cardIconContainer, { backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }]}>
-          <Ionicons name={getGenreIcon(item.title)} size={32} color={iconColor} />
+        {/* Icon Container with subtle background tint matching the icon color */}
+        <View style={[
+          styles.cardIconContainer, 
+          { 
+            backgroundColor: isDark 
+              ? `${iconColor}18` 
+              : `${iconColor}12` 
+          }
+        ]}>
+          <Ionicons name={getGenreIcon(item.title)} size={30} color={iconColor} />
         </View>
 
         {/* Title */}

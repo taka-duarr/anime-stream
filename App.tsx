@@ -145,6 +145,10 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
           switch (routeName) {
             case "HomeTab":
               return focused ? "film" : "film-outline";
+            case "GenreTab":
+              return focused ? "grid" : "grid-outline";
+            case "SearchTab":
+              return focused ? "search" : "search-outline";
             case "MyListTab":
               return focused ? "bookmark" : "bookmark-outline";
             case "ProfileTab":
@@ -159,6 +163,10 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
           switch (routeName) {
             case "HomeTab":
               return "Home";
+            case "GenreTab":
+              return "Genre";
+            case "SearchTab":
+              return "Search";
             case "MyListTab":
               return "My List";
             case "ProfileTab":
@@ -171,6 +179,8 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
         const iconName = getIconName(route.name, isFocused);
         const label = getLabel(route.name);
 
+        const isSearchTab = route.name === "SearchTab";
+
         return (
           <TouchableOpacity
             key={route.key}
@@ -179,36 +189,54 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
             accessibilityLabel={options.tabBarAccessibilityLabel}
             testID={options.tabBarTestID}
             onPress={onPress}
-            style={styles.tabButton}
+            style={[
+              styles.tabButton,
+              isSearchTab && {
+                justifyContent: "center",
+                alignItems: "center",
+              },
+            ]}
             activeOpacity={0.8}
           >
-            <View
-              style={[
-                styles.iconWrap,
-                isFocused && {
-                  backgroundColor: isDark
-                    ? "rgba(255,71,87,0.18)"
-                    : "rgba(255,71,87,0.12)",
-                },
-              ]}
-            >
-              <Ionicons
-                name={iconName as any}
-                size={22}
-                color={isFocused ? colors.accent : colors.textSecondary}
-              />
-            </View>
-            <Text
-              style={[
-                styles.tabLabel,
-                {
-                  color: isFocused ? colors.accent : colors.textSecondary,
-                  fontWeight: isFocused ? "bold" : "normal",
-                },
-              ]}
-            >
-              {label}
-            </Text>
+            {isSearchTab ? (
+              <View
+                style={[
+                  styles.searchTabHighlight,
+                  {
+                    backgroundColor: colors.accent,
+                    shadowColor: colors.accent,
+                    borderColor: colors.sidebar,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={isFocused ? "search" : "search-outline"}
+                  size={28}
+                  color="#FFF"
+                />
+              </View>
+            ) : (
+              <>
+                <View style={styles.iconWrap}>
+                  <Ionicons
+                    name={iconName as any}
+                    size={22}
+                    color={isFocused ? colors.accent : colors.textSecondary}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    {
+                      color: isFocused ? colors.accent : colors.textSecondary,
+                      fontWeight: isFocused ? "bold" : "normal",
+                    },
+                  ]}
+                >
+                  {label}
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
         );
       })}
@@ -222,6 +250,8 @@ const MainTabNavigator = () => (
     screenOptions={{ headerShown: false }}
   >
     <Tab.Screen name="HomeTab" component={HomeScreen} />
+    <Tab.Screen name="GenreTab" component={GenreListScreen} />
+    <Tab.Screen name="SearchTab" component={SearchScreen} />
     <Tab.Screen name="MyListTab" component={MyListScreen} />
     <Tab.Screen name="ProfileTab" component={ProfileScreen} />
   </Tab.Navigator>
@@ -322,7 +352,7 @@ const WebLayout = () => {
                 setCurrentRoute("OngoingList");
               }
             } else {
-              const tabRoutes = ["HomeTab", "MyListTab", "ProfileTab", "GenreList", "CompletedList", "OngoingList"];
+              const tabRoutes = ["HomeTab", "GenreTab", "SearchTab", "MyListTab", "ProfileTab", "GenreList", "CompletedList", "OngoingList", "Search"];
               if (tabRoutes.includes(name)) {
                 setCurrentRoute(name);
               }
@@ -391,6 +421,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.05,
     shadowRadius: 6,
+    overflow: "visible",
   },
   tabButton: {
     flex: 1,
@@ -405,5 +436,18 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 10,
+  },
+  searchTabHighlight: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: -28,
+    elevation: 10,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    borderWidth: 3.5,
   },
 });

@@ -211,12 +211,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
             </Text>
           </TouchableOpacity>
 
-          {/* Footer */}
-          <View style={[styles.panelFooter, { borderTopColor: colors.border }]}>
-            <Text style={[styles.footerText, { color: colors.textMuted }]}>
-              MyDrama v1.0 · by taka
-            </Text>
-          </View>
+          {/* Footer removed for mobile view request */}
         </Animated.View>
       </Modal>
     </>

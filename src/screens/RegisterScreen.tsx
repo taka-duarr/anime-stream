@@ -392,13 +392,16 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   }
 
   return (
-    <View style={[styles.mobileWrapper, { backgroundColor: isDark ? "rgba(10, 11, 14, 0.78)" : "rgba(15, 23, 42, 0.65)" }]}>
-      {/* Tap backdrop to go back */}
+    <View style={[styles.mobileWrapper, { backgroundColor: colors.bg }]}>
+      {/* Close Button for Mobile */}
       <TouchableOpacity
-        style={StyleSheet.absoluteFillObject}
-        activeOpacity={1}
+        style={styles.mobileCloseBtn}
         onPress={() => navigation.goBack()}
-      />
+        activeOpacity={0.7}
+      >
+        <Ionicons name="close" size={24} color={colors.text} />
+      </TouchableOpacity>
+
       <ScrollView
         style={[styles.container, { backgroundColor: "transparent" }]}
         contentContainerStyle={styles.mobileContentContainer}
@@ -979,6 +982,14 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingTop: Platform.OS === "web" ? 80 : 40,
     paddingBottom: 40,
+  },
+  mobileCloseBtn: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 50 : 20,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+    borderRadius: 20,
   },
 });
 

@@ -178,29 +178,37 @@ const MyListScreen = ({ navigation }: any) => {
     if (!isAuthenticated) {
       return (
         <View style={styles.center}>
-          <Ionicons
-            name="bookmark-outline"
-            size={64}
-            color={colors.textMuted}
-          />
-          <Text style={[styles.title, { color: colors.text }]}>
-            Login Diperlukan
-          </Text>
-          <Text style={[styles.text, { color: colors.textSecondary }]}>
-            Login untuk menyimpan anime favorit Anda
-          </Text>
-          <TouchableOpacity
-            style={[styles.exploreButton, { backgroundColor: colors.accent }]}
-            onPress={handleLogin}
-          >
-            <Ionicons
-              name="log-in-outline"
-              size={18}
-              color="#FFF"
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.exploreButtonText}>Login</Text>
-          </TouchableOpacity>
+          <View style={[styles.guestCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.guestIconCircle, { backgroundColor: isDark ? "rgba(255, 71, 87, 0.15)" : "rgba(255, 71, 87, 0.08)" }]}>
+              <Ionicons
+                name="bookmark"
+                size={36}
+                color={colors.accent}
+              />
+            </View>
+            
+            <Text style={[styles.guestTitle, { color: colors.text }]}>
+              Login Diperlukan
+            </Text>
+            
+            <Text style={[styles.guestText, { color: colors.textSecondary }]}>
+              Silakan login untuk menyimpan anime favorit Anda dan sinkronisasi daftar tontonan di semua perangkat Anda.
+            </Text>
+            
+            <TouchableOpacity
+              style={[styles.guestLoginButton, { backgroundColor: colors.accent }]}
+              activeOpacity={0.85}
+              onPress={handleLogin}
+            >
+              <Ionicons
+                name="log-in"
+                size={20}
+                color="#FFF"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.guestLoginButtonText}>Masuk Ke Akun</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       );
     }
@@ -657,6 +665,60 @@ const styles = StyleSheet.create({
   confirmModalCancelBtnText: {
     fontSize: 15,
     fontWeight: "600",
+  },
+  guestCard: {
+    padding: 32,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 360,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 5,
+    marginTop: 40,
+    marginBottom: 40,
+  },
+  guestIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  guestTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 8,
+    textAlign: "center",
+    letterSpacing: -0.3,
+  },
+  guestText: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  guestLoginButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: "#FF4757",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  guestLoginButtonText: {
+    color: "#FFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });
 

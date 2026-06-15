@@ -22,6 +22,8 @@ import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { WebFooter } from "../components/WebFooter";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useIsFocused } from "@react-navigation/native";
 
 const isWeb = Platform.OS === "web";
 
@@ -41,11 +43,35 @@ const mapAnimeToDrama = (anime: any) => ({
 const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, isDark, toggleTheme } = useTheme();
   const { isAuthenticated, username, profilePicture } = useAuth();
+  const isFocused = useIsFocused();
+  const [displayName, setDisplayName] = useState("");
+
+  useEffect(() => {
+    const loadDisplayName = async () => {
+      try {
+        const storedName = await AsyncStorage.getItem("@custom_display_name");
+        if (storedName) {
+          setDisplayName(storedName);
+        } else if (username) {
+          setDisplayName(username);
+        } else {
+          setDisplayName("");
+        }
+      } catch (error) {
+        console.error("[HOME] Failed to load custom profile name:", error);
+      }
+    };
+
+    if (isFocused) {
+      loadDisplayName();
+    }
+  }, [isFocused, username]);
 
   const [ongoingAnime, setOngoingAnime] = useState<Anime[]>([]);
   const [completedAnime, setCompletedAnime] = useState<Anime[]>([]);
   const [carouselItems, setCarouselItems] = useState<any[]>([]);
   const [desktopCarouselIndex, setDesktopCarouselIndex] = useState(0);
+  const [mobileCarouselIndex, setMobileCarouselIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -55,6 +81,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const swiperRef = useRef<any>(null);
   const dragScrollRef = useRef<any>(null);
+  const mobileScrollViewRef = useRef<ScrollView>(null);
   const isDragging = useRef(false);
   const [spotlightWidth, setSpotlightWidth] = useState(800);
   const isMouseDown = useRef(false);
@@ -142,6 +169,32 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     }
   }, [carouselItems]);
 
+  // Auto-scroll for mobile carousel (infinite loop style)
+  useEffect(() => {
+    if (carouselItems.length > 0 && !isDesktop) {
+      const interval = setInterval(() => {
+        const nextScrollIndex = mobileCarouselIndex + 2;
+        mobileScrollViewRef.current?.scrollTo({
+          x: nextScrollIndex * (width * 0.68 + 16),
+          animated: true,
+        });
+      }, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [carouselItems, isDesktop, width, mobileCarouselIndex]);
+
+  // Initial scroll position setup for infinite carousel (scrolls to index 1 on load)
+  useEffect(() => {
+    if (carouselItems.length > 0 && !isDesktop) {
+      setTimeout(() => {
+        mobileScrollViewRef.current?.scrollTo({
+          x: 1 * (width * 0.68 + 16),
+          animated: false,
+        });
+      }, 150);
+    }
+  }, [carouselItems.length, isDesktop]);
+
   // Sync scroll offset with desktopCarouselIndex
   useEffect(() => {
     if (carouselItems.length > 0 && !isMouseDown.current) {
@@ -161,6 +214,48 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       }
     }
   }, [desktopCarouselIndex, spotlightWidth, carouselItems.length]);
+
+  const handleMobileScroll = (e: any) => {
+    if (carouselItems.length === 0) return;
+    const x = e.nativeEvent.contentOffset.x;
+    const cardWidth = width * 0.68;
+    const gap = 16;
+    const interval = cardWidth + gap;
+    const index = Math.round(x / interval);
+    
+    let activeIdx = index - 1;
+    if (activeIdx < 0) {
+      activeIdx = carouselItems.length - 1;
+    } else if (activeIdx >= carouselItems.length) {
+      activeIdx = 0;
+    }
+    
+    if (activeIdx !== mobileCarouselIndex && activeIdx >= 0 && activeIdx < carouselItems.length) {
+      setMobileCarouselIndex(activeIdx);
+    }
+  };
+
+  const handleMobileScrollEnd = (e: any) => {
+    if (carouselItems.length === 0) return;
+    const x = e.nativeEvent.contentOffset.x;
+    const cardWidth = width * 0.68;
+    const gap = 16;
+    const interval = cardWidth + gap;
+    const N = carouselItems.length;
+    const index = Math.round(x / interval);
+    
+    if (index === 0) {
+      mobileScrollViewRef.current?.scrollTo({
+        x: N * interval,
+        animated: false,
+      });
+    } else if (index === N + 1) {
+      mobileScrollViewRef.current?.scrollTo({
+        x: 1 * interval,
+        animated: false,
+      });
+    }
+  };
 
   const fetchAll = async () => {
     try {
@@ -287,15 +382,12 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <TouchableOpacity
         key={`${item.animeId}-${badgeText}-${index}`}
         style={[
-          styles.card,
+          styles.mobileGridCard,
           {
-            backgroundColor: colors.card,
             width: cardWidthPercent as any,
-            borderBottomWidth: 2.5,
-            borderBottomColor: colors.accent,
           },
         ]}
-        activeOpacity={0.82}
+        activeOpacity={0.8}
         onPress={() =>
           navigation.navigate("Episode", {
             bookId: item.animeId,
@@ -303,44 +395,17 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           })
         }
       >
-        {/* Cover Image */}
-        <View style={styles.cardImageWrap}>
-          <Image
-            source={{
-              uri: item.poster || "https://via.placeholder.com/180x240",
-            }}
-            style={styles.cardImage}
-            contentFit="cover"
-          />
-          {/* Rank badge */}
-          <View style={[styles.rankBadge, { backgroundColor: colors.accent }]}>
-            <Text style={styles.rankText}>#{index + 1}</Text>
-          </View>
-          {/* Type badge */}
-          <View
-            style={[styles.typeBadge, { backgroundColor: "rgba(0,0,0,0.6)" }]}
-          >
-            <Text style={styles.typeText}>{badgeText}</Text>
-          </View>
-        </View>
-
-        {/* Card Info */}
-        <View style={styles.cardInfo}>
-          <Text
-            style={[styles.cardTitle, { color: colors.text }]}
-            numberOfLines={2}
-          >
-            {item.title || "Unknown Anime"}
-          </Text>
-          <View style={styles.cardMeta}>
-            <Text style={[styles.cardEpisode, { color: colors.textSecondary }]}>
-              {item.totalEpisodes || "?"} ep
-            </Text>
-            <Text style={[styles.cardViews, { color: colors.accent }]}>
-              ⭐ {item.score || "N/A"}
-            </Text>
-          </View>
-        </View>
+        <Image
+          source={{ uri: item.poster || "https://via.placeholder.com/180x240" }}
+          style={styles.mobileGridPoster as any}
+          contentFit="cover"
+        />
+        <Text style={[styles.recentEpisode, { color: colors.textSecondary }]} numberOfLines={1}>
+          ⭐ {item.score || "N/A"} • {item.totalEpisodes ? `${item.totalEpisodes} eps` : "Ongoing"}
+        </Text>
+        <Text style={[styles.recentTitle, { color: colors.text }]} numberOfLines={2}>
+          {item.title}
+        </Text>
       </TouchableOpacity>
     );
   };
@@ -360,112 +425,65 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       {!isDesktop && (
         <View
           style={[
-            styles.header,
+            styles.mobileHeader,
             { backgroundColor: colors.sidebar, borderBottomColor: colors.border },
           ]}
         >
-          {/* Mobile Top Brand Logo & Right Controls */}
-          <View style={styles.mobileWelcomeRow}>
-            <TouchableOpacity
-              style={styles.mobileLogoSection}
-              onPress={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
-              activeOpacity={0.7}
-            >
-              <Image
-                source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
-                style={styles.mobileLogoOne as any}
-                contentFit="contain"
-              />
-              <Image
-                source={require("../../assets/nganime.png")}
-                style={styles.mobileLogoTwo as any}
-                contentFit="contain"
-              />
-            </TouchableOpacity>
-
-            <View style={styles.mobileWelcomeRight}>
-              <TouchableOpacity
-                onPress={toggleTheme}
-                style={styles.mobileThemeBtn}
+          <View style={styles.mobileHeaderRow}>
+            <View style={styles.mobileHeaderLeft}>
+              <Text style={[styles.mobileWelcomeBackText, { color: colors.textSecondary }]}>
+                Welcome back,
+              </Text>
+              <Text style={[styles.mobileWelcomeNameText, { color: colors.text }]} numberOfLines={1}>
+                {isAuthenticated ? (displayName || username || "User") : "Guest"}
+              </Text>
+            </View>
+            <View style={styles.mobileHeaderRight}>
+              <TouchableOpacity 
+                style={styles.mobileHeaderIconButton} 
                 activeOpacity={0.7}
+                onPress={toggleTheme}
               >
-                <Ionicons
-                  name={isDark ? "sunny" : "moon"}
-                  size={22}
-                  color={colors.text}
-                />
+                <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={22} color={colors.text} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.mobileHeaderIconButton} activeOpacity={0.7}>
+                <Ionicons name="notifications-outline" size={22} color={colors.text} />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => navigation.navigate(isAuthenticated ? "ProfileTab" : "Login")}
                 activeOpacity={0.8}
+                style={{ marginLeft: 4 }}
               >
                 <View
                   style={[
                     styles.mobileProfileAvatar,
-                    { backgroundColor: isDark ? "#2C2C2C" : "#EEE" },
+                    { 
+                      backgroundColor: isDark ? "#2C2C2C" : "#EEE",
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      overflow: "hidden",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    },
                   ]}
                 >
                   {isAuthenticated && profilePicture ? (
                     <Image
                       source={{ uri: profilePicture }}
-                      style={{ width: "100%", height: "100%", borderRadius: 16 }}
+                      style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
                     />
                   ) : (
                     <Ionicons
                       name={isAuthenticated ? "person" : "log-in"}
-                      size={16}
+                      size={14}
                       color={colors.accent}
                     />
                   )}
                 </View>
               </TouchableOpacity>
             </View>
-          </View>
-
-          {/* Mobile User Welcome Row (below the brand logo) */}
-          <View style={styles.mobileUserGreetingRow}>
-            <Text style={[styles.mobileWelcomeTitle, { color: colors.text }]}>
-              Halo {isAuthenticated && username ? username : "Guest"}
-            </Text>
-            <Text
-              style={[
-                styles.mobileWelcomeSubtitle,
-                { color: colors.textSecondary },
-              ]}
-            >
-              Tonton anime favoritmu di MyAnime
-            </Text>
-          </View>
-
-          <View style={styles.headerRow}>
-            {/* Fake Search Bar mengarah ke SearchScreen */}
-            <TouchableOpacity
-              style={[styles.searchBar, { backgroundColor: colors.searchBg }]}
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate("Search")}
-            >
-              <Text
-                style={[
-                  styles.searchInput,
-                  { color: colors.textMuted, lineHeight: 40 },
-                ]}
-              >
-                Cari anime favoritmu...
-              </Text>
-              <View style={styles.searchIconWrap}>
-                <Ionicons name="search" size={18} color={colors.textSecondary} />
-              </View>
-            </TouchableOpacity>
-
-            {/* Genre Button */}
-            <TouchableOpacity
-              style={[styles.genreButton, { backgroundColor: colors.accent }]}
-              activeOpacity={0.8}
-              onPress={() => navigation.navigate("GenreList")}
-            >
-              <Ionicons name="list" size={20} color="#FFF" />
-            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -772,106 +790,97 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         ) : (
           /* Old Mobile Layout */
           <View>
-            {/* HERO CAROUSEL */}
-            {carouselItems.length > 0 && (
-              <View 
-                {...Platform.select({
-                  web: mobilePanResponder.panHandlers,
-                  default: {},
-                })}
-                style={styles.heroContainer}
-              >
-                <Swiper
-                  ref={swiperRef}
-                  showsButtons={false}
-                  autoplay={!isDragging.current}
-                  autoplayTimeout={5}
-                  showsPagination
-                  dot={<View style={styles.heroDot} />}
-                  activeDot={
-                    <View
-                      style={[
-                        styles.heroActiveDot,
-                        { backgroundColor: colors.accent },
-                      ]}
-                    />
-                  }
-                >
-                  {carouselItems.map((item) => (
-                    <View key={`hero-${item.id}`} style={styles.heroSlide}>
-                      <Image
-                        source={{ uri: item.cover }}
-                        style={styles.heroImage}
-                        contentFit="cover"
-                        blurRadius={5}
-                      />
-                      <LinearGradient
-                        colors={[
-                          "rgba(0,0,0,0.85)",
-                          "rgba(0,0,0,0.6)",
-                          "rgba(0,0,0,0.4)",
-                          "rgba(0,0,0,0.7)",
-                        ]}
-                        style={styles.heroGradient}
-                      />
-                      <View style={styles.heroGradBottom} />
-
-                      <View style={styles.heroContentRow}>
-                        <View style={styles.heroPosterWrap}>
+            {/* HERO CAROUSEL (Mobile Peeking Card Carousel - Infinite Loop style) */}
+            {carouselItems.length > 0 && (() => {
+              const N = carouselItems.length;
+              const infiniteItems = [carouselItems[N - 1], ...carouselItems, carouselItems[0]];
+              return (
+                <View style={styles.mobileCarouselContainer}>
+                  <ScrollView
+                    ref={mobileScrollViewRef}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    snapToInterval={width * 0.68 + 16}
+                    decelerationRate="fast"
+                    snapToAlignment="center"
+                    contentContainerStyle={{
+                      paddingHorizontal: (width - (width * 0.68)) / 2,
+                      alignItems: "center",
+                    }}
+                    onScroll={handleMobileScroll}
+                    onMomentumScrollEnd={handleMobileScrollEnd}
+                    scrollEventThrottle={16}
+                  >
+                    {infiniteItems.map((item, index) => {
+                      let activeIdx = index - 1;
+                      if (activeIdx < 0) activeIdx = N - 1;
+                      else if (activeIdx >= N) activeIdx = 0;
+                      
+                      const isActive = activeIdx === mobileCarouselIndex;
+                      const cardWidth = width * 0.68;
+                      const gap = 16;
+                      
+                      return (
+                        <TouchableOpacity
+                          key={`mobile-carousel-infinite-${item.id}-${index}`}
+                          activeOpacity={0.9}
+                          onPress={() =>
+                            navigation.navigate("Episode", {
+                              bookId: item.navBookId,
+                              title: item.title,
+                            })
+                          }
+                          style={[
+                            styles.mobileCarouselCard,
+                            {
+                              width: cardWidth,
+                              height: cardWidth * 1.35,
+                              marginHorizontal: gap / 2,
+                              transform: [{ scale: isActive ? 1 : 0.92 }],
+                              opacity: isActive ? 1 : 0.65,
+                            },
+                          ]}
+                        >
                           <Image
                             source={{ uri: item.cover }}
-                            style={styles.heroPoster}
+                            style={styles.mobileCarouselImage}
                             contentFit="cover"
                           />
-                        </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
 
-                        <View style={styles.heroInfoPanel}>
-                          <Text
-                            style={[styles.heroLabel, { color: item.labelColor }]}
-                          >
-                            {item.label}
-                          </Text>
+                  {/* Page Indicator (Elongated Red Active Indicator) */}
+                  <View style={styles.indicatorContainer}>
+                    {carouselItems.map((_, index) => (
+                      <View
+                        key={`indicator-${index}`}
+                        style={[
+                          styles.indicatorDot,
+                          {
+                            backgroundColor: index === mobileCarouselIndex ? colors.accent : "rgba(255,255,255,0.25)",
+                            width: index === mobileCarouselIndex ? 20 : 6,
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
 
-                          <Text style={styles.heroTitle} numberOfLines={2}>
-                            {item.title}
-                          </Text>
-
-                          <Text style={styles.heroEpisodeCount}>{item.meta}</Text>
-
-                          <Text style={styles.heroDescription} numberOfLines={2}>
-                            {item.description ||
-                              "Anime seru yang tak boleh kamu lewatkan."}
-                          </Text>
-
-                          <TouchableOpacity
-                            style={[
-                              styles.heroBtn,
-                              { backgroundColor: item.labelColor },
-                            ]}
-                            activeOpacity={0.85}
-                            onPress={() => {
-                              if (isDragging.current) return;
-                              navigation.navigate(item.navTarget, {
-                                bookId: item.navBookId,
-                                title: item.title,
-                              });
-                            }}
-                          >
-                            <Ionicons
-                              name="play"
-                              size={14}
-                              color="#FFF"
-                              style={{ marginRight: 6 }}
-                            />
-                            <Text style={styles.heroBtnText}>Watch Now</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
+                  {/* Active Anime Info */}
+                  {carouselItems[mobileCarouselIndex] && (
+                    <View style={styles.activeInfoContainer}>
+                      <Text style={[styles.activeTitle, { color: colors.text }]} numberOfLines={1}>
+                        {carouselItems[mobileCarouselIndex].title}
+                      </Text>
+                      <Text style={[styles.activeMeta, { color: colors.textSecondary }]}>
+                        {carouselItems[mobileCarouselIndex].genres.join(" • ")}  •  {carouselItems[mobileCarouselIndex].meta}
+                      </Text>
                     </View>
-                  ))}
-                </Swiper>
-              </View>
-            )}
+                  )}
+                </View>
+              );
+            })()}
 
             {/* SECTION 1: ANIME ONGOING */}
             {ongoingAnime.length > 0 && (
@@ -1671,5 +1680,89 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     marginTop: 12,
     marginBottom: 4,
+  },
+  mobileGridCard: {
+    gap: 6,
+    marginBottom: 16,
+  },
+  mobileGridPoster: {
+    width: "100%",
+    aspectRatio: 3 / 4,
+    borderRadius: 8,
+  },
+  mobileHeader: {
+    paddingTop: Platform.OS === "ios" ? 50 : 20,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  mobileHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  mobileHeaderLeft: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  mobileWelcomeBackText: {
+    fontSize: 12,
+    fontWeight: "normal",
+    marginBottom: 4,
+  },
+  mobileWelcomeNameText: {
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  mobileHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  mobileHeaderIconButton: {
+    padding: 6,
+  },
+  mobileCarouselContainer: {
+    paddingVertical: 16,
+    width: "100%",
+  },
+  mobileCarouselCard: {
+    borderRadius: 10,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    backgroundColor: "#1A1A1A",
+  },
+  mobileCarouselImage: {
+    width: "100%",
+    height: "100%",
+  },
+  indicatorContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 16,
+    gap: 6,
+  },
+  indicatorDot: {
+    height: 6,
+    borderRadius: 3,
+  },
+  activeInfoContainer: {
+    alignItems: "center",
+    marginTop: 16,
+    paddingHorizontal: 32,
+    gap: 4,
+  },
+  activeTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  activeMeta: {
+    fontSize: 12,
+    textAlign: "center",
   },
 });

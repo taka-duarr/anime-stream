@@ -21,6 +21,7 @@ export const WebFooter = () => {
   if (Platform.OS !== "web") return null;
   
   const isDesktop = width >= 768;
+  if (!isDesktop) return null;
 
   return (
     <View style={[styles.webFooterContainer, { backgroundColor: isDark ? "#121212" : colors.bgSecondary, borderTopColor: colors.border }]}>
