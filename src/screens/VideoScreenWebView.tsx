@@ -1561,7 +1561,7 @@ const styles = StyleSheet.create({
     backgroundColor: "black",
   },
   centerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.8)",
@@ -1585,7 +1585,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   controlsOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 10,
   },
   skipFeedbackAbsolute: {
@@ -1765,7 +1765,7 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   tapToPlayOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "center",
     alignItems: "center",

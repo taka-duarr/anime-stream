@@ -418,6 +418,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <StatusBar
         style={isDark ? "light" : "dark"}
+        // @ts-ignore
         backgroundColor={colors.sidebar}
       />
 
@@ -431,12 +432,18 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         >
           <View style={styles.mobileHeaderRow}>
             <View style={styles.mobileHeaderLeft}>
-              <Text style={[styles.mobileWelcomeBackText, { color: colors.textSecondary }]}>
-                Welcome back,
-              </Text>
-              <Text style={[styles.mobileWelcomeNameText, { color: colors.text }]} numberOfLines={1}>
-                {isAuthenticated ? (displayName || username || "User") : "Guest"}
-              </Text>
+              <View style={styles.mobileLogoSection}>
+                <Image
+                  source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
+                  style={styles.mobileLogoOne as any}
+                  contentFit="contain"
+                />
+                <Image
+                  source={require("../../assets/nganime.png")}
+                  style={styles.mobileLogoTwo as any}
+                  contentFit="contain"
+                />
+              </View>
             </View>
             <View style={styles.mobileHeaderRight}>
               <TouchableOpacity 
@@ -810,6 +817,9 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     onScroll={handleMobileScroll}
                     onMomentumScrollEnd={handleMobileScrollEnd}
                     scrollEventThrottle={16}
+                    style={Platform.OS === "web" ? {
+                      scrollSnapType: "x mandatory",
+                    } as any : undefined}
                   >
                     {infiniteItems.map((item, index) => {
                       let activeIdx = index - 1;
@@ -839,6 +849,9 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                               transform: [{ scale: isActive ? 1 : 0.92 }],
                               opacity: isActive ? 1 : 0.65,
                             },
+                            Platform.OS === "web" ? {
+                              scrollSnapAlign: "center",
+                            } as any : undefined
                           ]}
                         >
                           <Image

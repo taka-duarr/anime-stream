@@ -129,7 +129,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
       <View style={[styles.desktopWrapper, { backgroundColor: isDark ? "rgba(10, 11, 14, 0.78)" : "rgba(15, 23, 42, 0.65)" }]}>
         {/* Tap backdrop to go back */}
         <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           activeOpacity={1}
           onPress={() => navigation.goBack()}
         />
@@ -161,7 +161,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
             />
             <LinearGradient
               colors={["rgba(26, 34, 48, 0.6)", "rgba(13, 14, 21, 0.92)"]}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             />
 
             <View style={styles.splitLeftContent}>
@@ -201,7 +201,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                 ]}
               >
                 <Ionicons name="alert-circle" size={16} color={colors.accent} style={styles.errorIcon} />
-                <Text style={[styles.errorText, { color: colors.accent }]} numberOfLines={1}>
+                <Text style={[styles.errorText, { color: colors.accent }]}>
                   {error}
                 </Text>
               </View>
@@ -250,7 +250,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                     setError("");
                     setSuccess("");
                   }}
-                  onFocus={() => setIsUsernameFocused(true)}
+                  onFocus={() => {
+                    setIsUsernameFocused(true);
+                    setError("");
+                    setSuccess("");
+                  }}
                   onBlur={() => setIsUsernameFocused(false)}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -287,7 +291,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                     setError("");
                     setSuccess("");
                   }}
-                  onFocus={() => setIsPasswordFocused(true)}
+                  onFocus={() => {
+                    setIsPasswordFocused(true);
+                    setError("");
+                    setSuccess("");
+                  }}
                   onBlur={() => setIsPasswordFocused(false)}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
@@ -336,7 +344,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                     setError("");
                     setSuccess("");
                   }}
-                  onFocus={() => setIsConfirmPasswordFocused(true)}
+                  onFocus={() => {
+                    setIsConfirmPasswordFocused(true);
+                    setError("");
+                    setSuccess("");
+                  }}
                   onBlur={() => setIsConfirmPasswordFocused(false)}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
@@ -497,7 +509,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                     setError("");
                     setSuccess("");
                   }}
-                  onFocus={() => setIsUsernameFocused(true)}
+                  onFocus={() => {
+                    setIsUsernameFocused(true);
+                    setError("");
+                    setSuccess("");
+                  }}
                   onBlur={() => setIsUsernameFocused(false)}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -536,7 +552,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                     setError("");
                     setSuccess("");
                   }}
-                  onFocus={() => setIsPasswordFocused(true)}
+                  onFocus={() => {
+                    setIsPasswordFocused(true);
+                    setError("");
+                    setSuccess("");
+                  }}
                   onBlur={() => setIsPasswordFocused(false)}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
@@ -590,7 +610,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
                     setError("");
                     setSuccess("");
                   }}
-                  onFocus={() => setIsConfirmPasswordFocused(true)}
+                  onFocus={() => {
+                    setIsConfirmPasswordFocused(true);
+                    setError("");
+                    setSuccess("");
+                  }}
                   onBlur={() => setIsConfirmPasswordFocused(false)}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"

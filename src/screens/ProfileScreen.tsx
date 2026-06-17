@@ -42,6 +42,32 @@ const ProfileScreen = ({ navigation }: any) => {
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editEmail, setEditEmail] = useState("");
 
+  // Custom Alert Dialog State
+  const [customAlert, setCustomAlert] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    buttons: { text: string; onPress?: () => void; style?: "cancel" | "default" | "destructive" }[];
+  }>({
+    visible: false,
+    title: "",
+    message: "",
+    buttons: [],
+  });
+
+  const showCustomAlert = (
+    title: string,
+    message: string,
+    buttons?: { text: string; onPress?: () => void; style?: "cancel" | "default" | "destructive" }[]
+  ) => {
+    setCustomAlert({
+      visible: true,
+      title,
+      message,
+      buttons: buttons || [{ text: "OK", onPress: () => {} }],
+    });
+  };
+
   // Load profile details on mount/username change
   useEffect(() => {
     const loadCustomProfile = async () => {
@@ -86,10 +112,10 @@ const ProfileScreen = ({ navigation }: any) => {
       setCustomDisplayName(editDisplayName);
       setCustomEmail(editEmail);
       setIsEditModalVisible(false);
-      Alert.alert("Sukses", "Profil berhasil disimpan");
+      showCustomAlert("Sukses", "Profil berhasil disimpan");
     } catch (error) {
       console.error("[PROFILE] Gagal menyimpan profil:", error);
-      Alert.alert("Error", "Gagal menyimpan profil");
+      showCustomAlert("Error", "Gagal menyimpan profil");
     }
   };
 
@@ -141,7 +167,7 @@ const ProfileScreen = ({ navigation }: any) => {
   };
 
   const handleLogoutPress = () => {
-    Alert.alert(
+    showCustomAlert(
       "Konfirmasi Logout",
       "Apakah Anda yakin ingin keluar dari akun Anda?",
       [
@@ -154,8 +180,7 @@ const ProfileScreen = ({ navigation }: any) => {
           style: "destructive",
           onPress: handleLogout,
         },
-      ],
-      { cancelable: true }
+      ]
     );
   };
 
@@ -173,7 +198,7 @@ const ProfileScreen = ({ navigation }: any) => {
 
   const handleUploadProfilePicture = async () => {
     if (!isAuthenticated) {
-      Alert.alert(
+      showCustomAlert(
         "Login Diperlukan",
         "Anda harus login untuk mengubah foto profil",
       );
@@ -186,7 +211,7 @@ const ProfileScreen = ({ navigation }: any) => {
         await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permissionResult.granted) {
-        Alert.alert(
+        showCustomAlert(
           "Izin Diperlukan",
           "Aplikasi memerlukan izin untuk mengakses galeri foto Anda",
         );
@@ -195,7 +220,7 @@ const ProfileScreen = ({ navigation }: any) => {
 
       // Pick image
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -216,17 +241,17 @@ const ProfileScreen = ({ navigation }: any) => {
       const pictureUrl = api.getProfilePictureUrl(response.profile_picture);
       setProfilePicture(pictureUrl);
 
-      Alert.alert("Sukses", "Foto profil berhasil diubah");
+      showCustomAlert("Sukses", "Foto profil berhasil diubah");
     } catch (error: any) {
       console.error("[PROFILE] Failed to upload profile picture:", error);
 
       if (error.response?.status === 401) {
-        Alert.alert(
+        showCustomAlert(
           "Error",
           "Sesi Anda telah berakhir. Silakan login kembali.",
         );
       } else {
-        Alert.alert(
+        showCustomAlert(
           "Error",
           "Gagal mengubah foto profil. Coba lagi.\n" +
           (error.response?.data?.error || error.message || ""),
@@ -305,6 +330,7 @@ const ProfileScreen = ({ navigation }: any) => {
     >
       <StatusBar
         style={isDark ? "light" : "dark"}
+        // @ts-ignore
         backgroundColor={colors.sidebar}
       />
 
@@ -772,6 +798,108 @@ const ProfileScreen = ({ navigation }: any) => {
               >
                 <Text style={styles.modalBtnSaveText}>Simpan</Text>
               </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* CUSTOM ALERT DIALOG */}
+      <Modal
+        visible={customAlert.visible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setCustomAlert({ ...customAlert, visible: false })}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setCustomAlert({ ...customAlert, visible: false })}
+        >
+          <TouchableOpacity
+            style={[styles.modalContent, { backgroundColor: colors.card, maxWidth: 320, borderRadius: 16 }]}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={{ padding: 24, alignItems: "center" }}>
+              <View
+                style={[
+                  styles.modalIconContainer,
+                  {
+                    backgroundColor:
+                      customAlert.title.toLowerCase().includes("sukses")
+                        ? "rgba(76, 175, 80, 0.15)"
+                        : customAlert.title.toLowerCase().includes("error") || customAlert.title.toLowerCase().includes("gagal")
+                        ? "rgba(230, 51, 51, 0.15)"
+                        : "rgba(255, 165, 0, 0.15)",
+                    marginBottom: 16,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    customAlert.title.toLowerCase().includes("sukses")
+                      ? "checkmark-circle"
+                      : customAlert.title.toLowerCase().includes("error") || customAlert.title.toLowerCase().includes("gagal")
+                      ? "alert-circle"
+                      : "information-circle"
+                  }
+                  size={32}
+                  color={
+                    customAlert.title.toLowerCase().includes("sukses")
+                      ? "#4CAF50"
+                      : customAlert.title.toLowerCase().includes("error") || customAlert.title.toLowerCase().includes("gagal")
+                      ? "#E63333"
+                      : colors.accent
+                  }
+                />
+              </View>
+
+              <Text style={[styles.modalTitle, { color: colors.text, fontSize: 18, textAlign: "center", marginBottom: 8, marginTop: 0 }]}>
+                {customAlert.title}
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: "center", marginBottom: 24, lineHeight: 18 }}>
+                {customAlert.message}
+              </Text>
+
+              <View style={{ width: "100%", gap: 8 }}>
+                {customAlert.buttons.map((btn, idx) => {
+                  const isDestructive = btn.style === "destructive";
+                  const isCancel = btn.style === "cancel";
+                  
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[
+                        {
+                          width: "100%",
+                          height: 40,
+                          borderRadius: 8,
+                          justifyContent: "center",
+                          alignItems: "center",
+                        },
+                        isCancel
+                          ? { borderWidth: 1, borderColor: colors.border }
+                          : { backgroundColor: isDestructive ? "#E63333" : colors.accent }
+                      ]}
+                      onPress={() => {
+                        setCustomAlert({ ...customAlert, visible: false });
+                        if (btn.onPress) btn.onPress();
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "700",
+                          color: isCancel ? colors.textSecondary : "#FFF",
+                        }}
+                      >
+                        {btn.text}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
           </TouchableOpacity>
         </TouchableOpacity>

@@ -793,7 +793,12 @@ export default function EpisodeScreen({ route, navigation }: any) {
   if (isDesktop) {
     return (
       <View style={[styles.container, { backgroundColor: colors.bg }]}>
-        <StatusBar style={isDark ? "light" : "dark"} backgroundColor="transparent" translucent />
+        <StatusBar
+          style={isDark ? "light" : "dark"}
+          // @ts-ignore
+          backgroundColor="transparent"
+          translucent
+        />
         
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -838,7 +843,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
                   >
                     <Image
                       source={{ uri: detail?.poster || "https://via.placeholder.com/400x600" }}
-                      style={StyleSheet.absoluteFillObject}
+                      style={StyleSheet.absoluteFill}
                       contentFit="cover"
                     />
                     <View style={styles.playOverlay}>
@@ -1183,6 +1188,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <StatusBar
         style={isDark ? "light" : "dark"}
+        // @ts-ignore
         backgroundColor="transparent"
         translucent
       />
@@ -1260,7 +1266,7 @@ const styles = StyleSheet.create({
     minHeight: 500,
   },
   desktopBgOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   desktopContentRow: {
     flexDirection: "row",
@@ -1467,7 +1473,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   playerLoadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
@@ -1599,7 +1605,7 @@ const styles = StyleSheet.create({
     fontWeight: "normal",
   },
   desktopPlayPlaceholder: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#000",
@@ -1607,7 +1613,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   playOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",

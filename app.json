@@ -6,6 +6,11 @@
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#121212"
+    },
     "newArchEnabled": true,
     "android": {
       "package": "com.myanime.app",
@@ -28,7 +33,9 @@
       "favicon": "./assets/logo.png"
     },
     "plugins": [
-      "expo-video"
+      "expo-video",
+      "expo-image",
+      "expo-status-bar"
     ],
     "extra": {
       "eas": {

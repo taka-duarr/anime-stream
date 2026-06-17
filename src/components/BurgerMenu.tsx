@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   panel: {
     position: "absolute",

@@ -119,7 +119,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
       <View style={[styles.desktopWrapper, { backgroundColor: isDark ? "rgba(10, 11, 14, 0.78)" : "rgba(15, 23, 42, 0.65)" }]}>
         {/* Tap backdrop to go back */}
         <TouchableOpacity
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           activeOpacity={1}
           onPress={() => navigation.goBack()}
         />
@@ -151,7 +151,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation, route }) => {
             />
             <LinearGradient
               colors={["rgba(26, 34, 48, 0.6)", "rgba(13, 14, 21, 0.92)"]}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             />
 
             <View style={styles.splitLeftContent}>
