@@ -355,6 +355,7 @@ const MyListScreen = ({ navigation }: any) => {
     >
       <StatusBar
         style={isDark ? "light" : "dark"}
+        // @ts-ignore
         backgroundColor={colors.sidebar}
       />
 
