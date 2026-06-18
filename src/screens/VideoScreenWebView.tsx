@@ -83,11 +83,11 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
   const { colors } = useTheme();
 
   const webViewRef = useRef<WebView>(null);
-  const hideControlsTimeout = useRef<NodeJS.Timeout | null>(null);
-  const progressUpdateInterval = useRef<NodeJS.Timeout | null>(null);
+  const hideControlsTimeout = useRef<any>(null);
+  const progressUpdateInterval = useRef<any>(null);
   const lastTapTime = useRef<number>(0);
   const lastTapSide = useRef<'left' | 'right' | 'center' | null>(null);
-  const skipFeedbackTimeout = useRef<NodeJS.Timeout | null>(null);
+  const skipFeedbackTimeout = useRef<any>(null);
 
   // Double-tap skip feedback state
   const [skipFeedback, setSkipFeedback] = useState<'left' | 'right' | null>(null);

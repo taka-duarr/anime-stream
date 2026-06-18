@@ -920,7 +920,10 @@ export default function EpisodeScreen({ route, navigation }: any) {
                             <option
                               key={ep.chapterId}
                               value={ep.chapterId}
-                              style={{ color: isWatched ? colors.textMuted : colors.text }}
+                              style={{
+                                color: isWatched ? (isDark ? "rgba(255, 255, 255, 0.38)" : "rgba(0, 0, 0, 0.38)") : colors.text,
+                                backgroundColor: isWatched ? (isDark ? "#121212" : "#F1F5F9") : colors.card,
+                              }}
                             >
                               {cleanTitle}
                             </option>

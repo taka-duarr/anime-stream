@@ -119,7 +119,7 @@ const waitForRateLimit = async (): Promise<void> => {
     console.log(
       `[RATE LIMIT] Waiting ${Math.ceil(timeUntilReset / 1000)} seconds...`,
     );
-    await new Promise((resolve) => setTimeout(resolve, timeUntilReset + 100));
+    await new Promise<void>((resolve) => setTimeout(() => resolve(), timeUntilReset + 100));
   }
 };
 
@@ -154,8 +154,8 @@ const retryWithRateLimit = async <T>(
     console.warn(
       `[CIRCUIT BREAKER] Circuit open, waiting ${waitTime}s before retry...`,
     );
-    await new Promise((resolve) =>
-      setTimeout(resolve, circuitBreakerOpenUntil - now),
+    await new Promise<void>((resolve) =>
+      setTimeout(() => resolve(), circuitBreakerOpenUntil - now),
     );
   }
 
@@ -235,7 +235,7 @@ const retryWithRateLimit = async <T>(
         `[API RETRY] ${status === 502 ? "502 detected - using longer delay." : ""} ` +
           `Menunggu ${(delay / 1000).toFixed(1)}s sebelum retry...`,
       );
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), delay));
     }
   }
 
@@ -860,7 +860,7 @@ export const saveWatchHistory = async (animeId: string, episodeId: string) => {
       return null;
     }
     console.log(`[HISTORY] Saving watch history: ${animeId} - ${episodeId}`);
-    const response = await authApi.post("/api/history", {
+    const response = await authApi.post("/api/history/", {
       anime_id: animeId,
       episode_id: episodeId,
     });
