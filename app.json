@@ -15,10 +15,6 @@
     "android": {
       "package": "com.myanime.app",
       "versionCode": 1,
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/logo.png",
-        "backgroundColor": "#FF4757"
-      },
       "usesCleartextTraffic": true,
       "permissions": [
         "INTERNET",
