@@ -886,94 +886,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
               {/* CONTROLS CARD */}
               <View style={[styles.controlsCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
                 <View style={styles.dropdownsRow}>
-                  {/* Episode Selector */}
-                  <View style={styles.controlGroup}>
-                    <Text style={[styles.controlLabel, { color: colors.textSecondary }]}>Episodes</Text>
-                    <View style={styles.episodeSelectWrap}>
-                      <select
-                        value={activeEpisode?.chapterId || ""}
-                        onChange={(e) => {
-                          const selectedEp = episodes.find(ep => ep.chapterId === (e.target as any).value);
-                          if (selectedEp) {
-                            setActiveEpisode(selectedEp);
-                            setIsPlayingWeb(false);
-                            loadStreamingUrl(selectedEp.chapterId);
-                          }
-                        }}
-                        style={{
-                          backgroundColor: colors.card,
-                          color: colors.text,
-                          border: `1px solid ${colors.border}`,
-                          padding: "10px 16px",
-                          borderRadius: "8px",
-                          fontSize: "14px",
-                          fontWeight: "600",
-                          outline: "none",
-                          width: "180px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {episodes.map((ep) => {
-                          const cleanTitle = getCleanEpisodeTitle(ep.chapterName, detail?.title || title);
-                          const isWatched = watchedEpisodes.includes(ep.chapterId);
-                          return (
-                            <option
-                              key={ep.chapterId}
-                              value={ep.chapterId}
-                              style={{
-                                color: isWatched ? (isDark ? "rgba(255, 255, 255, 0.38)" : "rgba(0, 0, 0, 0.38)") : colors.text,
-                                backgroundColor: isWatched ? (isDark ? "#121212" : "#F1F5F9") : colors.card,
-                              }}
-                            >
-                              {cleanTitle}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      
-                      {/* Arrows Nav */}
-                      <View style={styles.epNavRow}>
-                        <TouchableOpacity
-                          style={[
-                            styles.navArrowBtn,
-                            { backgroundColor: colors.card, borderColor: colors.border },
-                            episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === episodes.length - 1 && { opacity: 0.5 }
-                          ]}
-                          disabled={episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === episodes.length - 1}
-                          onPress={() => {
-                            const curIdx = episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId);
-                            if (curIdx < episodes.length - 1) {
-                              const prevEp = episodes[curIdx + 1];
-                              setActiveEpisode(prevEp);
-                              setIsPlayingWeb(false);
-                              loadStreamingUrl(prevEp.chapterId);
-                            }
-                          }}
-                        >
-                          <Ionicons name="arrow-back" size={14} color={colors.text} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[
-                            styles.navArrowBtn,
-                            { backgroundColor: colors.card, borderColor: colors.border },
-                            episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === 0 && { opacity: 0.5 }
-                          ]}
-                          disabled={episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === 0}
-                          onPress={() => {
-                            const curIdx = episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId);
-                            if (curIdx > 0) {
-                              const nextEp = episodes[curIdx - 1];
-                              setActiveEpisode(nextEp);
-                              setIsPlayingWeb(false);
-                              loadStreamingUrl(nextEp.chapterId);
-                            }
-                          }}
-                        >
-                          <Ionicons name="arrow-forward" size={14} color={colors.text} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
+
 
                   {/* Server Selector */}
                   <View style={styles.controlGroup}>
@@ -1086,98 +999,34 @@ export default function EpisodeScreen({ route, navigation }: any) {
             {/* Right Column: Recommendations Sidebars */}
             <View style={styles.desktopRightCol}>
               
-              {/* TOP RATED */}
-              <View style={styles.sidebarGroup}>
+              <View style={[styles.sidebarGroup, { height: "100%", maxHeight: 900 }]}>
                 <View style={styles.sidebarHeader}>
-                  <Text style={[styles.sidebarTitle, { color: colors.text }]}>Top Rated</Text>
-                  <TouchableOpacity
-                    onPress={() => navigation.navigate("AnimeList", { type: "completed", title: "Anime Completed" })}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.viewAllLink, { color: colors.accent }]}>VIEW ALL</Text>
-                  </TouchableOpacity>
+                  <Text style={[styles.sidebarTitle, { color: colors.text }]}>Episodes ({episodes.length})</Text>
                 </View>
-                
-                <View style={styles.sidebarList}>
-                  {relatedSeries.length > 0 ? (
-                    relatedSeries.map((item) => (
-                      <TouchableOpacity
-                        key={item.animeId}
-                        style={[styles.sidebarCard, { backgroundColor: colors.card }]}
-                        activeOpacity={0.8}
-                        onPress={() => {
-                          navigation.push("Episode", {
-                            bookId: item.animeId,
-                            title: item.title,
+                <EpisodeList
+                  episodes={episodes}
+                  posterUrl={detail?.poster}
+                  animeTitle={detail?.title || title}
+                  watchedEpisodes={watchedEpisodes}
+                  onEpisodePress={(episode) => {
+                    if (isAuthenticated && bookId && episode.chapterId) {
+                      api.saveWatchHistory(bookId, episode.chapterId)
+                        .then(() => {
+                          setWatchedEpisodes(prev => {
+                            if (!prev.includes(episode.chapterId)) {
+                              return [...prev, episode.chapterId];
+                            }
+                            return prev;
                           });
-                        }}
-                      >
-                        <Image
-                          source={{ uri: item.poster }}
-                          style={styles.sidebarPoster as any}
-                          contentFit="cover"
-                        />
-                        <View style={styles.sidebarInfo}>
-                          <Text style={[styles.sidebarCardTitle, { color: colors.text }]} numberOfLines={2}>
-                            {item.title}
-                          </Text>
-                          <Text style={[styles.sidebarCardSub, { color: colors.textSecondary }]}>
-                            {item.status || "Completed"}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))
-                  ) : (
-                    <ActivityIndicator size="small" color={colors.accent} style={{ alignSelf: "flex-start", marginTop: 10 }} />
-                  )}
-                </View>
-              </View>
-
-              {/* ONGOING SERIES */}
-              <View style={[styles.sidebarGroup, { marginTop: 40 }]}>
-                <View style={styles.sidebarHeader}>
-                  <Text style={[styles.sidebarTitle, { color: colors.text }]}>Ongoing Series</Text>
-                  <TouchableOpacity
-                    onPress={() => navigation.navigate("AnimeList", { type: "ongoing", title: "Anime Ongoing" })}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.viewAllLink, { color: colors.accent }]}>VIEW ALL</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.sidebarList}>
-                  {suggestedSeries.length > 0 ? (
-                    suggestedSeries.map((item) => (
-                      <TouchableOpacity
-                        key={item.animeId}
-                        style={[styles.sidebarCard, { backgroundColor: colors.card }]}
-                        activeOpacity={0.8}
-                        onPress={() => {
-                          navigation.push("Episode", {
-                            bookId: item.animeId,
-                            title: item.title,
-                          });
-                        }}
-                      >
-                        <Image
-                          source={{ uri: item.poster }}
-                          style={styles.sidebarPoster as any}
-                          contentFit="cover"
-                        />
-                        <View style={styles.sidebarInfo}>
-                          <Text style={[styles.sidebarCardTitle, { color: colors.text }]} numberOfLines={2}>
-                            {item.title}
-                          </Text>
-                          <Text style={[styles.sidebarCardSub, { color: colors.textSecondary }]}>
-                            {item.status || "Episode 1"}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))
-                  ) : (
-                    <ActivityIndicator size="small" color={colors.accent} style={{ alignSelf: "flex-start", marginTop: 10 }} />
-                  )}
-                </View>
+                        })
+                        .catch(err => console.error("Gagal menyimpan riwayat:", err));
+                    }
+                    setActiveEpisode(episode);
+                    setIsPlayingWeb(false);
+                    loadStreamingUrl(episode.chapterId);
+                  }}
+                  maxHeight={850}
+                />
               </View>
 
             </View>
