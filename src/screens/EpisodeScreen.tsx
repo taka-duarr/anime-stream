@@ -82,6 +82,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const [episodeDetail, setEpisodeDetail] = useState<any>(null);
   const [relatedSeries, setRelatedSeries] = useState<any[]>([]);
   const [suggestedSeries, setSuggestedSeries] = useState<any[]>([]);
+  const [sidebarTab, setSidebarTab] = useState<"episodes" | "recommendations">("episodes");
 
   // Load streaming URL for desktop player
   const loadStreamingUrl = async (episodeId: string, server?: any) => {
@@ -1080,102 +1081,232 @@ export default function EpisodeScreen({ route, navigation }: any) {
 
             </View>
 
-            {/* Right Column: Recommendations Sidebars */}
+            {/* Right Column: Dynamic Sidebar (Episodes / Recommendations) */}
             <View style={styles.desktopRightCol}>
               
-              {/* TOP RATED */}
-              <View style={styles.sidebarGroup}>
-                <View style={styles.sidebarHeader}>
-                  <Text style={[styles.sidebarTitle, { color: colors.text }]}>Top Rated</Text>
-                  <TouchableOpacity
-                    onPress={() => navigation.navigate("AnimeList", { type: "completed", title: "Anime Completed" })}
-                    activeOpacity={0.7}
+              {/* Tab Selector */}
+              <View style={[styles.tabContainer, { borderBottomColor: colors.border }]}>
+                <TouchableOpacity
+                  style={[
+                    styles.tabButton,
+                    sidebarTab === "episodes" && [styles.activeTabButton, { borderBottomColor: colors.accent }]
+                  ]}
+                  onPress={() => setSidebarTab("episodes")}
+                >
+                  <Ionicons
+                    name="play-circle-outline"
+                    size={18}
+                    color={sidebarTab === "episodes" ? colors.accent : colors.textSecondary}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text
+                    style={[
+                      styles.tabText,
+                      { color: sidebarTab === "episodes" ? colors.text : colors.textSecondary }
+                    ]}
                   >
-                    <Text style={[styles.viewAllLink, { color: colors.accent }]}>VIEW ALL</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.sidebarList}>
-                  {relatedSeries.length > 0 ? (
-                    relatedSeries.map((item) => (
-                      <TouchableOpacity
-                        key={item.animeId}
-                        style={[styles.sidebarCard, { backgroundColor: colors.card }]}
-                        activeOpacity={0.8}
-                        onPress={() => {
-                          navigation.push("Episode", {
-                            bookId: item.animeId,
-                            title: item.title,
-                          });
-                        }}
-                      >
-                        <Image
-                          source={{ uri: item.poster }}
-                          style={styles.sidebarPoster as any}
-                          contentFit="cover"
-                        />
-                        <View style={styles.sidebarInfo}>
-                          <Text style={[styles.sidebarCardTitle, { color: colors.text }]} numberOfLines={2}>
-                            {item.title}
-                          </Text>
-                          <Text style={[styles.sidebarCardSub, { color: colors.textSecondary }]}>
-                            {item.status || "Completed"}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))
-                  ) : (
-                    <ActivityIndicator size="small" color={colors.accent} style={{ alignSelf: "flex-start", marginTop: 10 }} />
-                  )}
-                </View>
+                    Episodes
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.tabButton,
+                    sidebarTab === "recommendations" && [styles.activeTabButton, { borderBottomColor: colors.accent }]
+                  ]}
+                  onPress={() => setSidebarTab("recommendations")}
+                >
+                  <Ionicons
+                    name="grid-outline"
+                    size={16}
+                    color={sidebarTab === "recommendations" ? colors.accent : colors.textSecondary}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text
+                    style={[
+                      styles.tabText,
+                      { color: sidebarTab === "recommendations" ? colors.text : colors.textSecondary }
+                    ]}
+                  >
+                    Rekomendasi
+                  </Text>
+                </TouchableOpacity>
               </View>
 
-              {/* ONGOING SERIES */}
-              <View style={[styles.sidebarGroup, { marginTop: 40 }]}>
-                <View style={styles.sidebarHeader}>
-                  <Text style={[styles.sidebarTitle, { color: colors.text }]}>Ongoing Series</Text>
-                  <TouchableOpacity
-                    onPress={() => navigation.navigate("AnimeList", { type: "ongoing", title: "Anime Ongoing" })}
-                    activeOpacity={0.7}
+              {/* Tab Contents */}
+              {sidebarTab === "episodes" ? (
+                <View style={styles.sidebarEpisodeListContainer}>
+                  <Text style={[styles.sidebarEpisodesTitle, { color: colors.text }]}>
+                    Daftar Episode
+                  </Text>
+                  
+                  <ScrollView
+                    nestedScrollEnabled={true}
+                    showsVerticalScrollIndicator={false}
+                    style={{ maxHeight: 600 }}
                   >
-                    <Text style={[styles.viewAllLink, { color: colors.accent }]}>VIEW ALL</Text>
-                  </TouchableOpacity>
+                    {episodes.map((ep) => {
+                      const cleanTitle = getCleanEpisodeTitle(ep.chapterName, detail?.title || title);
+                      const isWatched = watchedEpisodes.includes(ep.chapterId);
+                      const isActive = activeEpisode?.chapterId === ep.chapterId;
+                      
+                      return (
+                        <TouchableOpacity
+                          key={ep.chapterId}
+                          style={[
+                            styles.sidebarEpisodeCard,
+                            { backgroundColor: colors.card, borderColor: colors.border },
+                            isActive && { borderColor: colors.accent, borderWidth: 1 },
+                            isWatched && !isActive && { opacity: 0.6 }
+                          ]}
+                          onPress={() => {
+                            setActiveEpisode(ep);
+                            setIsPlayingWeb(false);
+                            loadStreamingUrl(ep.chapterId);
+                            if (isAuthenticated && bookId && ep.chapterId) {
+                              api.saveWatchHistory(bookId, ep.chapterId)
+                                .then(() => {
+                                  setWatchedEpisodes(prev => {
+                                    if (!prev.includes(ep.chapterId)) {
+                                      return [...prev, ep.chapterId];
+                                    }
+                                    return prev;
+                                  });
+                                })
+                                .catch(err => console.error("Gagal menyimpan riwayat:", err));
+                            }
+                          }}
+                        >
+                          <Image
+                            source={{ uri: ep.chapterImg || detail?.poster }}
+                            style={styles.sidebarEpisodeImage}
+                            contentFit="cover"
+                          />
+                          <View style={styles.sidebarEpisodeInfo}>
+                            <Text
+                              style={[
+                                styles.sidebarEpisodeTitleText,
+                                { color: isActive ? colors.accent : colors.text }
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {cleanTitle}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.sidebarEpisodeSubText,
+                                { color: colors.textSecondary }
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {ep.duration || ep.releaseTime || "Detail"}
+                            </Text>
+                          </View>
+                          {isActive && (
+                            <Ionicons name="play" size={16} color={colors.accent} style={{ marginLeft: 6 }} />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
                 </View>
-                
-                <View style={styles.sidebarList}>
-                  {suggestedSeries.length > 0 ? (
-                    suggestedSeries.map((item) => (
+              ) : (
+                <View>
+                  {/* TOP RATED */}
+                  <View style={styles.sidebarGroup}>
+                    <View style={styles.sidebarHeader}>
+                      <Text style={[styles.sidebarTitle, { color: colors.text }]}>Top Rated</Text>
                       <TouchableOpacity
-                        key={item.animeId}
-                        style={[styles.sidebarCard, { backgroundColor: colors.card }]}
-                        activeOpacity={0.8}
-                        onPress={() => {
-                          navigation.push("Episode", {
-                            bookId: item.animeId,
-                            title: item.title,
-                          });
-                        }}
+                        onPress={() => navigation.navigate("AnimeList", { type: "completed", title: "Anime Completed" })}
+                        activeOpacity={0.7}
                       >
-                        <Image
-                          source={{ uri: item.poster }}
-                          style={styles.sidebarPoster as any}
-                          contentFit="cover"
-                        />
-                        <View style={styles.sidebarInfo}>
-                          <Text style={[styles.sidebarCardTitle, { color: colors.text }]} numberOfLines={2}>
-                            {item.title}
-                          </Text>
-                          <Text style={[styles.sidebarCardSub, { color: colors.textSecondary }]}>
-                            {item.status || "Episode 1"}
-                          </Text>
-                        </View>
+                        <Text style={[styles.viewAllLink, { color: colors.accent }]}>VIEW ALL</Text>
                       </TouchableOpacity>
-                    ))
-                  ) : (
-                    <ActivityIndicator size="small" color={colors.accent} style={{ alignSelf: "flex-start", marginTop: 10 }} />
-                  )}
+                    </View>
+                    
+                    <View style={styles.sidebarList}>
+                      {relatedSeries.length > 0 ? (
+                        relatedSeries.map((item) => (
+                          <TouchableOpacity
+                            key={item.animeId}
+                            style={[styles.sidebarCard, { backgroundColor: colors.card }]}
+                            activeOpacity={0.8}
+                            onPress={() => {
+                              navigation.push("Episode", {
+                                bookId: item.animeId,
+                                title: item.title,
+                              });
+                            }}
+                          >
+                            <Image
+                              source={{ uri: item.poster }}
+                              style={styles.sidebarPoster as any}
+                              contentFit="cover"
+                            />
+                            <View style={styles.sidebarInfo}>
+                              <Text style={[styles.sidebarCardTitle, { color: colors.text }]} numberOfLines={2}>
+                                {item.title}
+                              </Text>
+                              <Text style={[styles.sidebarCardSub, { color: colors.textSecondary }]}>
+                                {item.status || "Completed"}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))
+                      ) : (
+                        <ActivityIndicator size="small" color={colors.accent} style={{ alignSelf: "flex-start", marginTop: 10 }} />
+                      )}
+                    </View>
+                  </View>
+
+                  {/* ONGOING SERIES */}
+                  <View style={[styles.sidebarGroup, { marginTop: 40 }]}>
+                    <View style={styles.sidebarHeader}>
+                      <Text style={[styles.sidebarTitle, { color: colors.text }]}>Ongoing Series</Text>
+                      <TouchableOpacity
+                        onPress={() => navigation.navigate("AnimeList", { type: "ongoing", title: "Anime Ongoing" })}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.viewAllLink, { color: colors.accent }]}>VIEW ALL</Text>
+                      </TouchableOpacity>
+                    </View>
+                    
+                    <View style={styles.sidebarList}>
+                      {suggestedSeries.length > 0 ? (
+                        suggestedSeries.map((item) => (
+                          <TouchableOpacity
+                            key={item.animeId}
+                            style={[styles.sidebarCard, { backgroundColor: colors.card }]}
+                            activeOpacity={0.8}
+                            onPress={() => {
+                              navigation.push("Episode", {
+                                bookId: item.animeId,
+                                title: item.title,
+                              });
+                            }}
+                          >
+                            <Image
+                              source={{ uri: item.poster }}
+                              style={styles.sidebarPoster as any}
+                              contentFit="cover"
+                            />
+                            <View style={styles.sidebarInfo}>
+                              <Text style={[styles.sidebarCardTitle, { color: colors.text }]} numberOfLines={2}>
+                                {item.title}
+                              </Text>
+                              <Text style={[styles.sidebarCardSub, { color: colors.textSecondary }]}>
+                                {item.status || "Episode 1"}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))
+                      ) : (
+                        <ActivityIndicator size="small" color={colors.accent} style={{ alignSelf: "flex-start", marginTop: 10 }} />
+                      )}
+                    </View>
+                  </View>
                 </View>
-              </View>
+              )}
 
             </View>
           </View>
@@ -1252,6 +1383,62 @@ export default function EpisodeScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
+  tabContainer: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    marginBottom: 20,
+    gap: 16,
+  },
+  tabButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  activeTabButton: {
+    borderBottomWidth: 2,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  sidebarEpisodeListContainer: {
+    flex: 1,
+  },
+  sidebarEpisodesTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 16,
+  },
+  sidebarEpisodeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 10,
+    gap: 12,
+  },
+  sidebarEpisodeImage: {
+    width: 80,
+    height: 48,
+    borderRadius: 6,
+    backgroundColor: "#000",
+  },
+  sidebarEpisodeInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  sidebarEpisodeTitleText: {
+    fontSize: 13,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  sidebarEpisodeSubText: {
+    fontSize: 11,
+  },
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
@@ -1625,3 +1812,4 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 });
+
