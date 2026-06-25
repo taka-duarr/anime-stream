@@ -14,7 +14,15 @@ export const getProxiedVideoUrl = (embedUrl: string): string => {
   if (Platform.OS !== "web" || !embedUrl) return embedUrl;
   // Already proxied — don't double-wrap
   if (embedUrl.includes("/api/video-proxy")) return embedUrl;
-  return `${AUTH_API_BASE_URL}/api/video-proxy?url=${encodeURIComponent(embedUrl)}`;
+  
+  // ONLY proxy known problematic domains that we have server-side extractors for
+  if (embedUrl.includes("odvidhide.com")) {
+    return `${AUTH_API_BASE_URL}/api/video-proxy?url=${encodeURIComponent(embedUrl)}`;
+  }
+  
+  // For other servers (e.g. desustream), return the original URL 
+  // because proxying their raw HTML breaks their relative scripts/assets
+  return embedUrl;
 };
 
 const api = axios.create({
