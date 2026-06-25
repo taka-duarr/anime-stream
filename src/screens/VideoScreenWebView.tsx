@@ -23,7 +23,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useTheme } from "../context/ThemeContext";
-import { getEpisodeDetail, getServerStreamingUrl } from "../services/api";
+import { getEpisodeDetail, getServerStreamingUrl, getProxiedVideoUrl } from "../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const getCleanEpisodeTitle = (episodeName: string, animeTitle?: string) => {
@@ -328,7 +328,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
       if (detail.defaultStreamingUrl) {
         console.log("[VIDEO] Using default streaming URL");
         setSelectedQuality("Default");
-        setCurrentVideoUrl(detail.defaultStreamingUrl);
+        setCurrentVideoUrl(getProxiedVideoUrl(detail.defaultStreamingUrl));
         setLoadingVideo(false);
 
         // Show warning if it's a problematic server
@@ -441,7 +441,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
 
       if (streamingUrl) {
         console.log("[VIDEO] Setting streaming URL:", streamingUrl);
-        setCurrentVideoUrl(streamingUrl);
+        setCurrentVideoUrl(getProxiedVideoUrl(streamingUrl));
       } else {
         console.error("[VIDEO ERROR] No streaming URL in server data");
         console.error("[VIDEO ERROR] Server data:", JSON.stringify(serverData));
@@ -1489,7 +1489,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
                     onPress={() => {
                       setSelectedQuality("Default");
                       setSelectedServer(null);
-                      setCurrentVideoUrl(episodeDetail.defaultStreamingUrl);
+                      setCurrentVideoUrl(getProxiedVideoUrl(episodeDetail.defaultStreamingUrl));
                       setShowQualityModal(false);
                     }}
                   >

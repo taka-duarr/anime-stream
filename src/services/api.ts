@@ -9,6 +9,14 @@ export const API_BASE_URL = process.env.EXPO_PUBLIC_ANIME_API_BASE_URL || "";
 export const AUTH_API_BASE_URL =
   process.env.EXPO_PUBLIC_AUTH_API_BASE_URL || "";
 
+// Helper: wrap a video embed URL through our backend proxy (web only) to strip ads
+export const getProxiedVideoUrl = (embedUrl: string): string => {
+  if (Platform.OS !== "web" || !embedUrl) return embedUrl;
+  // Already proxied — don't double-wrap
+  if (embedUrl.includes("/api/video-proxy")) return embedUrl;
+  return `${AUTH_API_BASE_URL}/api/video-proxy?url=${encodeURIComponent(embedUrl)}`;
+};
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
