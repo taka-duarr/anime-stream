@@ -917,7 +917,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
                   </TouchableOpacity>
                 ) : streamingUrl ? (
                   <iframe
-                    src={streamingUrl}
+                    src={api.getProxiedVideoUrl(streamingUrl)}
                     style={{
                       width: "100%",
                       height: "100%",
