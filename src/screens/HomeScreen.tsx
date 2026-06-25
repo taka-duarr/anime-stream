@@ -859,6 +859,10 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             style={styles.mobileCarouselImage}
                             contentFit="cover"
                           />
+                          <LinearGradient
+                            colors={["transparent", "rgba(0,0,0,0.85)"]}
+                            style={StyleSheet.absoluteFill}
+                          />
                         </TouchableOpacity>
                       );
                     })}

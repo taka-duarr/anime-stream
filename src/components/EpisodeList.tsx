@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
 import { Image } from "expo-image";
 import { useTheme } from "../context/ThemeContext";
 import { Episode } from "../types/episode";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useIsFocused } from "@react-navigation/native";
 
 interface EpisodeListProps {
   episodes: Episode[];
@@ -55,6 +57,24 @@ const EpisodeList: React.FC<EpisodeListProps> = ({
   watchedEpisodes = [],
 }) => {
   const { colors } = useTheme();
+  const isFocused = useIsFocused();
+  const [watchProgress, setWatchProgress] = useState<Record<string, { watchedSeconds: number; totalSeconds: number }>>({});
+
+  useEffect(() => {
+    if (isFocused) {
+      const loadProgress = async () => {
+        try {
+          const stored = await AsyncStorage.getItem("anime_stream_watch_progress");
+          if (stored) {
+            setWatchProgress(JSON.parse(stored));
+          }
+        } catch (err) {
+          console.error("Gagal memuat progress tontonan lokal:", err);
+        }
+      };
+      loadProgress();
+    }
+  }, [isFocused]);
 
   return (
     <View style={styles.container}>
@@ -77,7 +97,7 @@ const EpisodeList: React.FC<EpisodeListProps> = ({
               activeOpacity={0.8}
               onPress={() => onEpisodePress(item)}
             >
-              <View style={styles.episodeImageWrapper}>
+               <View style={styles.episodeImageWrapper}>
                 <Image
                   source={{ uri: item.chapterImg || posterUrl }}
                   style={styles.episodeImage}
@@ -103,9 +123,28 @@ const EpisodeList: React.FC<EpisodeListProps> = ({
                   ]}
                   numberOfLines={2}
                 >
-                  {item.releaseTime || "Release date unknown"}
+                  {item.releaseTime || "Release date unknown"}{(() => {
+                    const prog = watchProgress[item.chapterId];
+                    if (prog && prog.watchedSeconds > 0) {
+                      const mins = Math.round(prog.watchedSeconds / 60);
+                      return ` • Ditonton ${mins}m`;
+                    }
+                    return "";
+                  })()}
                 </Text>
               </View>
+              {(() => {
+                const prog = watchProgress[item.chapterId];
+                if (prog && prog.watchedSeconds > 0 && prog.totalSeconds > 0) {
+                  const percent = Math.min(Math.round((prog.watchedSeconds / prog.totalSeconds) * 100), 100);
+                  return (
+                    <View style={styles.progressBarBg}>
+                      <View style={[styles.progressBarFill, { width: `${percent}%`, backgroundColor: colors.accent }]} />
+                    </View>
+                  );
+                }
+                return null;
+              })()}
             </TouchableOpacity>
           );
         })}
@@ -133,8 +172,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
+    position: "relative",
+    overflow: "hidden",
   },
   episodeImageWrapper: {
+    position: "relative",
     width: 120,
     height: 70,
     borderRadius: 8,
@@ -153,6 +195,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    zIndex: 12,
   },
   durationText: {
     color: "#FFF",
@@ -171,6 +214,20 @@ const styles = StyleSheet.create({
   episodeSubtitle: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  progressBarBg: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    width: "100%",
+    height: 4,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    zIndex: 10,
+  },
+  progressBarFill: {
+    height: "100%",
+    zIndex: 11,
   },
 });
 

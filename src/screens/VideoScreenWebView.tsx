@@ -24,6 +24,7 @@ import { useKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useTheme } from "../context/ThemeContext";
 import { getEpisodeDetail, getServerStreamingUrl } from "../services/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const getCleanEpisodeTitle = (episodeName: string, animeTitle?: string) => {
   if (!episodeName) return "";
@@ -88,6 +89,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
   const lastTapTime = useRef<number>(0);
   const lastTapSide = useRef<'left' | 'right' | 'center' | null>(null);
   const skipFeedbackTimeout = useRef<any>(null);
+  const lastSavedTime = useRef<number>(0);
 
   // Double-tap skip feedback state
   const [skipFeedback, setSkipFeedback] = useState<'left' | 'right' | null>(null);
@@ -1171,8 +1173,29 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
                   setIsPlaying(false);
                   console.log("[WEBVIEW] Video is paused");
                 } else if (data.type === "videoProgress") {
-                  setCurrentTime(data.currentTime || 0);
-                  setDuration(data.duration || 0);
+                  const curr = data.currentTime || 0;
+                  const dur = data.duration || 0;
+                  setCurrentTime(curr);
+                  setDuration(dur);
+
+                  const now = Date.now();
+                  if (curr > 0 && dur > 0 && now - lastSavedTime.current > 5000) {
+                    lastSavedTime.current = now;
+                    const episodeId = currentEpisode.chapterId;
+                    AsyncStorage.getItem("anime_stream_watch_progress")
+                      .then((stored) => {
+                        const progressMap = stored ? JSON.parse(stored) : {};
+                        progressMap[episodeId] = {
+                          watchedSeconds: Math.round(curr),
+                          totalSeconds: Math.round(dur),
+                        };
+                        return AsyncStorage.setItem(
+                          "anime_stream_watch_progress",
+                          JSON.stringify(progressMap)
+                        );
+                      })
+                      .catch((err) => console.error("Gagal menyimpan progress tontonan lokal:", err));
+                  }
                 } else if (data.type === "autoplayBlocked") {
                   setShowTapToPlay(true);
                   console.log("[WEBVIEW] Autoplay blocked, showing tap hint");

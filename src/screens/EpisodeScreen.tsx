@@ -28,6 +28,19 @@ import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
 import EpisodeList from "../components/EpisodeList";
 import CommentSection from "../components/CommentSection";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const parseDurationToSeconds = (durationStr?: string): number => {
+  if (!durationStr) return 24 * 60;
+  const clean = durationStr.toLowerCase().trim();
+  const minMatch = clean.match(/(\d+)\s*min/);
+  if (minMatch) return parseInt(minMatch[1], 10) * 60;
+  const timeMatch = clean.match(/(\d+):(\d+)/);
+  if (timeMatch) return parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10);
+  const num = parseInt(clean, 10);
+  if (!isNaN(num)) return num * 60;
+  return 24 * 60;
+};
 
 const getCleanEpisodeTitle = (episodeName: string, animeTitle?: string) => {
   if (!episodeName) return "";
@@ -83,6 +96,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const [relatedSeries, setRelatedSeries] = useState<any[]>([]);
   const [suggestedSeries, setSuggestedSeries] = useState<any[]>([]);
   const [sidebarTab, setSidebarTab] = useState<"episodes" | "recommendations">("episodes");
+  const [watchProgress, setWatchProgress] = useState<Record<string, { watchedSeconds: number; totalSeconds: number }>>({});
 
   // Load streaming URL for desktop player
   const loadStreamingUrl = async (episodeId: string, server?: any) => {
@@ -164,6 +178,46 @@ export default function EpisodeScreen({ route, navigation }: any) {
     fetchData();
     checkBookmarkStatus();
   }, [bookId, isAuthenticated]);
+
+  // Track watch progress periodically on desktop
+  useEffect(() => {
+    if (!isDesktop || !isPlayingWeb || !activeEpisode) return;
+
+    const start = Date.now();
+    const episodeId = activeEpisode.chapterId;
+    const totalSeconds = parseDurationToSeconds(activeEpisode.duration || detail?.duration);
+
+    // Get current progress for this episode if any
+    const existingProgress = watchProgress[episodeId]?.watchedSeconds || 0;
+
+    console.log("[PROGRESS TRACKER] Started for:", episodeId, "with duration:", totalSeconds);
+
+    const interval = setInterval(async () => {
+      const elapsed = Math.floor((Date.now() - start) / 1000);
+      const currentWatched = Math.min(existingProgress + elapsed, totalSeconds);
+
+      // Update state
+      setWatchProgress(prev => {
+        const updated = {
+          ...prev,
+          [episodeId]: {
+            watchedSeconds: currentWatched,
+            totalSeconds,
+          }
+        };
+
+        // Save to AsyncStorage
+        AsyncStorage.setItem("anime_stream_watch_progress", JSON.stringify(updated))
+          .catch(err => console.error("Gagal menyimpan progress tontonan:", err));
+
+        return updated;
+      });
+    }, 5000); // Check and save every 5 seconds
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isPlayingWeb, activeEpisode?.chapterId, isDesktop]);
 
   // ============================================
   // CHECK BOOKMARK STATUS FROM API
@@ -251,6 +305,15 @@ export default function EpisodeScreen({ route, navigation }: any) {
         }
       } else {
         setWatchedEpisodes([]);
+      }
+
+      try {
+        const stored = await AsyncStorage.getItem("anime_stream_watch_progress");
+        if (stored) {
+          setWatchProgress(JSON.parse(stored));
+        }
+      } catch (err) {
+        console.error("Gagal memuat progress tontonan lokal:", err);
       }
 
       const animeDetail = await getAnimeDetail(bookId);
@@ -1103,11 +1166,13 @@ export default function EpisodeScreen({ route, navigation }: any) {
                             }
                           }}
                         >
-                          <Image
-                            source={{ uri: ep.chapterImg || detail?.poster }}
-                            style={styles.sidebarEpisodeImage}
-                            contentFit="cover"
-                          />
+                          <View style={styles.sidebarEpisodeImageWrapper}>
+                            <Image
+                              source={{ uri: ep.chapterImg || detail?.poster }}
+                              style={styles.sidebarEpisodeImage}
+                              contentFit="cover"
+                            />
+                          </View>
                           <View style={styles.sidebarEpisodeInfo}>
                             <Text
                               style={[
@@ -1125,12 +1190,31 @@ export default function EpisodeScreen({ route, navigation }: any) {
                               ]}
                               numberOfLines={1}
                             >
-                              {ep.duration || ep.releaseTime || "Detail"}
+                              {ep.duration || "24 Min"}{(() => {
+                                const prog = watchProgress[ep.chapterId];
+                                if (prog && prog.watchedSeconds > 0) {
+                                  const mins = Math.round(prog.watchedSeconds / 60);
+                                  return ` • Ditonton ${mins}m`;
+                                }
+                                return "";
+                              })()}
                             </Text>
                           </View>
                           {isActive && (
                             <Ionicons name="play" size={16} color={colors.accent} style={{ marginLeft: 6 }} />
                           )}
+                          {(() => {
+                            const prog = watchProgress[ep.chapterId];
+                            if (prog && prog.watchedSeconds > 0 && prog.totalSeconds > 0) {
+                              const percent = Math.min(Math.round((prog.watchedSeconds / prog.totalSeconds) * 100), 100);
+                              return (
+                                <View style={styles.progressBarBg}>
+                                  <View style={[styles.progressBarFill, { width: `${percent}%`, backgroundColor: colors.accent }]} />
+                                </View>
+                              );
+                            }
+                            return null;
+                          })()}
                         </TouchableOpacity>
                       );
                     })}
@@ -1347,12 +1431,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 10,
     gap: 12,
+    position: "relative",
+    overflow: "hidden",
   },
-  sidebarEpisodeImage: {
+  sidebarEpisodeImageWrapper: {
     width: 80,
     height: 48,
     borderRadius: 6,
+    overflow: "hidden",
+  },
+  sidebarEpisodeImage: {
+    width: "100%",
+    height: "100%",
     backgroundColor: "#000",
+  },
+  progressBarBg: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    width: "100%",
+    height: 4,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    zIndex: 10,
+  },
+  progressBarFill: {
+    height: "100%",
+    zIndex: 11,
   },
   sidebarEpisodeInfo: {
     flex: 1,
