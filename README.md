@@ -1,76 +1,135 @@
-# MyAnime - Aplikasi Streaming Anime
+# MyAnime - Aplikasi Streaming Anime (Cross-Platform)
 
-Aplikasi mobile untuk menonton anime dengan subtitle Indonesia.
+Aplikasi mobile & web cross-platform untuk menjelajahi dan menonton anime dengan subtitle Indonesia. Dibangun menggunakan **React Native** dan **Expo SDK** dengan dukungan performa tinggi dan desain UI modern.
+
+---
+
+## 🎯 Platform Support
+
+Aplikasi ini dapat dijalankan pada platform-platform berikut:
+- **Android** (Melalui Expo Go / Android Emulator / APK Build)
+- **iOS** (Melalui Expo Go / iOS Simulator / IPA Build)
+- **Web Browser** (Menggunakan React Native Web)
+
+---
 
 ## 📱 Fitur Utama
 
 ### 🎬 Streaming Video
+- Nonton anime dengan kualitas HD.
+- Pilihan server streaming alternatif untuk setiap episode.
+- Pemutar video kustom dengan kontrol pemutaran penuh pada Mobile & iframe responsive pada Web Desktop.
 
-- Nonton anime dengan kualitas HD
-- Pilihan kualitas video (360p, 480p, 720p)
-- Multiple server untuk setiap episode
-- Video player dengan kontrol lengkap
+### 📜 Riwayat Tontonan (Watch History)
+- Menandai episode yang sudah ditonton secara otomatis untuk pengguna yang masuk (Logged In).
+- Tampilan list episode yang sudah ditonton akan berubah warna (lebih gelap/redup) untuk membedakan episode yang belum dan sudah ditonton.
+- Pada **Web Desktop**, riwayat dipicu ketika menekan tombol *"Klik untuk Memutar Video"* pada video player.
+- Pada **Mobile**, riwayat dipicu secara otomatis ketika membuka halaman pemutaran video.
 
-### 📚 Koleksi Anime
+### ⭐ Bookmark & My List
+- Menyimpan anime favorit ke daftar Bookmark pribadi.
+- Sinkronisasi instan ke server berbasis profil pengguna.
+- Akses cepat langsung dari tab navigasi.
 
-- Browse anime ongoing dan completed
-- Search anime by title
-- Detail anime dengan informasi lengkap
-- List episode untuk setiap anime
+### 🎨 UI/UX Responsif & Tema
+- Dukungan **Dark Mode** & **Light Mode** dinamis mengikuti preferensi sistem atau tema yang dipilih.
+- Tampilan layout responsif (Tata letak Grid pada Mobile, layout Kolom Ganda Split-View yang premium pada Web Desktop).
 
-### ⭐ My List
+---
 
-- Bookmark anime favorit
-- Akses cepat ke anime yang disimpan
-- Kelola daftar anime pribadi
+## ⚙️ Prasyarat (Prerequisites)
 
-### 🎨 Tampilan
+Sebelum menjalankan aplikasi, pastikan komputer Anda sudah memiliki perkakas berikut:
+1. **Node.js** (Versi v18 atau v20 direkomendasikan).
+2. **NPM** (Bawaan Node.js) atau **Yarn**.
+3. **Expo Go** (Aplikasi di Play Store / App Store) jika ingin menguji langsung di HP fisik Anda.
+4. **Android Studio** & Emulator Android (untuk platform Android di PC).
+5. **Xcode** (Hanya macOS, untuk Simulator iOS).
 
-- Dark mode dan light mode
-- Desain modern dan responsif
-- Smooth animations
-- User-friendly interface
+---
 
-### 🔍 Pencarian
+## 🚀 Instalasi & Setup
 
-- Search anime dengan mudah
-- Filter by genre
-- Lihat score dan status anime
+1. **Clone repositori** ini ke perangkat lokal Anda.
+2. **Masuk ke direktori proyek**:
+   ```bash
+   cd anime-stream
+   ```
+3. **Instal seluruh dependensi**:
+   ```bash
+   npm install
+   ```
+4. **Konfigurasi Environment Variables**:
+   Salin berkas `.env.example` menjadi `.env` di root folder proyek:
+   ```bash
+   cp .env.example .env
+   ```
+   Buka berkas `.env` dan lengkapi nilainya:
+   ```env
+   # API Utama untuk mengambil data anime (menggunakan proxy di Web Browser untuk bypass CORS)
+   EXPO_PUBLIC_ANIME_API_BASE_URL=https://nganimeapi.zatwasdead.my.id/api/proxy
 
-## 🎯 Platform Support
+   # API Authentication & Riwayat (History)
+   EXPO_PUBLIC_AUTH_API_BASE_URL=https://nganimeapi.zatwasdead.my.id
+   ```
 
-- ✅ Android
-- ✅ iOS
-- ✅ Web Browser
+---
 
-## 📸 Screenshots
+## 💻 Cara Running Aplikasi
 
-### Home Screen
+Jalankan perintah berikut di terminal root proyek Anda:
 
-Browse anime ongoing dan completed dengan tampilan grid yang menarik.
+### 1. Memulai Expo Development Server
+Perintah ini memulai Metro Bundler. Anda bisa memindai QR Code menggunakan aplikasi **Expo Go** di Android atau Kamera bawaan di iOS untuk menjalankan aplikasi di HP fisik secara nirkabel.
+```bash
+npm run dev
+# atau
+npm start
+```
 
-### Episode Screen
+### 2. Menjalankan di Android Emulator
+Pastikan emulator Android Anda sudah aktif atau perangkat Android tersambung dengan USB Debugging aktif:
+```bash
+npm run android
+```
 
-Lihat detail anime, synopsis, dan list episode lengkap.
+### 3. Menjalankan di iOS Simulator (Khusus macOS)
+Pastikan simulator iOS sudah terpasang dan siap:
+```bash
+npm run ios
+```
 
-### Video Player
+### 4. Menjalankan di Web Browser
+Untuk menjalankan visualisasi web responsif langsung di peramban Anda:
+```bash
+npm run web
+```
 
-Nonton anime dengan video player yang smooth dan responsive.
+---
 
-### My List
+## 🛠️ Skrip NPM Berguna
 
-Simpan dan kelola anime favorit kamu.
+- `npm run clean`: Menghapus folder `node_modules` dan berkas `package-lock.json` kemudian melakukan instalasi ulang (berguna jika terjadi konflik dependensi).
+- `npm run clear-cache`: Menjalankan Expo dev server sembari membersihkan cache builder (`expo start -c`).
+- `npm run clear-all`: Membersihkan seluruh cache Metro, folder build native, folder `.expo`, `node_modules`, dan memasang ulang dependensi.
+- `npx tsc --noEmit`: Memvalidasi tipe TypeScript di seluruh berkas proyek guna memastikan tidak ada compile-time error.
 
-## 🎨 Teknologi
+---
 
-- **React Native** - Framework mobile
-- **Expo** - Development platform
-- **TypeScript** - Type-safe JavaScript
-- **React Navigation** - Navigation library
+## 📁 Struktur Direktori Penting
 
-## 📝 Lisensi
-
-© 2026 MyAnime App. All rights reserved.
+```
+anime-stream/
+├── src/
+│   ├── components/     # Komponen UI reusable (EpisodeList, CommentSection, dll)
+│   ├── context/        # State management global (ThemeContext, AuthContext)
+│   ├── screens/        # Layar-layar utama aplikasi (EpisodeScreen, VideoScreenWebView, dll)
+│   ├── services/       # Integrasi API client & Axios Configuration (api.ts)
+│   └── types/          # Type definitions TypeScript (drama.ts, episode.ts)
+├── App.tsx             # Entrypoint & Konfigurasi Navigasi Utama
+├── app.json            # Konfigurasi aplikasi Expo
+└── package.json        # Pengaturan dependensi & skrip NPM
+```
 
 ---
 

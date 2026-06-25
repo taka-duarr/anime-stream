@@ -878,100 +878,25 @@ export default function EpisodeScreen({ route, navigation }: any) {
                 )}
               </View>
 
-              {/* WATCH NOW SECTION WITH RED VERTICAL LINE */}
-              <View style={styles.sectionHeaderRow}>
-                <View style={[styles.verticalAccentBar, { backgroundColor: colors.accent }]} />
-                <Text style={[styles.desktopWatchNowText, { color: colors.text }]}>Watch Now</Text>
+                            {/* WATCH NOW SECTION WITH RED VERTICAL LINE */}
+              <View style={[styles.sectionHeaderRow, { alignItems: 'flex-start', marginTop: 24 }]}>
+                <View style={[styles.verticalAccentBar, { backgroundColor: colors.accent, marginTop: 4 }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.desktopWatchNowText, { color: colors.text, fontSize: 24, fontWeight: 'bold' }]}>
+                    {detail?.title || title}
+                  </Text>
+                  {activeEpisode && (
+                    <Text style={{ color: colors.accent, fontSize: 15, fontWeight: '600', marginTop: 6 }}>
+                      Sedang Menonton: {getCleanEpisodeTitle(activeEpisode.chapterName, detail?.title || title)}
+                    </Text>
+                  )}
+                </View>
               </View>
 
               {/* CONTROLS CARD */}
               <View style={[styles.controlsCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
                 <View style={styles.dropdownsRow}>
-                  {/* Episode Selector */}
-                  <View style={styles.controlGroup}>
-                    <Text style={[styles.controlLabel, { color: colors.textSecondary }]}>Episodes</Text>
-                    <View style={styles.episodeSelectWrap}>
-                      <select
-                        value={activeEpisode?.chapterId || ""}
-                        onChange={(e) => {
-                          const selectedEp = episodes.find(ep => ep.chapterId === (e.target as any).value);
-                          if (selectedEp) {
-                            setActiveEpisode(selectedEp);
-                            setIsPlayingWeb(false);
-                            loadStreamingUrl(selectedEp.chapterId);
-                          }
-                        }}
-                        style={{
-                          backgroundColor: colors.card,
-                          color: colors.text,
-                          border: `1px solid ${colors.border}`,
-                          padding: "10px 16px",
-                          borderRadius: "8px",
-                          fontSize: "14px",
-                          fontWeight: "600",
-                          outline: "none",
-                          width: "180px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {episodes.map((ep) => {
-                          const cleanTitle = getCleanEpisodeTitle(ep.chapterName, detail?.title || title);
-                          const isWatched = watchedEpisodes.includes(ep.chapterId);
-                          return (
-                            <option
-                              key={ep.chapterId}
-                              value={ep.chapterId}
-                              style={{ color: isWatched ? colors.textMuted : colors.text }}
-                            >
-                              {cleanTitle}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      
-                      {/* Arrows Nav */}
-                      <View style={styles.epNavRow}>
-                        <TouchableOpacity
-                          style={[
-                            styles.navArrowBtn,
-                            { backgroundColor: colors.card, borderColor: colors.border },
-                            episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === episodes.length - 1 && { opacity: 0.5 }
-                          ]}
-                          disabled={episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === episodes.length - 1}
-                          onPress={() => {
-                            const curIdx = episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId);
-                            if (curIdx < episodes.length - 1) {
-                              const prevEp = episodes[curIdx + 1];
-                              setActiveEpisode(prevEp);
-                              setIsPlayingWeb(false);
-                              loadStreamingUrl(prevEp.chapterId);
-                            }
-                          }}
-                        >
-                          <Ionicons name="arrow-back" size={14} color={colors.text} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[
-                            styles.navArrowBtn,
-                            { backgroundColor: colors.card, borderColor: colors.border },
-                            episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === 0 && { opacity: 0.5 }
-                          ]}
-                          disabled={episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId) === 0}
-                          onPress={() => {
-                            const curIdx = episodes.findIndex(ep => ep.chapterId === activeEpisode?.chapterId);
-                            if (curIdx > 0) {
-                              const nextEp = episodes[curIdx - 1];
-                              setActiveEpisode(nextEp);
-                              setIsPlayingWeb(false);
-                              loadStreamingUrl(nextEp.chapterId);
-                            }
-                          }}
-                        >
-                          <Ionicons name="arrow-forward" size={14} color={colors.text} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
+
 
                   {/* Server Selector */}
                   <View style={styles.controlGroup}>
@@ -1084,6 +1009,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
             {/* Right Column: Dynamic Sidebar (Episodes / Recommendations) */}
             <View style={styles.desktopRightCol}>
               
+
               {/* Tab Selector */}
               <View style={[styles.tabContainer, { borderBottomColor: colors.border }]}>
                 <TouchableOpacity
@@ -1307,6 +1233,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
                   </View>
                 </View>
               )}
+
 
             </View>
           </View>
