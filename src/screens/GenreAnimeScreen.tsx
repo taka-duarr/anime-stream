@@ -44,6 +44,12 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
   let numColumns = 3;
   if (width >= 768) numColumns = 6;
 
+  // Hitung lebar kartu secara eksak dalam pixel
+  // agar gap antar kartu tidak menyebabkan overflow ke kanan layar
+  const CARD_GAP = 8;
+  const HORIZONTAL_PADDING = 24; // padding kiri + kanan (12 + 12) dari listContent
+  const cardWidth = (width - HORIZONTAL_PADDING - (numColumns - 1) * CARD_GAP) / numColumns;
+
   const flatListRef = useRef<FlatList>(null);
 
   const [animeList, setAnimeList] = useState<Anime[]>([]);
@@ -75,9 +81,9 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
         // Slice to exactly 24 items (4 rows of 6 cards)
         const slicedData = data.slice(0, 24);
         setAnimeList(slicedData);
-        setHasMore(data.length >= 25);
-        
-        console.log(`[GENRE PAGINATION] Loaded ${slicedData.length} items (sliced from ${data.length}), hasMore: ${data.length >= 25}`);
+        // hasMore = true selama API masih mengembalikan data
+        // Pagination berhenti hanya saat API mengembalikan array kosong
+        setHasMore(data.length > 0);
       } else {
         setAnimeList([]);
         setHasMore(false);
@@ -109,9 +115,9 @@ const GenreAnimeScreen: React.FC<GenreAnimeScreenProps> = ({
           styles.card,
           {
             backgroundColor: colors.card,
-            width: Platform.OS === 'web' 
-              ? `calc((100% - ${(numColumns - 1) * 16}px) / ${numColumns})` as any 
-              : `${100 / numColumns}%` as any,
+            width: Platform.OS === 'web'
+              ? `calc((100% - ${(numColumns - 1) * CARD_GAP}px) / ${numColumns})` as any
+              : cardWidth,
           },
         ]}
         activeOpacity={0.8}
@@ -389,8 +395,8 @@ const styles = StyleSheet.create({
   },
   columnWrapper: {
     justifyContent: "flex-start",
-    gap: 16,
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: 12,
   },
   card: {
     borderRadius: 10,

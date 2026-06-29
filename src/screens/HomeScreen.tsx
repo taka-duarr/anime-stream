@@ -24,6 +24,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { WebFooter } from "../components/WebFooter";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useIsFocused } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const isWeb = Platform.OS === "web";
 
@@ -44,6 +45,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, isDark, toggleTheme } = useTheme();
   const { isAuthenticated, username, profilePicture } = useAuth();
   const isFocused = useIsFocused();
+  const insets = useSafeAreaInsets();
   const [displayName, setDisplayName] = useState("");
 
   useEffect(() => {
@@ -427,7 +429,11 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <View
           style={[
             styles.mobileHeader,
-            { backgroundColor: colors.sidebar, borderBottomColor: colors.border },
+            {
+              backgroundColor: colors.sidebar,
+              borderBottomColor: colors.border,
+              paddingTop: insets.top > 0 ? insets.top + 10 : 20,
+            },
           ]}
         >
           <View style={styles.mobileHeaderRow}>
@@ -1708,7 +1714,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   mobileHeader: {
-    paddingTop: Platform.OS === "ios" ? 50 : 20,
     paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
