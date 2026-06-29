@@ -32,11 +32,6 @@
       "expo-video",
       "expo-image",
       "expo-status-bar"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "de8c0b27-e0f7-4f65-b89b-1e02b25fa5c4"
-      }
-    }
+    ]
   }
 }
