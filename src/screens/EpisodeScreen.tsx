@@ -1137,7 +1137,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
                   >
                     {episodes.map((ep) => {
                       const cleanTitle = getCleanEpisodeTitle(ep.chapterName, detail?.title || title);
-                      const isWatched = watchedEpisodes.includes(ep.chapterId);
+                      const isWatched = watchedEpisodes.includes(ep.chapterId) || !!watchProgress[ep.chapterId];
                       const isActive = activeEpisode?.chapterId === ep.chapterId;
                       
                       return (
@@ -1145,7 +1145,10 @@ export default function EpisodeScreen({ route, navigation }: any) {
                           key={ep.chapterId}
                           style={[
                             styles.sidebarEpisodeCard,
-                            { backgroundColor: colors.card, borderColor: colors.border },
+                            { 
+                              backgroundColor: isWatched && !isActive ? colors.bgSecondary : colors.card, 
+                              borderColor: colors.border 
+                            },
                             isActive && { borderColor: colors.accent, borderWidth: 1 },
                             isWatched && !isActive && { opacity: 0.6 }
                           ]}
@@ -1178,7 +1181,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
                             <Text
                               style={[
                                 styles.sidebarEpisodeTitleText,
-                                { color: isActive ? colors.accent : colors.text }
+                                { color: isActive ? colors.accent : (isWatched ? colors.textMuted : colors.text) }
                               ]}
                               numberOfLines={1}
                             >

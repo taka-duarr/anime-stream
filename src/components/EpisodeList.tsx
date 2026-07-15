@@ -85,19 +85,19 @@ const EpisodeList: React.FC<EpisodeListProps> = ({
       >
         {episodes.map((item, index) => {
           const cleanTitle = getCleanEpisodeTitle(item.chapterName, animeTitle);
-          const isWatched = watchedEpisodes.includes(item.chapterId);
+          const isWatched = watchedEpisodes.includes(item.chapterId) || !!watchProgress[item.chapterId];
           return (
             <TouchableOpacity
               key={item.chapterId}
               style={[
                 styles.episodeCard,
-                { backgroundColor: colors.card },
-                isWatched && { opacity: 0.45 },
+                { backgroundColor: isWatched ? colors.bgSecondary : colors.card },
+                isWatched && { opacity: 0.5 },
               ]}
               activeOpacity={0.8}
               onPress={() => onEpisodePress(item)}
             >
-               <View style={styles.episodeImageWrapper}>
+              <View style={[styles.episodeImageWrapper, isWatched && { opacity: 0.5 }]}>
                 <Image
                   source={{ uri: item.chapterImg || posterUrl }}
                   style={styles.episodeImage}
@@ -111,7 +111,7 @@ const EpisodeList: React.FC<EpisodeListProps> = ({
 
               <View style={styles.episodeInfo}>
                 <Text
-                  style={[styles.episodeTitle, { color: colors.text }]}
+                  style={[styles.episodeTitle, { color: isWatched ? colors.textMuted : colors.text }]}
                   numberOfLines={1}
                 >
                   {cleanTitle}
