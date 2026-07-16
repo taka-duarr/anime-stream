@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Platform,
   useWindowDimensions,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -34,6 +35,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   const [isUsernameFocused, setIsUsernameFocused] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
@@ -369,11 +371,25 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
+            {/* Privacy Disclaimer */}
+            <View style={styles.privacyDisclaimer}>
+              <Text style={[styles.privacyText, { color: colors.textSecondary }]}>
+                Dengan mendaftar, Anda menyetujui{" "}
+                <Text
+                  style={[styles.privacyLink, { color: colors.accent }]}
+                  onPress={() => setShowPrivacyModal(true)}
+                >
+                  Kebijakan Privasi
+                </Text>{" "}
+                kami.
+              </Text>
+            </View>
+
             {/* Action Button */}
             <TouchableOpacity
               style={[
                 styles.registerButton,
-                { backgroundColor: colors.accent, marginTop: 24 },
+                { backgroundColor: colors.accent, marginTop: 16 },
                 (loading || success) && styles.registerButtonDisabled,
               ]}
               onPress={handleRegister}
@@ -399,6 +415,75 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
 
           </View>
         </View>
+
+        {/* PRIVACY POLICY MODAL */}
+        <Modal
+          visible={showPrivacyModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowPrivacyModal(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowPrivacyModal(false)}
+          >
+            <TouchableOpacity
+              style={[styles.privacyModalContent, { backgroundColor: colors.card, borderColor: colors.border }]}
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHeaderLeft}>
+                  <View style={[styles.modalIconContainer, { backgroundColor: colors.accent + "20" }]}>
+                    <Ionicons name="document-text" size={24} color={colors.accent} />
+                  </View>
+                  <Text style={[styles.modalTitle, { color: colors.text, fontSize: 18, marginLeft: 12, marginBottom: 0 }]}>
+                    Kebijakan Privasi
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={() => setShowPrivacyModal(false)}
+                >
+                  <Ionicons name="close" size={24} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Modal Body */}
+              <ScrollView style={styles.modalBodyScroll} showsVerticalScrollIndicator={true}>
+                <Text style={[styles.privacyHeading, { color: colors.text }]}>1. Informasi yang Kami Kumpulkan</Text>
+                <Text style={[styles.privacyParagraph, { color: colors.textSecondary }]}>
+                  Kami mengumpulkan informasi minimal untuk kenyamanan Anda saat menggunakan aplikasi. Hal ini mencakup username, kata sandi terenkripsi, foto profil kustom (opsional), dan riwayat tontonan anime per episode guna mempermudah Anda melanjutkan tontonan.
+                </Text>
+
+                <Text style={[styles.privacyHeading, { color: colors.text, marginTop: 12 }]}>2. Penggunaan Informasi</Text>
+                <Text style={[styles.privacyParagraph, { color: colors.textSecondary }]}>
+                  Data Anda digunakan untuk mempersonalisasi riwayat tontonan (Watch History), menyimpan daftar favorit (My List), dan mengelola keamanan akun Anda. Kami berkomitmen untuk menjaga keamanan data dan tidak akan menyebarkannya kepada pihak ketiga.
+                </Text>
+
+                <Text style={[styles.privacyHeading, { color: colors.text, marginTop: 12 }]}>3. Keamanan Data</Text>
+                <Text style={[styles.privacyParagraph, { color: colors.textSecondary }]}>
+                  Kami menerapkan perlindungan standar industri untuk mengenkripsi kata sandi dan mengamankan koneksi API. Namun, mohon pastikan Anda menjaga kerahasiaan kredensial akun Anda secara mandiri.
+                </Text>
+
+                <Text style={[styles.privacyHeading, { color: colors.text, marginTop: 12 }]}>4. Perubahan Kebijakan</Text>
+                <Text style={[styles.privacyParagraph, { color: colors.textSecondary }]}>
+                  Kami dapat memperbarui Kebijakan Privasi ini dari waktu ke waktu seiring dengan penambahan fitur di aplikasi Nganime. Perubahan akan segera dipublikasikan di halaman ini.
+                </Text>
+              </ScrollView>
+
+              {/* Modal Footer */}
+              <TouchableOpacity
+                style={[styles.modalCloseBtnBottom, { backgroundColor: colors.accent }]}
+                onPress={() => setShowPrivacyModal(false)}
+              >
+                <Text style={styles.modalCloseBtnText}>Saya Mengerti</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       </View>
     );
   }
@@ -635,11 +720,25 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
+            {/* Privacy Disclaimer */}
+            <View style={styles.privacyDisclaimer}>
+              <Text style={[styles.privacyText, { color: colors.textSecondary }]}>
+                Dengan mendaftar, Anda menyetujui{" "}
+                <Text
+                  style={[styles.privacyLink, { color: colors.accent }]}
+                  onPress={() => setShowPrivacyModal(true)}
+                >
+                  Kebijakan Privasi
+                </Text>{" "}
+                kami.
+              </Text>
+            </View>
+
             {/* Register Button */}
             <TouchableOpacity
               style={[
                 styles.registerButton,
-                { backgroundColor: colors.accent },
+                { backgroundColor: colors.accent, marginTop: 16 },
                 (loading || success) && styles.registerButtonDisabled,
               ]}
               onPress={handleRegister}
@@ -694,6 +793,75 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
+
+      {/* PRIVACY POLICY MODAL */}
+      <Modal
+        visible={showPrivacyModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPrivacyModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowPrivacyModal(false)}
+        >
+          <TouchableOpacity
+            style={[styles.privacyModalContent, { backgroundColor: colors.card, borderColor: colors.border }]}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <View style={[styles.modalIconContainer, { backgroundColor: colors.accent + "20" }]}>
+                  <Ionicons name="document-text" size={24} color={colors.accent} />
+                </View>
+                <Text style={[styles.modalTitle, { color: colors.text, fontSize: 18, marginLeft: 12, marginBottom: 0 }]}>
+                  Kebijakan Privasi
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowPrivacyModal(false)}
+              >
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Body */}
+            <ScrollView style={styles.modalBodyScroll} showsVerticalScrollIndicator={true}>
+              <Text style={[styles.privacyHeading, { color: colors.text }]}>1. Informasi yang Kami Kumpulkan</Text>
+              <Text style={[styles.privacyParagraph, { color: colors.textSecondary }]}>
+                Kami mengumpulkan informasi minimal untuk kenyamanan Anda saat menggunakan aplikasi. Hal ini mencakup username, kata sandi terenkripsi, foto profil kustom (opsional), dan riwayat tontonan anime per episode guna mempermudah Anda melanjutkan tontonan.
+              </Text>
+
+              <Text style={[styles.privacyHeading, { color: colors.text, marginTop: 12 }]}>2. Penggunaan Informasi</Text>
+              <Text style={[styles.privacyParagraph, { color: colors.textSecondary }]}>
+                Data Anda digunakan untuk mempersonalisasi riwayat tontonan (Watch History), menyimpan daftar favorit (My List), dan mengelola keamanan akun Anda. Kami berkomitmen untuk menjaga keamanan data dan tidak akan menyebarkannya kepada pihak ketiga.
+              </Text>
+
+              <Text style={[styles.privacyHeading, { color: colors.text, marginTop: 12 }]}>3. Keamanan Data</Text>
+              <Text style={[styles.privacyParagraph, { color: colors.textSecondary }]}>
+                Kami menerapkan perlindungan standar industri untuk mengenkripsi kata sandi dan mengamankan koneksi API. Namun, mohon pastikan Anda menjaga kerahasiaan kredensial akun Anda secara mandiri.
+              </Text>
+
+              <Text style={[styles.privacyHeading, { color: colors.text, marginTop: 12 }]}>4. Perubahan Kebijakan</Text>
+              <Text style={[styles.privacyParagraph, { color: colors.textSecondary }]}>
+                Kami dapat memperbarui Kebijakan Privasi ini dari waktu ke waktu seiring dengan penambahan fitur di aplikasi Nganime. Perubahan akan segera dipublikasikan di halaman ini.
+              </Text>
+            </ScrollView>
+
+            {/* Modal Footer */}
+            <TouchableOpacity
+              style={[styles.modalCloseBtnBottom, { backgroundColor: colors.accent }]}
+              onPress={() => setShowPrivacyModal(false)}
+            >
+              <Text style={styles.modalCloseBtnText}>Saya Mengerti</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -1014,6 +1182,89 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: 8,
     borderRadius: 20,
+  },
+  privacyDisclaimer: {
+    marginTop: 14,
+    marginBottom: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  privacyText: {
+    fontSize: 11,
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  privacyLink: {
+    fontWeight: "bold",
+    textDecorationLine: "underline",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  privacyModalContent: {
+    width: "100%",
+    maxWidth: 480,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 24,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  modalHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  modalIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontWeight: "800",
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalBodyScroll: {
+    maxHeight: 280,
+    marginBottom: 20,
+  },
+  privacyHeading: {
+    fontSize: 13,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  privacyParagraph: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  modalCloseBtnBottom: {
+    height: 40,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+  },
+  modalCloseBtnText: {
+    color: "#FFF",
+    fontWeight: "bold",
+    fontSize: 13,
   },
 });
 
