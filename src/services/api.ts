@@ -15,14 +15,45 @@ export const getProxiedVideoUrl = (embedUrl: string): string => {
   // Already proxied — don't double-wrap
   if (embedUrl.includes("/api/video-proxy")) return embedUrl;
   
-  // ONLY proxy known problematic domains that we have server-side extractors for
-  if (embedUrl.includes("odvidhide.com")) {
+  // ONLY proxy domains that work through our backend proxy:
+  // - odvidhide: server-side extractor returns a clean HLS player
+  // - desustream odcdn: self-contained page (inline script + absolute MP4 URL), but its
+  //   CSP `frame-ancestors` blocks embedding from our origin. The proxy re-serves the
+  //   HTML without that header, so the iframe is allowed to render it.
+  // - filedon: the proxy extracts the direct video file and serves a player without
+  //   filedon's ad scripts/popups
+  if (
+    embedUrl.includes("odvidhide.com") ||
+    embedUrl.includes("filedon.co/embed/") ||
+    embedUrl.includes("desustream.net/dstream/odcdn/")
+  ) {
     return `${AUTH_API_BASE_URL}/api/video-proxy?url=${encodeURIComponent(embedUrl)}`;
   }
-  
-  // For other servers (e.g. desustream), return the original URL 
-  // because proxying their raw HTML breaks their relative scripts/assets
+
+  // Other servers: return the original URL.
+  // - desustream arcg/ondesu*: proxying breaks relative scripts (arcg) or IP-bound
+  //   googlevideo links (ondesu2), so they can't be proxied.
   return embedUrl;
+};
+
+// Web only: desustream servers that cannot be embedded in an iframe from our origin
+// (CSP frame-ancestors => "desustream.net refused to connect") and also cannot be
+// proxied (arcg player is broken upstream; ondesu* use IP-bound googlevideo links).
+// Native WebView is unaffected, so only filter on web. `odcdn` is kept: it's proxied.
+const isServerBlockedOnWeb = (server: { title?: string }): boolean => {
+  if (Platform.OS !== "web") return false;
+  const title = (server?.title || "").trim().toLowerCase();
+  return title.startsWith("ondesu") || title.startsWith("odstream");
+};
+
+const filterServerQualities = (qualities: any[]): any[] => {
+  if (Platform.OS !== "web") return qualities;
+  return qualities
+    .map((q) => ({
+      ...q,
+      serverList: (q.serverList || []).filter((s: any) => !isServerBlockedOnWeb(s)),
+    }))
+    .filter((q) => q.serverList.length > 0);
 };
 
 const api = axios.create({
@@ -444,7 +475,7 @@ export const getEpisodeDetail = async (episodeId: string) => {
     // Transform API response structure to match our types
     return {
       ...data,
-      serverqualities: data.server?.qualities || [],
+      serverqualities: filterServerQualities(data.server?.qualities || []),
       downloadUrlqualities: data.downloadUrl?.qualities || [],
     };
   });
