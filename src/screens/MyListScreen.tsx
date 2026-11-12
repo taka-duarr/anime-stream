@@ -3,40 +3,31 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Platform,
   ScrollView,
   useWindowDimensions,
-  DimensionValue,
-  ActivityIndicator,
-  Alert,
   Modal,
+  Pressable,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
 import { WebFooter } from "../components/WebFooter";
+import { FadeIn, Glass, Lift, Rating, Shimmer, glassWebStyle } from "../components/ui";
 
-const CARD_MARGIN = 10;
-const ViewWeb = View as any;
+const hoverBg = (base: any, hover: any) => ({ hovered, pressed }: any) => [base, (hovered || pressed) && hover];
 
 const MyListScreen = ({ navigation }: any) => {
   const { colors, isDark } = useTheme();
   const { isAuthenticated } = useAuth();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isDesktop = width >= 768;
-
-  let numColumns = 2;
-  if (width >= 768) numColumns = 6;
-  else if (width >= 600) numColumns = 3;
-
-  const listPadding = 16;
-  const availableWidth = width - listPadding * 2;
-  const CARD_WIDTH = availableWidth / numColumns - CARD_MARGIN;
 
   const [myList, setMyList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,59 +36,39 @@ const MyListScreen = ({ navigation }: any) => {
 
   useEffect(() => {
     loadMyList();
-
     // Refresh list when screen comes into focus
     const unsubscribe = navigation.addListener("focus", () => {
       loadMyList();
     });
-
     return unsubscribe;
   }, [navigation, isAuthenticated]);
 
   // ============================================
   // LOAD BOOKMARKS FROM API
   // ============================================
-
   const loadMyList = async () => {
     try {
       setLoading(true);
       setError("");
 
-      // Check if user is authenticated
       if (!isAuthenticated) {
         setMyList([]);
         setLoading(false);
         return;
       }
 
-      // Fetch bookmarks from API
-      console.log("[MY LIST SCREEN] Fetching bookmarks from API");
       const bookmarks = await api.getBookmarks();
-
-      // Transform bookmarks to match the expected format
       const transformedList = bookmarks.map((bookmark) => ({
         animeId: bookmark.anime_id,
         title: bookmark.title,
         poster: bookmark.poster,
       }));
-
       setMyList(transformedList);
-      console.log(
-        "[MY LIST SCREEN] Loaded",
-        transformedList.length,
-        "bookmarks",
-      );
     } catch (error: any) {
       console.error("[MY LIST SCREEN] Failed to load bookmarks:", error);
-
-      // Handle token expiration
       if (error.response?.status === 401) {
         setError("Sesi Anda telah berakhir. Silakan login kembali.");
-        // Note: AuthContext will handle logout and navigation
-      } else if (
-        error.code === "ECONNABORTED" ||
-        error.message?.includes("Network Error")
-      ) {
+      } else if (error.code === "ECONNABORTED" || error.message?.includes("Network Error")) {
         setError("Koneksi gagal. Periksa internet Anda.");
       } else {
         setError("Gagal memuat bookmark. Coba lagi.");
@@ -110,23 +81,12 @@ const MyListScreen = ({ navigation }: any) => {
   // ============================================
   // REMOVE BOOKMARK
   // ============================================
-
   const removeFromList = async (animeId: string) => {
     try {
-      console.log("[MY LIST SCREEN] Removing bookmark:", animeId);
-
-      // Call API to delete bookmark
       await api.deleteBookmark(animeId);
-
-      // Update local state
-      const updated = myList.filter((item) => item.animeId !== animeId);
-      setMyList(updated);
-
-      console.log("[MY LIST SCREEN] Bookmark removed successfully");
+      setMyList((prev) => prev.filter((item) => item.animeId !== animeId));
     } catch (error: any) {
       console.error("[MY LIST SCREEN] Failed to remove bookmark:", error);
-
-      // Update error state so UI reflects the failure
       if (error.response?.status === 401) {
         setError("Sesi Anda telah berakhir. Silakan login kembali.");
       } else {
@@ -135,243 +95,187 @@ const MyListScreen = ({ navigation }: any) => {
     }
   };
 
-  // ============================================
-  // HANDLE LOGIN NAVIGATION
-  // ============================================
+  // Layout
+  const pad = isDesktop ? 24 : 12;
+  const contentMax = 1480;
+  const cols = width >= 1280 ? 7 : width >= 1040 ? 6 : width >= 768 ? 5 : width >= 520 ? 3 : 2;
+  const gap = isDesktop ? 18 : 12;
+  const cardWidth = (Math.min(width, contentMax) - pad * 2 - gap * (cols - 1)) / cols;
 
-  const handleLogin = () => {
-    navigation.navigate("Login");
-  };
-
-  const renderHeader = (isInsideScroll: boolean = false) => (
-    <View style={[styles.header, { borderBottomColor: colors.border }, (isDesktop && !isInsideScroll) && { paddingTop: 72 }]}>
-      <View style={styles.headerTop}>
-
-      </View>
-      {myList.length > 0 && (
-        <Text
-          style={[styles.headerSubtitle, { color: colors.textSecondary }]}
-        >
-          {myList.length} anime tersimpan
+  // A centered glass card for the guest / error / empty states
+  const stateCard = (
+    icon: any,
+    title: string,
+    text: string,
+    actionLabel: string,
+    actionIcon: any,
+    onAction: () => void,
+  ) => (
+    <FadeIn style={{ alignSelf: "center", width: "100%", maxWidth: 440, marginTop: 28 }}>
+      <Glass radius={28} style={{ padding: 32, alignItems: "center" }}>
+        <View style={[styles.stateIcon, { backgroundColor: colors.searchBg, borderColor: colors.glassBorder }]}>
+          <Ionicons name={icon} size={30} color={colors.text} />
+        </View>
+        <Text style={{ color: colors.text, fontSize: 19, fontWeight: "800", marginTop: 18, textAlign: "center" }}>
+          {title}
         </Text>
-      )}
-    </View>
+        <Text style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 21, textAlign: "center", marginTop: 8 }}>
+          {text}
+        </Text>
+        <Lift onPress={onAction} hoverScale={1.04} lift={2} style={{ marginTop: 22 }}>
+          <View style={[styles.primaryBtn, { backgroundColor: colors.buttonPrimaryBg }]}>
+            <Ionicons name={actionIcon} size={17} color={colors.buttonPrimaryText} />
+            <Text style={{ color: colors.buttonPrimaryText, fontSize: 14, fontWeight: "700" }}>{actionLabel}</Text>
+          </View>
+        </Lift>
+      </Glass>
+    </FadeIn>
   );
 
   const renderContent = () => {
     if (loading) {
       return (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text
-            style={[
-              styles.text,
-              { color: colors.textSecondary, marginTop: 12 },
-            ]}
-          >
-            Memuat bookmark...
-          </Text>
+        <View style={[styles.grid, { gap, marginTop: 24 }]}>
+          {Array.from({ length: cols * 2 }).map((_, i) => (
+            <Shimmer key={i} style={{ width: cardWidth, height: cardWidth / 0.7, borderRadius: 18 }} />
+          ))}
         </View>
       );
     }
 
     if (!isAuthenticated) {
-      return (
-        <View style={styles.center}>
-          <View style={[styles.guestCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.guestIconCircle, { backgroundColor: isDark ? "rgba(255, 71, 87, 0.15)" : "rgba(255, 71, 87, 0.08)" }]}>
-              <Ionicons
-                name="bookmark"
-                size={36}
-                color={colors.accent}
-              />
-            </View>
-            
-            <Text style={[styles.guestTitle, { color: colors.text }]}>
-              Login Diperlukan
-            </Text>
-            
-            <Text style={[styles.guestText, { color: colors.textSecondary }]}>
-              Silakan login untuk menyimpan anime favorit Anda dan sinkronisasi daftar tontonan di semua perangkat Anda.
-            </Text>
-            
-            <TouchableOpacity
-              style={[styles.guestLoginButton, { backgroundColor: colors.accent }]}
-              activeOpacity={0.85}
-              onPress={handleLogin}
-            >
-              <Ionicons
-                name="log-in"
-                size={20}
-                color="#FFF"
-                style={{ marginRight: 8 }}
-              />
-              <Text style={styles.guestLoginButtonText}>Masuk Ke Akun</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+      return stateCard(
+        "bookmark",
+        "Login Diperlukan",
+        "Silakan login untuk menyimpan anime favorit Anda dan sinkronisasi daftar tontonan di semua perangkat Anda.",
+        "Masuk Ke Akun",
+        "log-in",
+        () => navigation.navigate("Login"),
       );
     }
 
     if (error) {
-      return (
-        <View style={styles.center}>
-          <Ionicons
-            name="alert-circle-outline"
-            size={64}
-            color={colors.accent}
-          />
-          <Text style={[styles.title, { color: colors.text }]}>
-            Terjadi Kesalahan
-          </Text>
-          <Text style={[styles.text, { color: colors.textSecondary }]}>
-            {error}
-          </Text>
-          <TouchableOpacity
-            style={[styles.exploreButton, { backgroundColor: colors.accent }]}
-            onPress={loadMyList}
-          >
-            <Ionicons
-              name="refresh-outline"
-              size={18}
-              color="#FFF"
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.exploreButtonText}>Coba Lagi</Text>
-          </TouchableOpacity>
-        </View>
-      );
+      return stateCard("alert-circle-outline", "Terjadi Kesalahan", error, "Coba Lagi", "refresh-outline", loadMyList);
     }
 
     if (myList.length === 0) {
-      return (
-        <View style={styles.center}>
-          <Ionicons
-            name="bookmark-outline"
-            size={64}
-            color={colors.textMuted}
-          />
-          <Text style={[styles.title, { color: colors.text }]}>
-            Belum Ada Anime
-          </Text>
-          <Text style={[styles.text, { color: colors.textSecondary }]}>
-            Tambahkan anime favorit Anda ke My List
-          </Text>
-          <TouchableOpacity
-            style={[styles.exploreButton, { backgroundColor: colors.accent }]}
-            onPress={() => navigation.navigate("Main", { screen: "HomeTab" })}
-          >
-            <Text style={styles.exploreButtonText}>Jelajahi Anime</Text>
-          </TouchableOpacity>
-        </View>
+      return stateCard(
+        "bookmark-outline",
+        "Belum Ada Anime",
+        "Tambahkan anime favorit Anda ke My List",
+        "Jelajahi Anime",
+        "compass-outline",
+        () => navigation.navigate("Main", { screen: "HomeTab" }),
       );
     }
 
     return (
-      <View style={styles.gridRow}>
+      <View style={[styles.grid, { gap, marginTop: 24 }]}>
         {myList.map((item, i) => (
-          <ViewWeb
-            key={item.animeId ?? i}
-            className="web-card-hover"
-            style={[
-              styles.card,
-              {
-                width: CARD_WIDTH as DimensionValue,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 12,
-                overflow: "hidden",
-              },
-            ]}
-          >
-            <TouchableOpacity
-              activeOpacity={0.82}
-              onPress={() =>
-                navigation.navigate("Episode", {
-                  bookId: item.animeId,
-                  title: item.title,
-                })
-              }
-              style={{ flex: 1 }}
-            >
-              <View style={styles.imageContainer}>
-                <Image
-                  source={{
-                    uri: item.poster || "https://via.placeholder.com/180x240",
-                  }}
-                  style={styles.image}
-                  contentFit="cover"
-                />
-                {item.score && (
-                  <View style={styles.ratingBadge}>
-                    <Ionicons name="star" size={10} color="#FBBF24" />
-                    <Text style={styles.ratingText}>{item.score}</Text>
-                  </View>
-                )}
-              </View>
-              <Text
-                style={[styles.cardTitle, { color: colors.text }]}
-                numberOfLines={2}
+          <FadeIn key={item.animeId ?? i} delay={Math.min(i, 20) * 40}>
+            <View style={{ width: cardWidth }}>
+              <Lift
+                onPress={() => navigation.navigate("Episode", { bookId: item.animeId, title: item.title })}
+                accessibilityLabel={item.title}
               >
+                <View style={[styles.poster, { borderColor: colors.glassBorder, backgroundColor: colors.card }]}>
+                  <Image
+                    source={{ uri: item.poster || "https://via.placeholder.com/180x240" }}
+                    style={StyleSheet.absoluteFill as any}
+                    contentFit="cover"
+                    transition={300}
+                  />
+                  <LinearGradient colors={["rgba(0,0,0,0.45)", "transparent", "rgba(0,0,0,0.75)"]} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
+                  {item.score ? (
+                    <View style={{ position: "absolute", left: 10, bottom: 9 }}>
+                      <Rating score={item.score} size={11} color="#FFF" />
+                    </View>
+                  ) : null}
+                </View>
+              </Lift>
+
+              {/* Remove from list */}
+              <Pressable
+                onPress={() => setAnimeToDelete({ id: item.animeId, title: item.title })}
+                accessibilityLabel={`Hapus ${item.title} dari list`}
+                style={hoverBg([styles.removeBtn, glassWebStyle(12)], { backgroundColor: "rgba(236,43,85,0.9)" })}
+              >
+                <Ionicons name="trash-outline" size={15} color="#FFF" />
+              </Pressable>
+
+              <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
                 {item.title}
               </Text>
-              <Text
-                style={[styles.cardSub, { color: colors.textSecondary }]}
-                numberOfLines={1}
-              >
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 3 }} numberOfLines={1}>
                 {item.type || "TV"} • {item.totalEpisodes || "?"} Eps
               </Text>
-            </TouchableOpacity>
-
-            {/* Professional Bottom Hapus Button */}
-            <TouchableOpacity
-              style={[
-                styles.bottomRemoveBtn,
-                {
-                  backgroundColor: isDark ? "#2A1A1A" : "#FFF5F5",
-                  borderTopWidth: 1,
-                  borderTopColor: colors.border,
-                },
-              ]}
-              activeOpacity={0.7}
-              onPress={() => setAnimeToDelete({ id: item.animeId, title: item.title })}
-            >
-              <Ionicons name="trash-outline" size={14} color="#FF4757" style={{ marginRight: 6 }} />
-              <Text style={styles.bottomRemoveText}>Hapus List</Text>
-            </TouchableOpacity>
-          </ViewWeb>
+            </View>
+          </FadeIn>
         ))}
       </View>
     );
   };
 
-  return (
-    <SafeAreaView
-      style={[
-        styles.container,
-        { backgroundColor: colors.bg },
-      ]}
-    >
-      <StatusBar
-        style={isDark ? "light" : "dark"}
-        // @ts-ignore
-        backgroundColor={colors.sidebar}
-      />
+  const fan = myList.slice(0, 4);
 
-      {!isDesktop && renderHeader(false)}
+  return (
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <StatusBar style={isDark ? "light" : "dark"} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingTop: isDesktop ? 72 : 0,
-          paddingBottom: isDesktop ? 0 : 40,
-        }}
+        contentContainerStyle={{ flexGrow: 1, paddingTop: isDesktop ? 84 : insets.top + 8 }}
       >
-        {isDesktop && renderHeader(true)}
+        <View style={{ width: "100%", maxWidth: contentMax, alignSelf: "center", paddingHorizontal: pad, flexGrow: 1, paddingBottom: 48 }}>
+          {/* HEADER STAGE */}
+          <FadeIn duration={750} distance={22}>
+            <Glass radius={28} style={[styles.header, { minHeight: isDesktop ? 190 : 150 }]}>
+              <LinearGradient
+                colors={[isDark ? "rgba(236,43,85,0.20)" : "rgba(225,29,72,0.12)", "transparent"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0.7, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={{ flex: 1, justifyContent: "flex-end", padding: isDesktop ? 32 : 20 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: "700", letterSpacing: 1.2 }}>
+                  KOLEKSI
+                </Text>
+                <Text style={[styles.headerTitle, { color: colors.text, fontSize: isDesktop ? 46 : 32 }]}>My List</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4 }}>
+                  {isAuthenticated && myList.length > 0
+                    ? `${myList.length} anime tersimpan`
+                    : "Anime yang kamu simpan muncul di sini"}
+                </Text>
+              </View>
 
-        {renderContent()}
+              {/* Fanned posters of the newest saves */}
+              {fan.length > 0 && width >= 560 && (
+                <View style={styles.fanWrap} pointerEvents="none">
+                  {fan.map((item, i) => (
+                    <FadeIn
+                      key={item.animeId}
+                      delay={200 + i * 90}
+                      distance={30}
+                      style={[
+                        styles.fanCard,
+                        {
+                          right: i * 62,
+                          zIndex: 10 - i,
+                          transform: [{ rotate: `${(i - 1.5) * -5}deg` }],
+                          borderColor: colors.glassBorder,
+                        },
+                      ]}
+                    >
+                      <Image source={{ uri: item.poster }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                    </FadeIn>
+                  ))}
+                </View>
+              )}
+            </Glass>
+          </FadeIn>
+
+          {renderContent()}
+        </View>
 
         {Platform.OS === "web" && <WebFooter />}
       </ScrollView>
@@ -379,347 +283,107 @@ const MyListScreen = ({ navigation }: any) => {
       {/* DELETE CONFIRMATION MODAL */}
       <Modal
         visible={animeToDelete !== null}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setAnimeToDelete(null)}
       >
-        <TouchableOpacity
-          style={styles.confirmModalOverlay}
-          activeOpacity={1}
-          onPress={() => setAnimeToDelete(null)}
-        >
-          <TouchableOpacity
-            style={[styles.confirmModalCard, { backgroundColor: colors.card }]}
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            {/* Icon */}
+        <Pressable style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} onPress={() => setAnimeToDelete(null)}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 400 }}>
             <View
               style={[
-                styles.confirmModalIconWrap,
-                { backgroundColor: "#FF475720" },
+                styles.modalCard,
+                { backgroundColor: colors.glassStrong, borderColor: colors.glassBorder },
+                glassWebStyle(30),
               ]}
             >
-              <Ionicons name="trash-outline" size={32} color="#FF4757" />
-            </View>
-
-            {/* Title */}
-            <Text style={[styles.confirmModalTitle, { color: colors.text }]}>
-              Hapus dari List?
-            </Text>
-
-            {/* Subtitle */}
-            <Text
-              style={[
-                styles.confirmModalSubtitle,
-                { color: colors.textSecondary },
-              ]}
-            >
-              Apakah Anda yakin ingin menghapus "{animeToDelete?.title}" dari daftar bookmark Anda?
-            </Text>
-
-            {/* Divider */}
-            <View
-              style={[styles.confirmModalDivider, { backgroundColor: colors.border }]}
-            />
-
-            {/* Delete Button */}
-            <TouchableOpacity
-              style={[styles.confirmModalBtn, { backgroundColor: "#FF4757" }]}
-              activeOpacity={0.85}
-              onPress={() => {
-                if (animeToDelete) {
-                  removeFromList(animeToDelete.id);
-                  setAnimeToDelete(null);
-                }
-              }}
-            >
-              <Ionicons
-                name="trash-outline"
-                size={20}
-                color="#FFF"
-                style={{ marginRight: 8 }}
-              />
-              <Text style={styles.confirmModalBtnText}>Ya, Hapus</Text>
-            </TouchableOpacity>
-
-            {/* Cancel Button */}
-            <TouchableOpacity
-              style={[
-                styles.confirmModalCancelBtn,
-                {
-                  backgroundColor: colors.bgSecondary,
-                  borderColor: colors.border,
-                },
-              ]}
-              activeOpacity={0.8}
-              onPress={() => setAnimeToDelete(null)}
-            >
-              <Text
-                style={[
-                  styles.confirmModalCancelBtnText,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Batal
+              <View style={[styles.stateIcon, { backgroundColor: "rgba(236,43,85,0.16)", borderColor: "rgba(236,43,85,0.35)" }]}>
+                <Ionicons name="trash-outline" size={28} color="#EC2B55" />
+              </View>
+              <Text style={{ color: colors.text, fontSize: 19, fontWeight: "800", marginTop: 16 }}>Hapus dari List?</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 21, textAlign: "center", marginTop: 8 }}>
+                Apakah Anda yakin ingin menghapus "{animeToDelete?.title}" dari daftar bookmark Anda?
               </Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 24, alignSelf: "stretch" }}>
+                <Pressable
+                  onPress={() => setAnimeToDelete(null)}
+                  style={hoverBg(
+                    [styles.modalBtn, { backgroundColor: colors.searchBg, borderWidth: 1, borderColor: colors.glassBorder }],
+                    { backgroundColor: colors.glassHover },
+                  )}
+                >
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>Batal</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    if (animeToDelete) {
+                      removeFromList(animeToDelete.id);
+                      setAnimeToDelete(null);
+                    }
+                  }}
+                  style={hoverBg([styles.modalBtn, { backgroundColor: "#EC2B55" }], { opacity: 0.88 })}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#FFF" />
+                  <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "700" }}>Ya, Hapus</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  headerTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "800",
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    marginTop: 4,
-  },
-  clearButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  clearButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 32,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginTop: 8,
-  },
-  text: {
-    fontSize: 14,
-    textAlign: "center",
-  },
-  exploreButton: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  exploreButtonText: {
-    color: "#FFF",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  gridRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 16 - CARD_MARGIN / 2,
-    paddingTop: 16,
-    paddingBottom: 64,
-  },
-  card: {
-    marginBottom: 20,
-    marginHorizontal: CARD_MARGIN / 2,
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  imageContainer: {
-    width: "100%",
-    aspectRatio: 0.67,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    overflow: "hidden",
-    marginBottom: 8,
-    backgroundColor: "#E2E8F0",
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-  },
-  ratingBadge: {
+  header: { overflow: "hidden" },
+  headerTitle: { fontWeight: "800", letterSpacing: -1, marginTop: 2 },
+  fanWrap: { position: "absolute", right: 44, top: 22, bottom: -30, width: 320 },
+  fanCard: {
     position: "absolute",
-    bottom: 7,
-    left: 7,
-    backgroundColor: "rgba(15,23,42,0.8)",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 3,
-  },
-  ratingText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  cardTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    marginHorizontal: 8,
-    marginBottom: 2,
-  },
-  cardSub: {
-    fontSize: 11,
-    marginHorizontal: 8,
-    marginBottom: 8,
-  },
-  bottomRemoveBtn: {
-    flexDirection: "row",
+    top: 0,
+    width: 124,
+    height: 176,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    ...Platform.select({ web: { boxShadow: "0 18px 40px rgba(0,0,0,0.45)" } as any }),
+  } as any,
+  grid: { flexDirection: "row", flexWrap: "wrap" },
+  poster: { width: "100%", aspectRatio: 0.7, borderRadius: 18, overflow: "hidden", borderWidth: 1 },
+  removeBtn: {
+    position: "absolute",
+    top: 9,
+    right: 9,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
-    width: "100%",
+    backgroundColor: "rgba(20,21,24,0.6)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
   },
-  bottomRemoveText: {
-    color: "#FF4757",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  // CONFIRM MODAL STYLES
-  confirmModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "center",
+  cardTitle: { fontSize: 13.5, fontWeight: "600", lineHeight: 18, marginTop: 9 },
+  stateIcon: { width: 72, height: 72, borderRadius: 36, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  primaryBtn: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 9,
+    height: 46,
     paddingHorizontal: 24,
+    borderRadius: 23,
   },
-  confirmModalCard: {
-    width: "100%",
-    maxWidth: 360,
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  confirmModalIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  confirmModalTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  confirmModalSubtitle: {
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  confirmModalDivider: {
-    width: "100%",
-    height: 1,
-    marginBottom: 16,
-  },
-  confirmModalBtn: {
+  modalOverlay: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  modalCard: { borderRadius: 28, borderWidth: 1, padding: 28, alignItems: "center" },
+  modalBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 23,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    width: "100%",
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  confirmModalBtnText: {
-    color: "#FFF",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  confirmModalCancelBtn: {
-    width: "100%",
-    paddingVertical: 11,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  confirmModalCancelBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  guestCard: {
-    padding: 32,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: "center",
-    width: "100%",
-    maxWidth: 360,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    elevation: 5,
-    marginTop: 40,
-    marginBottom: 40,
-  },
-  guestIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  guestTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 8,
-    textAlign: "center",
-    letterSpacing: -0.3,
-  },
-  guestText: {
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  guestLoginButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "100%",
-    paddingVertical: 12,
-    borderRadius: 12,
-    shadowColor: "#FF4757",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  guestLoginButtonText: {
-    color: "#FFF",
-    fontSize: 15,
-    fontWeight: "700",
+    gap: 8,
   },
 });
 

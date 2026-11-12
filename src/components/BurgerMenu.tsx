@@ -114,7 +114,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
       {/* ☰ Burger Button */}
       <TouchableOpacity
         onPress={open}
-        style={[styles.burgerBtn, { backgroundColor: isDark ? "#2A2A2A" : colors.bgSecondary }]}
+        style={[styles.burgerBtn, { backgroundColor: colors.searchBg }]}
         activeOpacity={0.7}
       >
         <Ionicons name="menu-outline" size={26} color={colors.accent} />
@@ -152,7 +152,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                 Nonton drama kapan saja
               </Text>
             </View>
-            <TouchableOpacity onPress={close} style={[styles.closeBtn, { backgroundColor: isDark ? "#2A2A2A" : colors.bgSecondary }]} activeOpacity={0.7}>
+            <TouchableOpacity onPress={close} style={[styles.closeBtn, { backgroundColor: colors.searchBg }]} activeOpacity={0.7}>
               <Ionicons name="close" size={20} color={colors.accent} />
             </TouchableOpacity>
           </View>
@@ -166,7 +166,7 @@ export const BurgerMenu: React.FC<BurgerMenuProps> = ({
                   key={item.name}
                   style={[
                     styles.menuItem,
-                    active && { backgroundColor: isDark ? "#2C2C2C" : colors.bgSecondary },
+                    active && { backgroundColor: colors.glassHover },
                   ]}
                   onPress={() => navigate(item.name)}
                   activeOpacity={0.75}

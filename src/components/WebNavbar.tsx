@@ -1,37 +1,17 @@
-import React from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-} from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, Text, StyleSheet, Platform, Pressable, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
+import { EASE_OUT, glassWebStyle, NATIVE_DRIVER } from "./ui";
 
 const MENU_ITEMS = [
-  {
-    name: "HomeTab",
-    label: "Home",
-  },
-  {
-    name: "OngoingList",
-    label: "Ongoing",
-  },
-  {
-    name: "CompletedList",
-    label: "Completed",
-  },
-  {
-    name: "GenreList",
-    label: "Genre",
-  },
-  {
-    name: "MyListTab",
-    label: "My List",
-  },
+  { name: "HomeTab", label: "Home" },
+  { name: "OngoingList", label: "Ongoing" },
+  { name: "CompletedList", label: "Completed" },
+  { name: "GenreList", label: "Genre" },
+  { name: "MyListTab", label: "My List" },
 ];
 
 interface WebNavbarProps {
@@ -39,295 +19,219 @@ interface WebNavbarProps {
   onNavigate: (name: string) => void;
 }
 
-export const WebNavbar: React.FC<WebNavbarProps> = ({
-  currentRoute,
-  onNavigate,
-}) => {
+const hoverable = (base: any, hovered: any) => ({ hovered }: any) => [base, hovered && hovered];
+
+/**
+ * Desktop navigation: a floating glass capsule (logo, search, menu, theme, profile).
+ */
+export const WebNavbar: React.FC<WebNavbarProps> = ({ currentRoute, onNavigate }) => {
   const { colors, isDark, toggleTheme } = useTheme();
   const { isAuthenticated, profilePicture } = useAuth();
 
+  // Drop in from the top on first paint
+  const enter = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(enter, {
+      toValue: 1,
+      duration: 700,
+      delay: 150,
+      easing: EASE_OUT,
+      useNativeDriver: NATIVE_DRIVER,
+    }).start();
+  }, []);
+
   return (
-    <View
-      {...({ className: "web-navbar" } as any)}
+    <Animated.View
       style={[
-        styles.navbar,
+        styles.wrap,
         {
-          backgroundColor: isDark ? "rgba(32, 32, 32, 0.9)" : "rgba(255, 255, 255, 0.75)",
-          borderBottomColor: colors.border,
+          opacity: enter,
+          transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [-24, 0] }) }],
         },
       ]}
+      pointerEvents="box-none"
     >
-      {/* 1. Left Section: Logo & Brand Name */}
-      <TouchableOpacity
-        style={styles.logoSection}
-        onPress={() => onNavigate("HomeTab")}
-        activeOpacity={0.7}
-      >
-        <Image
-          source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
-          style={styles.logoOne as any}
-          contentFit="contain"
-        />
-        <Image
-          source={require("../../assets/nganime.png")}
-          style={styles.logoTwo as any}
-          contentFit="contain"
-        />
-      </TouchableOpacity>
-
-      {/* 2. Search Pill (Now next to logo brand) */}
-      <TouchableOpacity
-        {...({ className: "web-search-pill" } as any)}
+      <View
         style={[
-          styles.searchPill,
-          {
-            backgroundColor: isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.06)",
-          },
+          styles.navbar,
+          { backgroundColor: colors.glassStrong, borderColor: colors.glassBorder },
+          glassWebStyle(30),
         ]}
-        onPress={() => onNavigate("Search")}
-        activeOpacity={0.75}
       >
-        <Ionicons
-          name="search-outline"
-          size={16}
-          color={colors.textSecondary}
-          style={styles.searchIcon}
-        />
-        <Text style={[styles.searchText, { color: colors.textMuted }]}>
-          Search anime...
-        </Text>
-      </TouchableOpacity>
-
-      {/* 3. Middle/Right Section: Navigation Menu Items (aligned to the right) */}
-      <View style={styles.menuContainer}>
-        {MENU_ITEMS.map((item) => {
-          const active = currentRoute === item.name;
-          return (
-            <TouchableOpacity
-              key={item.name}
-              style={styles.menuItem}
-              onPress={() => onNavigate(item.name)}
-              activeOpacity={0.75}
-            >
-              <Text
-                style={[
-                  styles.menuItemText,
-                  {
-                    color: active ? colors.text : colors.textSecondary,
-                    fontWeight: active ? "700" : "500",
-                  },
-                ]}
-              >
-                {item.label}
-              </Text>
-
-              {/* Bottom active indicator */}
-              {active && (
-                <View
-                  style={[styles.activeBar, { backgroundColor: colors.accent }]}
-                />
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Vertical Divider separating menus from controls */}
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-      {/* 4. Far Right Section: Theme Toggle & Profile / Login Button */}
-      <View style={styles.rightSection}>
-        {/* Theme Toggle Mode */}
-        <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: colors.searchBg }]}
-          onPress={toggleTheme}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={isDark ? "sunny-outline" : "moon-outline"}
-            size={20}
-            color={colors.textSecondary}
+        {/* Logo */}
+        <Pressable style={styles.logoSection} onPress={() => onNavigate("HomeTab")} accessibilityLabel="Home">
+          <Image
+            source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
+            style={styles.logoOne as any}
+            contentFit="contain"
           />
-        </TouchableOpacity>
+          <Image source={require("../../assets/nganime.png")} style={styles.logoTwo as any} contentFit="contain" />
+        </Pressable>
+
+        {/* Search pill */}
+        <Pressable
+          style={hoverable(
+            [styles.searchPill, { backgroundColor: colors.searchBg }],
+            { backgroundColor: colors.glassHover },
+          )}
+          onPress={() => onNavigate("Search")}
+          accessibilityLabel="Search anime"
+        >
+          <Ionicons name="search-outline" size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
+          <Text style={[styles.searchText, { color: colors.textMuted }]}>Search anime...</Text>
+        </Pressable>
+
+        {/* Menu */}
+        <View style={styles.menuContainer}>
+          {MENU_ITEMS.map((item) => {
+            const active = currentRoute === item.name;
+            return (
+              <Pressable
+                key={item.name}
+                onPress={() => onNavigate(item.name)}
+                style={hoverable(
+                  [styles.menuItem, active && { backgroundColor: colors.glassHover }],
+                  !active && { backgroundColor: colors.glass },
+                )}
+              >
+                <Text
+                  style={[
+                    styles.menuItemText,
+                    { color: active ? colors.text : colors.textSecondary, fontWeight: active ? "700" : "500" },
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Theme toggle */}
+        <Pressable
+          style={hoverable(
+            [styles.iconButton, { backgroundColor: colors.searchBg }],
+            { backgroundColor: colors.glassHover },
+          )}
+          onPress={toggleTheme}
+          accessibilityLabel="Toggle theme"
+        >
+          <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={18} color={colors.text} />
+        </Pressable>
 
         {/* Profile / Login */}
         {isAuthenticated ? (
-          <TouchableOpacity
+          <Pressable
             style={[
               styles.profileButton,
-              {
-                borderColor: currentRoute === "ProfileTab" ? colors.accent : colors.border,
-              },
+              { borderColor: currentRoute === "ProfileTab" ? colors.accent : colors.glassBorder },
             ]}
             onPress={() => onNavigate("ProfileTab")}
-            activeOpacity={0.8}
+            accessibilityLabel="Profile"
           >
-            <View
-              style={[
-                styles.avatarContainer,
-                { backgroundColor: isDark ? "#2C2C2C" : "#EEE" },
-              ]}
-            >
+            <View style={[styles.avatarContainer, { backgroundColor: colors.searchBg }]}>
               {profilePicture ? (
-                <Image
-                  source={{ uri: profilePicture }}
-                  style={styles.avatarImage as any}
-                  contentFit="cover"
-                />
+                <Image source={{ uri: profilePicture }} style={styles.avatarImage as any} contentFit="cover" />
               ) : (
-                <Ionicons
-                  name="person"
-                  size={18}
-                  color={colors.accent}
-                />
+                <Ionicons name="person" size={16} color={colors.text} />
               )}
             </View>
-          </TouchableOpacity>
+          </Pressable>
         ) : (
-          <TouchableOpacity
-            style={[styles.loginBtn, { borderColor: colors.accent }]}
+          <Pressable
+            style={hoverable(
+              [styles.loginBtn, { backgroundColor: colors.buttonPrimaryBg }],
+              { opacity: 0.86 },
+            )}
             onPress={() => onNavigate("Login")}
-            activeOpacity={0.7}
           >
-            <Text style={[styles.loginBtnText, { color: colors.accent }]}>
-              Login
-            </Text>
-          </TouchableOpacity>
+            <Text style={[styles.loginBtnText, { color: colors.buttonPrimaryText }]}>Login</Text>
+          </Pressable>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  navbar: {
-    height: 72,
-    flexDirection: "row",
+  wrap: {
+    zIndex: 1000,
     alignItems: "center",
     paddingHorizontal: 24,
-    borderBottomWidth: 1,
-    zIndex: 10,
     ...Platform.select({
-      web: {
-        position: "fixed" as any,
-        top: 0,
-        left: 0,
-        right: 0,
-        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.04)",
-        backdropFilter: "blur(5px)",
-        webkitBackdropFilter: "blur(5px)",
-      } as any,
+      web: { position: "fixed" as any, top: 14, left: 0, right: 0 } as any,
     }),
   } as any,
-  logoSection: {
+  navbar: {
+    height: 56,
+    width: "100%",
+    maxWidth: 1480,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginRight: 8,
-  },
-  logoOne: {
-    width: 48,
-    height: 48,
-  },
-  logoTwo: {
-    width: 110,
-    height: 38,
-    marginTop: 2,
-  },
+    paddingLeft: 18,
+    paddingRight: 9,
+    borderRadius: 28,
+    borderWidth: 1,
+    gap: 10,
+    ...Platform.select({
+      web: { boxShadow: "0 10px 40px rgba(0,0,0,0.22)" } as any,
+    }),
+  } as any,
+  logoSection: { flexDirection: "row", alignItems: "center", gap: 8 },
+  logoOne: { width: 44, height: 30 },
+  logoTwo: { width: 92, height: 24, marginTop: 2 },
   searchPill: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    width: 200,
-    marginLeft: 16,
-    ...Platform.select({
-      web: {
-        backdropFilter: "blur(0px)",
-        webkitBackdropFilter: "blur(0px)",
-      } as any,
-    }),
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchText: {
-    fontSize: 13.5,
-  },
+    height: 38,
+    borderRadius: 19,
+    width: 220,
+    marginLeft: 10,
+    ...Platform.select({ web: { transition: "background-color 0.2s ease", cursor: "pointer" } as any }),
+  } as any,
+  searchText: { fontSize: 13.5 },
   menuContainer: {
     flexDirection: "row",
-    alignItems: "stretch",
-    height: "100%",
+    alignItems: "center",
     justifyContent: "flex-end",
     flex: 1,
-    marginRight: 16,
+    gap: 2,
+    marginRight: 6,
   },
   menuItem: {
     justifyContent: "center",
-    paddingHorizontal: 16,
-    position: "relative",
-    height: "100%",
-  },
-  menuItemText: {
-    fontSize: 14,
-    letterSpacing: 0.2,
-  },
-  activeBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 16,
-    right: 16,
-    height: 3.5,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-  },
-  divider: {
-    width: 1,
-    height: 24,
-    marginHorizontal: 12,
-  },
-  rightSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
+    paddingHorizontal: 15,
+    height: 38,
+    borderRadius: 19,
+    ...Platform.select({ web: { transition: "background-color 0.2s ease", cursor: "pointer" } as any }),
+  } as any,
+  menuItemText: { fontSize: 13.5, letterSpacing: 0.1 },
   iconButton: {
     width: 38,
     height: 38,
     borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-  },
-  profileButton: {
-    borderRadius: 20,
-    borderWidth: 2,
-    padding: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    ...Platform.select({ web: { transition: "background-color 0.2s ease" } as any }),
+  } as any,
+  profileButton: { borderRadius: 20, borderWidth: 1.5, padding: 2 },
   avatarContainer: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 31,
+    height: 31,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
-  avatarImage: {
-    width: "100%",
-    height: "100%",
-  },
+  avatarImage: { width: "100%", height: "100%" },
   loginBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
+    paddingHorizontal: 20,
+    height: 38,
+    borderRadius: 19,
     justifyContent: "center",
     alignItems: "center",
-  },
-  loginBtnText: {
-    fontSize: 13.5,
-    fontWeight: "700",
-  },
+    ...Platform.select({ web: { transition: "opacity 0.2s ease" } as any }),
+  } as any,
+  loginBtnText: { fontSize: 13.5, fontWeight: "700" },
 });

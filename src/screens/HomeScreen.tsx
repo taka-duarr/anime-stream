@@ -1,334 +1,177 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
-  TouchableOpacity,
   ScrollView,
   RefreshControl,
   Platform,
   useWindowDimensions,
-  Linking,
-  PanResponder,
+  Animated,
+  Easing,
+  Pressable,
+  Share,
 } from "react-native";
 import { Image } from "expo-image";
 import { getHomeData } from "../services/api";
-import { Anime } from "../types/drama";
 import { StatusBar } from "expo-status-bar";
-import Swiper from "react-native-swiper";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { WebFooter } from "../components/WebFooter";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  FadeIn,
+  Glass,
+  Lift,
+  NATIVE_DRIVER,
+  Rating,
+  Shimmer,
+  StatusPill,
+  glassWebStyle,
+  webAnim,
+} from "../components/ui";
 
 const isWeb = Platform.OS === "web";
+const SLIDE_MS = 6500;
+const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+const JS_DAY_TO_ID = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
-// Helper fungsi untuk mapping anime data ke format lama (backward compatibility)
-const mapAnimeToDrama = (anime: any) => ({
-  animeId: anime.animeId,
-  title: anime.title,
-  poster: anime.poster,
-  score: anime.score,
-  type: anime.type,
-  status: anime.status,
-  totalEpisodes: anime.totalEpisodes || 0,
-  href: anime.href,
-  otakudesuUrl: anime.otakudesuUrl,
+interface HomeAnime {
+  animeId: string;
+  title: string;
+  poster: string;
+  score?: string;
+  episodes?: number;
+  releaseDay?: string;
+  latestReleaseDate?: string;
+  lastReleaseDate?: string;
+}
+
+const mapAnime = (a: any): HomeAnime => ({
+  animeId: a.animeId,
+  title: a.title,
+  poster: a.poster,
+  score: a.score,
+  episodes: a.episodes || a.totalEpisodes || 0,
+  releaseDay: a.releaseDay,
+  latestReleaseDate: a.latestReleaseDate,
+  lastReleaseDate: a.lastReleaseDate,
 });
+
+const hoverBg = (base: any, hover: any) => ({ hovered, pressed }: any) => [
+  base,
+  (hovered || pressed) && hover,
+];
+
+// ------------------------------------------------------------------
+// Poster card used by the rows and grids below the stage
+// ------------------------------------------------------------------
+const PosterCard: React.FC<{
+  item: HomeAnime;
+  width: number | string;
+  caption: string;
+  rank?: number;
+  onPress: () => void;
+}> = ({ item, width, caption, rank, onPress }) => {
+  const { colors } = useTheme();
+  return (
+    <Lift onPress={onPress} style={{ width: width as any }} accessibilityLabel={item.title}>
+      <View style={[styles.posterFrame, { borderColor: colors.glassBorder, backgroundColor: colors.card }]}>
+        <Image
+          source={{ uri: item.poster }}
+          style={StyleSheet.absoluteFill as any}
+          contentFit="cover"
+          transition={300}
+        />
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.78)"]}
+          style={styles.posterShade}
+        />
+        {rank !== undefined && <Text style={styles.posterRank}>{rank}</Text>}
+        <View style={styles.posterCaptionRow}>
+          {item.score ? <Rating score={item.score} size={11} color="#FFF" /> : null}
+          <Text style={styles.posterCaption} numberOfLines={1}>
+            {caption}
+          </Text>
+        </View>
+      </View>
+      <Text style={[styles.posterTitle, { color: colors.text }]} numberOfLines={2}>
+        {item.title}
+      </Text>
+    </Lift>
+  );
+};
+
+const SectionHead: React.FC<{
+  title: string;
+  hint?: string;
+  action?: string;
+  onAction?: () => void;
+}> = ({ title, hint, action, onAction }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.sectionHead}>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          {title}
+          {hint ? <Text style={{ color: colors.textMuted, fontWeight: "500" }}>  {hint}</Text> : null}
+        </Text>
+      </View>
+      {action && (
+        <Pressable
+          onPress={onAction}
+          style={hoverBg(
+            [styles.sectionAction, { backgroundColor: colors.glass, borderColor: colors.glassBorder }],
+            { backgroundColor: colors.glassHover },
+          )}
+        >
+          <Text style={{ color: colors.text, fontSize: 12.5, fontWeight: "600" }}>{action}</Text>
+          <Ionicons name="chevron-forward" size={13} color={colors.text} />
+        </Pressable>
+      )}
+    </View>
+  );
+};
 
 const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors, isDark, toggleTheme } = useTheme();
-  const { isAuthenticated, username, profilePicture } = useAuth();
-  const isFocused = useIsFocused();
+  const { isAuthenticated, profilePicture } = useAuth();
   const insets = useSafeAreaInsets();
-  const [displayName, setDisplayName] = useState("");
+  const { width, height } = useWindowDimensions();
+  const isDesktop = width >= 768;
+  const isWide = width >= 1120;
 
-  useEffect(() => {
-    const loadDisplayName = async () => {
-      try {
-        const storedName = await AsyncStorage.getItem("@custom_display_name");
-        if (storedName) {
-          setDisplayName(storedName);
-        } else if (username) {
-          setDisplayName(username);
-        } else {
-          setDisplayName("");
-        }
-      } catch (error) {
-        console.error("[HOME] Failed to load custom profile name:", error);
-      }
-    };
-
-    if (isFocused) {
-      loadDisplayName();
-    }
-  }, [isFocused, username]);
-
-  const [ongoingAnime, setOngoingAnime] = useState<Anime[]>([]);
-  const [completedAnime, setCompletedAnime] = useState<Anime[]>([]);
-  const [carouselItems, setCarouselItems] = useState<any[]>([]);
-  const [desktopCarouselIndex, setDesktopCarouselIndex] = useState(0);
-  const [mobileCarouselIndex, setMobileCarouselIndex] = useState(0);
+  const [ongoing, setOngoing] = useState<HomeAnime[]>([]);
+  const [completed, setCompleted] = useState<HomeAnime[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const [activeTab, setActiveTab] = useState<"ongoing" | "completed">("ongoing");
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  const [index, setIndex] = useState(0);
+  const [day, setDay] = useState<string>(JS_DAY_TO_ID[new Date().getDay()]);
+
   const scrollViewRef = useRef<ScrollView>(null);
-  const swiperRef = useRef<any>(null);
-  const dragScrollRef = useRef<any>(null);
-  const mobileScrollViewRef = useRef<ScrollView>(null);
-  const isDragging = useRef(false);
-  const [spotlightWidth, setSpotlightWidth] = useState(800);
-  const isMouseDown = useRef(false);
-  const startX = useRef(0);
-  const scrollLeft = useRef(0);
+  const stripRef = useRef<ScrollView>(null);
+  const stripX = useRef(0);
 
-  const onMouseDown = (e: any) => {
-    if (Platform.OS !== "web") return;
-    isMouseDown.current = true;
-    startX.current = e.clientX;
-    const domNode = dragScrollRef.current?.getScrollableNode?.() || dragScrollRef.current;
-    if (domNode) {
-      scrollLeft.current = domNode.scrollLeft;
-      domNode.style.cursor = "grabbing";
-      domNode.style.userSelect = "none";
-    }
-  };
+  const featured = useMemo(() => ongoing.slice(0, 6), [ongoing]);
+  const active = featured[index];
 
-  const onMouseMove = (e: any) => {
-    if (!isMouseDown.current || Platform.OS !== "web") return;
-    const domNode = dragScrollRef.current?.getScrollableNode?.() || dragScrollRef.current;
-    if (domNode) {
-      const x = e.clientX;
-      const walk = (startX.current - x);
-      domNode.scrollLeft = scrollLeft.current + walk;
-      isDragging.current = Math.abs(walk) > 10;
-    }
-  };
-
-  const onMouseUpOrLeave = () => {
-    if (!isMouseDown.current || Platform.OS !== "web") return;
-    isMouseDown.current = false;
-    const domNode = dragScrollRef.current?.getScrollableNode?.() || dragScrollRef.current;
-    if (domNode) {
-      domNode.style.cursor = "grab";
-      domNode.style.removeProperty("user-select");
-      
-      const cardWidth = domNode.clientWidth || spotlightWidth;
-      const index = Math.round(domNode.scrollLeft / cardWidth);
-      setDesktopCarouselIndex(index);
-      domNode.scrollTo({
-        left: index * cardWidth,
-        behavior: "smooth",
-      });
-      setTimeout(() => {
-        isDragging.current = false;
-      }, 80);
-    }
-  };
-
-  const mobilePanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        if (Platform.OS !== "web") return false;
-        const { dx, dy } = gestureState;
-        return Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy);
-      },
-      onPanResponderGrant: () => {
-        isDragging.current = true;
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        const { dx } = gestureState;
-        if (Math.abs(dx) > 40) {
-          if (dx < 0) {
-            swiperRef.current?.scrollBy(1, true);
-          } else {
-            swiperRef.current?.scrollBy(-1, true);
-          }
-        }
-        setTimeout(() => {
-          isDragging.current = false;
-        }, 80);
-      },
-    })
-  ).current;
-
-  // Auto-scroll for desktop carousel
-  useEffect(() => {
-    if (carouselItems.length > 0) {
-      const interval = setInterval(() => {
-        setDesktopCarouselIndex((prev) => (prev + 1) % carouselItems.length);
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [carouselItems]);
-
-  // Auto-scroll for mobile carousel (infinite loop style)
-  useEffect(() => {
-    if (carouselItems.length > 0 && !isDesktop) {
-      const interval = setInterval(() => {
-        const nextScrollIndex = mobileCarouselIndex + 2;
-        mobileScrollViewRef.current?.scrollTo({
-          x: nextScrollIndex * (width * 0.68 + 16),
-          animated: true,
-        });
-      }, 4000);
-      return () => clearInterval(interval);
-    }
-  }, [carouselItems, isDesktop, width, mobileCarouselIndex]);
-
-  // Initial scroll position setup for infinite carousel (scrolls to index 1 on load)
-  useEffect(() => {
-    if (carouselItems.length > 0 && !isDesktop) {
-      setTimeout(() => {
-        mobileScrollViewRef.current?.scrollTo({
-          x: 1 * (width * 0.68 + 16),
-          animated: false,
-        });
-      }, 150);
-    }
-  }, [carouselItems.length, isDesktop]);
-
-  // Sync scroll offset with desktopCarouselIndex
-  useEffect(() => {
-    if (carouselItems.length > 0 && !isMouseDown.current) {
-      if (Platform.OS === "web") {
-        const domNode = dragScrollRef.current?.getScrollableNode?.() || dragScrollRef.current;
-        if (domNode && typeof domNode.scrollTo === 'function') {
-          domNode.scrollTo({
-            left: desktopCarouselIndex * spotlightWidth,
-            behavior: "smooth",
-          });
-        }
-      } else {
-        dragScrollRef.current?.scrollTo({
-          x: desktopCarouselIndex * spotlightWidth,
-          animated: true,
-        });
-      }
-    }
-  }, [desktopCarouselIndex, spotlightWidth, carouselItems.length]);
-
-  const handleMobileScroll = (e: any) => {
-    if (carouselItems.length === 0) return;
-    const x = e.nativeEvent.contentOffset.x;
-    const cardWidth = width * 0.68;
-    const gap = 16;
-    const interval = cardWidth + gap;
-    const index = Math.round(x / interval);
-    
-    let activeIdx = index - 1;
-    if (activeIdx < 0) {
-      activeIdx = carouselItems.length - 1;
-    } else if (activeIdx >= carouselItems.length) {
-      activeIdx = 0;
-    }
-    
-    if (activeIdx !== mobileCarouselIndex && activeIdx >= 0 && activeIdx < carouselItems.length) {
-      setMobileCarouselIndex(activeIdx);
-    }
-  };
-
-  const handleMobileScrollEnd = (e: any) => {
-    if (carouselItems.length === 0) return;
-    const x = e.nativeEvent.contentOffset.x;
-    const cardWidth = width * 0.68;
-    const gap = 16;
-    const interval = cardWidth + gap;
-    const N = carouselItems.length;
-    const index = Math.round(x / interval);
-    
-    if (index === 0) {
-      mobileScrollViewRef.current?.scrollTo({
-        x: N * interval,
-        animated: false,
-      });
-    } else if (index === N + 1) {
-      mobileScrollViewRef.current?.scrollTo({
-        x: 1 * interval,
-        animated: false,
-      });
-    }
-  };
-
+  // ---------------- data ----------------
   const fetchAll = async () => {
     try {
       setLoading(true);
-      setDesktopCarouselIndex(0);
-
       const homeData = await getHomeData();
-
-      console.log("[HOME] Home Data received");
-
       if (homeData && homeData.ongoingAnime && homeData.completeAnime) {
-        console.log("[HOME] Valid home data structure");
-
-        // Map anime data ke format lama untuk backward compatibility
-        const ongoing = homeData.ongoingAnime.map(mapAnimeToDrama);
-        const completed = homeData.completeAnime.map(mapAnimeToDrama);
-
-        setOngoingAnime(ongoing);
-        setCompletedAnime(completed);
-
-        // Setup carousel dari ongoing anime (top 6)
-        const carouselData = homeData.ongoingAnime
-          .slice(0, 6)
-          .map((anime: any) => {
-            // Pick genres based on keywords in title, or default genres
-            let genres = ["Action", "Sci-Fi"];
-            const titleLower = anime.title.toLowerCase();
-            if (titleLower.includes("gundam") || titleLower.includes("mecha") || titleLower.includes("witch from mercury")) {
-              genres = ["Action", "Mecha"];
-            } else if (titleLower.includes("romance") || titleLower.includes("love") || titleLower.includes("marriage")) {
-              genres = ["Romance", "Comedy"];
-            } else if (titleLower.includes("fantasy") || titleLower.includes("isekai") || titleLower.includes("reincarnat")) {
-              genres = ["Fantasy", "Isekai"];
-            } else if (titleLower.includes("slice") || titleLower.includes("life") || titleLower.includes("school")) {
-              genres = ["Slice of Life", "School"];
-            } else if (titleLower.includes("adventure") || titleLower.includes("quest") || titleLower.includes("world")) {
-              genres = ["Adventure", "Fantasy"];
-            } else {
-              const defaultGenres = [
-                ["Action", "Fantasy"],
-                ["Comedy", "School"],
-                ["Sci-Fi", "Adventure"],
-                ["Drama", "Mystery"],
-              ];
-              let hash = 0;
-              for (let i = 0; i < anime.title.length; i++) {
-                hash += anime.title.charCodeAt(i);
-              }
-              genres = defaultGenres[hash % defaultGenres.length];
-            }
-
-            return {
-              id: anime.animeId,
-              cover: anime.poster,
-              title: anime.title,
-              meta: `${anime.episodes || anime.totalEpisodes || "?"} Episode`,
-              description: anime.synopsis?.paragraphs?.[0] || "",
-              label: "ONGOING",
-              labelColor: "#FF4757",
-              navTarget: "Episode",
-              navBookId: anime.animeId,
-              genres,
-            };
-          });
-
-        setCarouselItems(carouselData);
+        setOngoing(homeData.ongoingAnime.map(mapAnime));
+        setCompleted(homeData.completeAnime.map(mapAnime));
+        setIndex(0);
       } else {
         console.error("[HOME ERROR] Invalid home data structure:", homeData);
-        setOngoingAnime([]);
-        setCompletedAnime([]);
-        setCarouselItems([]);
+        setOngoing([]);
+        setCompleted([]);
       }
     } catch (e: any) {
       console.error("[HOME ERROR] Gagal fetch home:", e);
@@ -347,645 +190,555 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     fetchAll();
   }, []);
 
-  // Handle scroll event to show/hide scroll to top button
+  // ---------------- hero slideshow ----------------
+  const fades = useRef(Array.from({ length: 6 }, (_, i) => new Animated.Value(i === 0 ? 1 : 0))).current;
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (featured.length === 0) return;
+    fades.forEach((v, i) =>
+      Animated.timing(v, {
+        toValue: i === index ? 1 : 0,
+        duration: 900,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: NATIVE_DRIVER,
+      }).start(),
+    );
+    progress.setValue(0);
+    const run = Animated.timing(progress, {
+      toValue: 1,
+      duration: SLIDE_MS,
+      easing: Easing.linear,
+      useNativeDriver: false, // animates width
+    });
+    run.start(({ finished }) => {
+      if (finished) setIndex((p) => (p + 1) % featured.length);
+    });
+    return () => run.stop();
+  }, [index, featured.length]);
+
+  // ---------------- handlers ----------------
+  const openAnime = (a: HomeAnime) =>
+    navigation.navigate("Episode", { bookId: a.animeId, title: a.title });
+
+  const shareAnime = async (a: HomeAnime) => {
+    try {
+      const url = isWeb ? (globalThis as any).location?.origin || "" : "";
+      await Share.share({ message: `Nonton ${a.title} di NgAnime ${url}`.trim() });
+    } catch {
+      // user dismissed the share sheet, or sharing is unsupported on this browser
+    }
+  };
+
   const handleScroll = useCallback(
     (event: any) => {
-      const offsetY = event.nativeEvent.contentOffset.y;
-      if (offsetY > 500 && !showScrollToTop) {
-        setShowScrollToTop(true);
-      } else if (offsetY <= 500 && showScrollToTop) {
-        setShowScrollToTop(false);
-      }
+      const y = event.nativeEvent.contentOffset.y;
+      if (y > 500 && !showScrollToTop) setShowScrollToTop(true);
+      else if (y <= 500 && showScrollToTop) setShowScrollToTop(false);
     },
     [showScrollToTop],
   );
 
-  // Scroll to top function
-  const scrollToTop = useCallback(() => {
-    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-  }, []);
+  const nudgeStrip = (dir: 1 | -1) => {
+    const next = Math.max(0, stripX.current + dir * 620);
+    stripRef.current?.scrollTo({ x: next, animated: true });
+    stripX.current = next;
+  };
 
-  // Responsive percentage width for grid cards inside ScrollView
-  const cardWidthPercent = isDesktop
-    ? width >= 1200 ? "18%" : "23%" // 5 columns on desktop, 4 columns on small desktop/tablet web
-    : "48%"; // 2 columns on mobile
+  // ---------------- schedule ----------------
+  const byDay = useMemo(() => {
+    const map: Record<string, HomeAnime[]> = {};
+    ongoing.forEach((a) => {
+      const d = a.releaseDay || "Lainnya";
+      (map[d] = map[d] || []).push(a);
+    });
+    return map;
+  }, [ongoing]);
+  const dayList = useMemo(
+    () => [...DAYS.filter((d) => byDay[d]), ...Object.keys(byDay).filter((d) => !DAYS.includes(d))],
+    [byDay],
+  );
+  const shownDay = byDay[day] ? day : dayList[0];
+  const today = JS_DAY_TO_ID[new Date().getDay()];
 
+  // ---------------- layout numbers ----------------
+  const pad = isDesktop ? 24 : 12;
+  const stageHeight = isDesktop ? Math.min(Math.max(height - 110, 620), 860) : 600;
+  const contentMax = 1480;
+  const gridCols = width >= 1280 ? 6 : width >= 1000 ? 5 : width >= 768 ? 4 : 2;
+  const gridGap = isDesktop ? 18 : 12;
+  const innerWidth = Math.min(width, contentMax) - pad * 2;
+  const gridCardWidth = (innerWidth - gridGap * (gridCols - 1)) / gridCols;
+  const rowCardWidth = isDesktop ? 168 : 132;
+
+  // ---------------- loading skeleton ----------------
   if (loading && !refreshing) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.bg }]}>
-        <ActivityIndicator size="large" color={colors.accent} />
+      <View style={[styles.container, { backgroundColor: colors.bg, padding: pad, paddingTop: isDesktop ? 84 : insets.top + 12 }]}>
+        <View style={{ flexDirection: "row", gap: 16, flex: 1, maxHeight: stageHeight }}>
+          <Shimmer style={{ flex: 1, borderRadius: 28 }} />
+          {isWide && <Shimmer style={{ width: 320, borderRadius: 28 }} />}
+        </View>
+        <View style={{ flexDirection: "row", gap: 14, marginTop: 20 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <Shimmer key={i} style={{ width: rowCardWidth, height: rowCardWidth * 1.4 }} />
+          ))}
+        </View>
       </View>
     );
   }
 
-  // Grid card rendering
-  const renderCard = (item: Anime, index: number, badgeText: string) => {
-    return (
-      <TouchableOpacity
-        key={`${item.animeId}-${badgeText}-${index}`}
-        style={[
-          styles.mobileGridCard,
-          {
-            width: cardWidthPercent as any,
-          },
-        ]}
-        activeOpacity={0.8}
-        onPress={() =>
-          navigation.navigate("Episode", {
-            bookId: item.animeId,
-            title: item.title,
-          })
-        }
-      >
-        <Image
-          source={{ uri: item.poster || "https://via.placeholder.com/180x240" }}
-          style={styles.mobileGridPoster as any}
-          contentFit="cover"
-        />
-        <Text style={[styles.recentEpisode, { color: colors.textSecondary }]} numberOfLines={1}>
-          ⭐ {item.score || "N/A"} • {item.totalEpisodes ? `${item.totalEpisodes} eps` : "Ongoing"}
-        </Text>
-        <Text style={[styles.recentTitle, { color: colors.text }]} numberOfLines={2}>
-          {item.title}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
+  // ---------------- pieces ----------------
+  const stage = (
+    <View style={[styles.stage, { height: stageHeight, borderColor: colors.glassBorder }]}>
+      {/* Crossfading artwork layers */}
+      {featured.map((item, i) => (
+        <Animated.View key={item.animeId} style={[StyleSheet.absoluteFill, { opacity: fades[i] }]}>
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              webAnim.kenburns,
+            ]}
+          >
+            <Image
+              source={{ uri: item.poster }}
+              style={StyleSheet.absoluteFill as any}
+              contentFit="cover"
+              blurRadius={isDesktop ? 26 : 0}
+            />
+          </View>
+          {/* Crisp key art floating on the right (desktop) */}
+          {isDesktop && (
+            <View
+              style={[
+                styles.keyArtWrap,
+                { height: stageHeight * 0.66, width: stageHeight * 0.66 * 0.7 },
+                webAnim.float,
+              ]}
+            >
+              <Image source={{ uri: item.poster }} style={styles.keyArt as any} contentFit="cover" />
+            </View>
+          )}
+        </Animated.View>
+      ))}
 
-  const renderWebFooter = () => {
-    return <WebFooter />;
-  };
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <StatusBar
-        style={isDark ? "light" : "dark"}
-        // @ts-ignore
-        backgroundColor={colors.sidebar}
+      {/* Readability shades */}
+      <LinearGradient
+        colors={["rgba(8,9,11,0.92)", "rgba(8,9,11,0.55)", "rgba(8,9,11,0.05)"]}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: isDesktop ? 0.85 : 1.4, y: 0.5 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <LinearGradient
+        colors={["rgba(8,9,11,0)", "rgba(8,9,11,0.55)", "rgba(8,9,11,0.96)"]}
+        locations={[0.25, 0.62, 1]}
+        style={StyleSheet.absoluteFill}
       />
 
-      {/* Header (Only show on mobile/tablet, as desktop uses WebNavbar) */}
+      {/* Mobile header floats over the artwork */}
       {!isDesktop && (
-        <View
-          style={[
-            styles.mobileHeader,
-            {
-              backgroundColor: colors.sidebar,
-              borderBottomColor: colors.border,
-              paddingTop: insets.top > 0 ? insets.top + 10 : 20,
-            },
-          ]}
-        >
-          <View style={styles.mobileHeaderRow}>
-            <View style={styles.mobileHeaderLeft}>
-              <View style={styles.mobileLogoSection}>
-                <Image
-                  source={isDark ? require("../../assets/logogelap.png") : require("../../assets/logo.png")}
-                  style={styles.mobileLogoOne as any}
-                  contentFit="contain"
-                />
-                <Image
-                  source={require("../../assets/nganime.png")}
-                  style={styles.mobileLogoTwo as any}
-                  contentFit="contain"
-                />
-              </View>
-            </View>
-            <View style={styles.mobileHeaderRight}>
-              <TouchableOpacity 
-                style={styles.mobileHeaderIconButton} 
-                activeOpacity={0.7}
-                onPress={toggleTheme}
-              >
-                <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={22} color={colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.mobileHeaderIconButton} activeOpacity={0.7}>
-                <Ionicons name="notifications-outline" size={22} color={colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => navigation.navigate(isAuthenticated ? "ProfileTab" : "Login")}
-                activeOpacity={0.8}
-                style={{ marginLeft: 4 }}
-              >
-                <View
-                  style={[
-                    styles.mobileProfileAvatar,
-                    { 
-                      backgroundColor: isDark ? "#2C2C2C" : "#EEE",
-                      width: 28,
-                      height: 28,
-                      borderRadius: 14,
-                      overflow: "hidden",
-                      justifyContent: "center",
-                      alignItems: "center",
-                    },
-                  ]}
-                >
-                  {isAuthenticated && profilePicture ? (
-                    <Image
-                      source={{ uri: profilePicture }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <Ionicons
-                      name={isAuthenticated ? "person" : "log-in"}
-                      size={14}
-                      color={colors.accent}
-                    />
-                  )}
-                </View>
-              </TouchableOpacity>
-            </View>
+        <View style={[styles.mobileHeader, { paddingTop: 14 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Image source={require("../../assets/logogelap.png")} style={{ width: 40, height: 26 }} contentFit="contain" />
+            <Image source={require("../../assets/nganime.png")} style={{ width: 84, height: 22 }} contentFit="contain" />
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable style={styles.heroIconBtn} onPress={toggleTheme} accessibilityLabel="Toggle theme">
+              <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={18} color="#FFF" />
+            </Pressable>
+            <Pressable style={styles.heroIconBtn} accessibilityLabel="Notifications">
+              <Ionicons name="notifications-outline" size={18} color="#FFF" />
+            </Pressable>
+            <Pressable
+              style={[styles.heroIconBtn, { overflow: "hidden" }]}
+              onPress={() => navigation.navigate(isAuthenticated ? "ProfileTab" : "Login")}
+              accessibilityLabel={isAuthenticated ? "Profile" : "Login"}
+            >
+              {isAuthenticated && profilePicture ? (
+                <Image source={{ uri: profilePicture }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+              ) : (
+                <Ionicons name={isAuthenticated ? "person" : "log-in-outline"} size={18} color="#FFF" />
+              )}
+            </Pressable>
           </View>
         </View>
       )}
 
-      {/* Main Scrollable Content */}
+      {/* Title block */}
+      {active && (
+        <View style={[styles.heroBody, { paddingHorizontal: isDesktop ? 52 : 20, maxWidth: isDesktop ? 720 : undefined }]}>
+          <FadeIn trigger={index} distance={22}>
+            <Text
+              style={[styles.heroTitle, { fontSize: isDesktop ? (width >= 1280 ? 54 : 44) : 30, lineHeight: isDesktop ? (width >= 1280 ? 60 : 50) : 36 }]}
+              numberOfLines={isDesktop ? 2 : 3}
+            >
+              {active.title}
+            </Text>
+          </FadeIn>
+          <FadeIn trigger={index} delay={90} style={styles.heroMeta}>
+            <StatusPill kind="ongoing" onDark />
+            <View style={styles.dot} />
+            <Text style={styles.heroMetaText}>Episode {active.episodes || "?"}</Text>
+            {active.releaseDay ? (
+              <>
+                <View style={styles.dot} />
+                <Text style={styles.heroMetaText}>Tiap {active.releaseDay}</Text>
+              </>
+            ) : null}
+          </FadeIn>
+          <FadeIn trigger={index} delay={160}>
+            <Text style={styles.heroDesc} numberOfLines={3}>
+              Episode {active.episodes || "terbaru"} sudah bisa ditonton dengan subtitle Indonesia
+              {active.latestReleaseDate ? `, diperbarui ${active.latestReleaseDate}` : ""}.
+              {active.releaseDay ? ` Episode baru hadir setiap hari ${active.releaseDay}.` : ""}
+            </Text>
+          </FadeIn>
+          <FadeIn trigger={index} delay={230} style={styles.heroActions}>
+            <Lift onPress={() => openAnime(active)} hoverScale={1.05} lift={2} accessibilityLabel="Tonton sekarang">
+              <View style={styles.watchBtn}>
+                <Ionicons name="play" size={15} color="#0B0C0E" />
+                <Text style={styles.watchBtnText}>Tonton Sekarang</Text>
+              </View>
+            </Lift>
+            <Lift onPress={() => navigation.navigate("MyListTab")} hoverScale={1.05} lift={2} accessibilityLabel="My List">
+              <View style={[styles.ghostBtn, glassWebStyle(14)]}>
+                <Ionicons name="bookmark-outline" size={15} color="#FFF" />
+                <Text style={styles.ghostBtnText}>My List</Text>
+              </View>
+            </Lift>
+            <Lift onPress={() => shareAnime(active)} hoverScale={1.08} lift={2} accessibilityLabel="Bagikan">
+              <View style={[styles.roundBtn, glassWebStyle(14)]}>
+                <Ionicons name="share-social-outline" size={17} color="#FFF" />
+              </View>
+            </Lift>
+          </FadeIn>
+
+          {/* Slide indicators with timed fill */}
+          <View style={styles.indicators}>
+            {featured.map((f, i) => (
+              <Pressable key={f.animeId} onPress={() => setIndex(i)} hitSlop={8} accessibilityLabel={`Slide ${i + 1}`}>
+                <View style={[styles.indicatorTrack, { width: isDesktop ? 54 : 30 }]}>
+                  {i === index ? (
+                    <Animated.View
+                      style={[
+                        styles.indicatorFill,
+                        { width: progress.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) },
+                      ]}
+                    />
+                  ) : null}
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* "Now airing" strip inside the stage, like an episode rail */}
+      <View style={styles.stripWrap}>
+        <Text style={[styles.stripTitle, { paddingHorizontal: isDesktop ? 52 : 20 }]}>
+          Sedang Tayang <Text style={styles.stripCount}>({ongoing.length} judul)</Text>
+        </Text>
+        <ScrollView
+          ref={stripRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          onScroll={(e) => (stripX.current = e.nativeEvent.contentOffset.x)}
+          scrollEventThrottle={32}
+          contentContainerStyle={{ paddingHorizontal: isDesktop ? 52 : 20, gap: 12, paddingBottom: 22, paddingTop: 6 }}
+        >
+          {ongoing.map((a, i) => (
+            <Lift
+              key={a.animeId}
+              onPress={() => openAnime(a)}
+              onHoverIn={() => i < featured.length && setIndex(i)}
+              style={{ width: isDesktop ? 196 : 150 }}
+              accessibilityLabel={a.title}
+            >
+              <View
+                style={[
+                  styles.stripCard,
+                  glassWebStyle(18),
+                  i === index && { borderColor: "rgba(255,255,255,0.6)" },
+                ]}
+              >
+                <Image source={{ uri: a.poster }} style={styles.stripImage as any} contentFit="cover" contentPosition="top" />
+                <Text style={styles.stripLabel} numberOfLines={1}>
+                  E{a.episodes || "?"} · {a.title}
+                </Text>
+              </View>
+            </Lift>
+          ))}
+        </ScrollView>
+        {isDesktop && (
+          <Pressable style={[styles.stripArrow, glassWebStyle(12)]} onPress={() => nudgeStrip(1)} accessibilityLabel="Geser">
+            <Ionicons name="chevron-forward" size={20} color="#FFF" />
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+
+  const sidePanel = (
+    <Glass radius={28} style={isWide ? { width: 328, height: stageHeight } : { marginTop: 16 }}>
+      <View style={styles.panelHeader}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View style={[styles.brandBadge, { backgroundColor: colors.accent }]}>
+            <Image source={require("../../assets/logogelap.png")} style={{ width: 40, height: 22 }} contentFit="contain" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={[styles.brandName, { color: colors.text }]}>NGANIME</Text>
+              <Ionicons name="checkmark-circle" size={16} color={colors.text} />
+            </View>
+            <Text style={{ color: colors.textSecondary, fontSize: 12.5, marginTop: 2 }}>
+              Sub Indo · bebas iklan
+            </Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
+          <Pressable
+            style={hoverBg(
+              [styles.panelBtn, { backgroundColor: colors.searchBg, borderColor: colors.glassBorder }],
+              { backgroundColor: colors.glassHover },
+            )}
+          >
+            <Ionicons name="logo-discord" size={15} color={colors.text} />
+            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>Join our Discord</Text>
+          </Pressable>
+          <Pressable
+            onPress={toggleTheme}
+            accessibilityLabel="Toggle theme"
+            style={hoverBg(
+              [styles.panelRound, { backgroundColor: colors.searchBg, borderColor: colors.glassBorder }],
+              { backgroundColor: colors.glassHover },
+            )}
+          >
+            <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={16} color={colors.text} />
+          </Pressable>
+        </View>
+        <Text style={{ color: colors.textSecondary, fontSize: 12.5, lineHeight: 18, marginTop: 14 }}>
+          Selamat datang di project tugas kuliah kami. Di sini kalian bisa streaming anime tanpa iklan dan bebas
+          nonton kapan pun. Enjoy guys!
+        </Text>
+      </View>
+
+      <View style={[styles.hairline, { backgroundColor: colors.border }]} />
+
+      <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 6 }}>
+        <Text style={[styles.panelTitle, { color: colors.text, flex: 1 }]}>Most popular</Text>
+        <Pressable onPress={() => navigation.navigate("AnimeList", { type: "completed", title: "Anime Completed" })}>
+          <Text style={{ color: colors.textSecondary, fontSize: 12.5, fontWeight: "600" }}>Lihat semua</Text>
+        </Pressable>
+      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 14 }}>
+        {completed.slice(0, isWide ? 10 : 4).map((a, i) => (
+          <FadeIn key={a.animeId} delay={120 + i * 70}>
+            <Pressable
+              onPress={() => openAnime(a)}
+              style={hoverBg(styles.popRow, { backgroundColor: colors.glass })}
+            >
+              <Image source={{ uri: a.poster }} style={styles.popPoster as any} contentFit="cover" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.popTitle, { color: colors.text }]} numberOfLines={2}>
+                  {a.title}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }} numberOfLines={1}>
+                  {a.episodes ? `${a.episodes} Episode` : "Anime"}
+                  {a.lastReleaseDate ? ` · ${a.lastReleaseDate}` : ""}
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 }}>
+                  <Rating score={a.score} size={13} />
+                  <StatusPill kind="completed" small />
+                </View>
+              </View>
+            </Pressable>
+            {i < (isWide ? 9 : 3) && <View style={[styles.hairline, { backgroundColor: colors.border, marginHorizontal: 8 }]} />}
+          </FadeIn>
+        ))}
+      </ScrollView>
+    </Glass>
+  );
+
+  const gridItems = activeTab === "ongoing" ? ongoing : completed;
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <StatusBar style="light" />
+
       <ScrollView
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          isDesktop && styles.desktopScrollContent,
-          isWeb && { paddingBottom: 0, flexGrow: 1 }
-        ]}
+        contentContainerStyle={{ flexGrow: 1, paddingTop: isDesktop ? 84 : insets.top + 8 }}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.accent]}
-            tintColor={colors.accent}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.accent]} tintColor={colors.accent} />
         }
       >
-        <View style={{ flex: 1 }}>
-          {isDesktop ? (
-            <View style={styles.desktopContainer}>
-            {/* Left Main Column */}
-            <View style={styles.leftColumn}>
-
-              {/* Spotlight / Featured Card */}
-              {carouselItems.length > 0 && (
-                <View 
-                  onLayout={(e) => {
-                    const w = e.nativeEvent.layout.width;
-                    if (w > 0) setSpotlightWidth(w);
-                  }}
-                  style={styles.spotlightWrapper}
-                >
-                  <ScrollView
-                    ref={dragScrollRef}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    scrollEventThrottle={16}
-                    onMomentumScrollEnd={(e) => {
-                      const x = e.nativeEvent.contentOffset.x;
-                      const index = Math.round(x / spotlightWidth);
-                      setDesktopCarouselIndex(index);
-                    }}
-                    {...(Platform.OS === "web" ? {
-                      onMouseDown: onMouseDown,
-                      onMouseMove: onMouseMove,
-                      onMouseUp: onMouseUpOrLeave,
-                      onMouseLeave: onMouseUpOrLeave,
-                      style: { cursor: "grab" } as any,
-                    } : {})}
-                  >
-                    {carouselItems.map((item, index) => (
-                      <View key={`spotlight-${item.id}-${index}`} style={{ width: spotlightWidth }}>
-                        <TouchableOpacity
-                          style={[styles.spotlightCard, { borderColor: colors.border }]}
-                          activeOpacity={0.85}
-                          onPress={() => {
-                            if (isDragging.current) return;
-                            navigation.navigate("Episode", {
-                              bookId: item.navBookId,
-                              title: item.title,
-                            });
-                          }}
-                        >
-                          <Image
-                            source={{ uri: item.cover }}
-                            style={styles.spotlightBackground as any}
-                            contentFit="cover"
-                            blurRadius={10}
-                          />
-                          <LinearGradient
-                            colors={["rgba(13,13,13,0.2)", "rgba(13,13,13,0.6)", "rgba(13,13,13,0.95)"]}
-                            style={styles.spotlightGradient}
-                          />
-
-                          <Image
-                            source={{ uri: item.cover }}
-                            style={styles.spotlightPoster as any}
-                            contentFit="cover"
-                          />
-                          <View style={styles.spotlightInfo}>
-                            <View style={styles.spotlightBadgeRow}>
-                              {item.genres.map((genre: string, idx: number) => (
-                                <View key={idx} style={styles.spotlightBadge}>
-                                  <Text style={styles.spotlightBadgeText}>{genre}</Text>
-                                </View>
-                              ))}
-                            </View>
-                            <Text style={styles.spotlightTitle} numberOfLines={2}>
-                              {item.title}
-                            </Text>
-                            <Text style={[styles.spotlightSynopsis, { color: "#CCCCCC" }]} numberOfLines={3}>
-                              {item.description || `Tonton streaming ${item.title} Subtitle Indonesia gratis lengkap dengan kualitas terbaik. Ikuti kisah serunya sekarang juga!`}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-
-              {/* Recently Updated Section (first 5 ongoing items) */}
-              {ongoingAnime.length > 0 && (
-                <View style={styles.desktopSection}>
-                  <View style={styles.desktopSectionHeader}>
-                    <View style={styles.accentLine} />
-                    <Text style={[styles.desktopSectionTitle, { color: colors.text }]}>Recently Updated</Text>
-                  </View>
-                  <View style={styles.horizontalRow}>
-                    {ongoingAnime.slice(0, 5).map((item, index) => (
-                      <TouchableOpacity
-                        key={`recent-${item.animeId}-${index}`}
-                        style={styles.recentCard}
-                        activeOpacity={0.8}
-                        onPress={() =>
-                          navigation.navigate("Episode", {
-                            bookId: item.animeId,
-                            title: item.title,
-                          })
-                        }
-                      >
-                        <Image
-                          source={{ uri: item.poster || "https://via.placeholder.com/180x240" }}
-                          style={styles.recentPoster as any}
-                          contentFit="cover"
-                        />
-                        <Text style={[styles.recentEpisode, { color: colors.textSecondary }]} numberOfLines={1}>
-                          {item.totalEpisodes ? `Episode ${item.totalEpisodes}` : "Ongoing"}
-                        </Text>
-                        <Text style={[styles.recentTitle, { color: colors.text }]} numberOfLines={1}>
-                          {item.title}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {/* Tab Selector & Grid */}
-              <View style={styles.desktopSection}>
-                <View style={[styles.tabBar, { borderBottomColor: colors.border }]}>
-                  <TouchableOpacity
-                    style={styles.tabButton}
-                    onPress={() => setActiveTab("ongoing")}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.tabText, { color: activeTab === "ongoing" ? colors.text : colors.textSecondary }]}>
-                      Trending
-                    </Text>
-                    {activeTab === "ongoing" && <View style={[styles.activeTabIndicator, { backgroundColor: colors.accent }]} />}
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.tabButton}
-                    onPress={() => setActiveTab("completed")}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.tabText, { color: activeTab === "completed" ? colors.text : colors.textSecondary }]}>
-                      Most Popular
-                    </Text>
-                    {activeTab === "completed" && <View style={[styles.activeTabIndicator, { backgroundColor: colors.accent }]} />}
-                  </TouchableOpacity>
-                </View>
-
-                {/* Grid of items */}
-                <View style={styles.desktopGrid}>
-                  {(activeTab === "ongoing" ? ongoingAnime.slice(5, 15) : completedAnime.slice(0, 10)).map((item, index) => (
-                    <TouchableOpacity
-                      key={`grid-${item.animeId}-${index}`}
-                      style={styles.gridCard}
-                      activeOpacity={0.8}
-                      onPress={() =>
-                        navigation.navigate("Episode", {
-                          bookId: item.animeId,
-                          title: item.title,
-                        })
-                      }
-                    >
-                      <Image
-                        source={{ uri: item.poster || "https://via.placeholder.com/180x240" }}
-                        style={styles.gridPoster as any}
-                        contentFit="cover"
-                      />
-                      <Text style={[styles.recentEpisode, { color: colors.textSecondary }]} numberOfLines={1}>
-                        ⭐ {item.score || "N/A"} • {item.totalEpisodes ? `${item.totalEpisodes} eps` : "Ongoing"}
-                      </Text>
-                      <Text style={[styles.recentTitle, { color: colors.text }]} numberOfLines={2}>
-                        {item.title}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+        <View style={{ width: "100%", maxWidth: contentMax, alignSelf: "center", paddingHorizontal: pad }}>
+          {/* STAGE + SIDE PANEL */}
+          <FadeIn duration={800} distance={26}>
+            {isWide ? (
+              <View style={{ flexDirection: "row", gap: 16 }}>
+                <View style={{ flex: 1 }}>{stage}</View>
+                {sidePanel}
               </View>
-
-            </View>
-
-            {/* Right Sidebar Column */}
-            <View style={styles.rightColumn}>
-              {/* Announcement Card */}
-              <View style={[styles.sidebarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.sidebarCardTitle, { color: colors.text }]}>Announcement</Text>
-                <Text style={[styles.announcementText, { color: colors.textSecondary }]}>
-                  Selamat datang di Project tugas kuliah kami,disini kalian bisa streaming anime tanpa iklan dan bebas nonton kapanpun
-                </Text>
-                <Text style={[styles.announcementText, { color: colors.textSecondary }]}>
-                  Enjoy Guys! 
-                </Text>
+            ) : (
+              <View>
+                {stage}
+                {sidePanel}
               </View>
+            )}
+          </FadeIn>
 
-              {/* Discord Button */}
-              <TouchableOpacity
-                style={styles.discordButton}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="logo-discord" size={16} color="#FFF" style={{ marginRight: 8 }} />
-                <Text style={styles.discordButtonText}>Join our Discord</Text>
-              </TouchableOpacity>
-
-              {/* Top Rating Widget */}
-              <View style={styles.sidebarSection}>
-                <View style={styles.sidebarHeaderRow}>
-                  <View style={styles.sidebarIndicator} />
-                  <Text style={[styles.sidebarSectionTitle, { color: colors.text }]}>Top Rated Anime</Text>
-                </View>
-
-                <View style={styles.sidebarItemsList}>
-                  {completedAnime.slice(0, 3).map((item, index) => (
-                    <TouchableOpacity
-                      key={`top-rated-${item.animeId}-${index}`}
-                      style={styles.sidebarItemRow}
-                      activeOpacity={0.7}
-                      onPress={() =>
-                        navigation.navigate("Episode", {
-                          bookId: item.animeId,
-                          title: item.title,
-                        })
-                      }
-                    >
-                      <Image
-                        source={{ uri: item.poster }}
-                        style={styles.sidebarPoster as any}
-                        contentFit="cover"
-                      />
-                      <View style={styles.sidebarItemInfo}>
-                        <Text style={[styles.sidebarItemTitle, { color: colors.text }]} numberOfLines={1}>
-                          {item.title}
-                        </Text>
-                        <Text style={[styles.sidebarItemSubtitle, { color: colors.textSecondary }]}>
-                          ⭐ {item.score || "9.0"}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Ongoing Series */}
-              <View style={styles.sidebarSection}>
-                <View style={styles.sidebarHeaderRow}>
-                  <View style={styles.sidebarIndicator} />
-                  <Text style={[styles.sidebarSectionTitle, { color: colors.text }]}>Ongoing Series</Text>
-                </View>
-
-                <View style={styles.sidebarItemsList}>
-                  {ongoingAnime.slice(0, 4).map((item, index) => (
-                    <TouchableOpacity
-                      key={`ongoing-series-${item.animeId}-${index}`}
-                      style={styles.sidebarItemRow}
-                      activeOpacity={0.7}
-                      onPress={() =>
-                        navigation.navigate("Episode", {
-                          bookId: item.animeId,
-                          title: item.title,
-                        })
-                      }
-                    >
-                      <Image
-                        source={{ uri: item.poster }}
-                        style={styles.sidebarPoster as any}
-                        contentFit="cover"
-                      />
-                      <View style={styles.sidebarItemInfo}>
-                        <Text style={[styles.sidebarItemTitle, { color: colors.text }]} numberOfLines={1}>
-                          {item.title}
-                        </Text>
-                        <Text style={[styles.sidebarItemSubtitle, { color: colors.textSecondary }]}>
-                          {item.totalEpisodes ? `Episode ${item.totalEpisodes}` : "Episode 1"}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </View>
-          </View>
-        ) : (
-          /* Old Mobile Layout */
-          <View>
-            {/* HERO CAROUSEL (Mobile Peeking Card Carousel - Infinite Loop style) */}
-            {carouselItems.length > 0 && (() => {
-              const N = carouselItems.length;
-              const infiniteItems = [carouselItems[N - 1], ...carouselItems, carouselItems[0]];
-              return (
-                <View style={styles.mobileCarouselContainer}>
-                  <ScrollView
-                    ref={mobileScrollViewRef}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    snapToInterval={width * 0.68 + 16}
-                    decelerationRate="fast"
-                    snapToAlignment="center"
-                    contentContainerStyle={{
-                      paddingHorizontal: (width - (width * 0.68)) / 2,
-                      alignItems: "center",
-                    }}
-                    onScroll={handleMobileScroll}
-                    onMomentumScrollEnd={handleMobileScrollEnd}
-                    scrollEventThrottle={16}
-                    style={Platform.OS === "web" ? {
-                      scrollSnapType: "x mandatory",
-                    } as any : undefined}
-                  >
-                    {infiniteItems.map((item, index) => {
-                      let activeIdx = index - 1;
-                      if (activeIdx < 0) activeIdx = N - 1;
-                      else if (activeIdx >= N) activeIdx = 0;
-                      
-                      const isActive = activeIdx === mobileCarouselIndex;
-                      const cardWidth = width * 0.68;
-                      const gap = 16;
-                      
-                      return (
-                        <TouchableOpacity
-                          key={`mobile-carousel-infinite-${item.id}-${index}`}
-                          activeOpacity={0.9}
-                          onPress={() =>
-                            navigation.navigate("Episode", {
-                              bookId: item.navBookId,
-                              title: item.title,
-                            })
-                          }
-                          style={[
-                            styles.mobileCarouselCard,
-                            {
-                              width: cardWidth,
-                              height: cardWidth * 1.35,
-                              marginHorizontal: gap / 2,
-                              transform: [{ scale: isActive ? 1 : 0.92 }],
-                              opacity: isActive ? 1 : 0.65,
-                            },
-                            Platform.OS === "web" ? {
-                              scrollSnapAlign: "center",
-                            } as any : undefined
-                          ]}
-                        >
-                          <Image
-                            source={{ uri: item.cover }}
-                            style={styles.mobileCarouselImage}
-                            contentFit="cover"
-                          />
-                          <LinearGradient
-                            colors={["transparent", "rgba(0,0,0,0.85)"]}
-                            style={StyleSheet.absoluteFill}
-                          />
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-
-                  {/* Page Indicator (Elongated Red Active Indicator) */}
-                  <View style={styles.indicatorContainer}>
-                    {carouselItems.map((_, index) => (
-                      <View
-                        key={`indicator-${index}`}
-                        style={[
-                          styles.indicatorDot,
+          {/* RELEASE CALENDAR */}
+          {dayList.length > 0 && (
+            <FadeIn delay={150} style={styles.section}>
+              <SectionHead
+                title="Jadwal Rilis"
+                hint="episode baru tiap minggu"
+                action="Semua ongoing"
+                onAction={() => navigation.navigate("AnimeList", { type: "ongoing", title: "Anime Ongoing" })}
+              />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 16 }}>
+                {dayList.map((d) => {
+                  const on = d === shownDay;
+                  return (
+                    <Pressable
+                      key={d}
+                      onPress={() => setDay(d)}
+                      style={hoverBg(
+                        [
+                          styles.dayChip,
                           {
-                            backgroundColor: index === mobileCarouselIndex ? colors.accent : "rgba(255,255,255,0.25)",
-                            width: index === mobileCarouselIndex ? 20 : 6,
+                            backgroundColor: on ? colors.buttonPrimaryBg : colors.glass,
+                            borderColor: on ? colors.buttonPrimaryBg : colors.glassBorder,
                           },
-                        ]}
-                      />
-                    ))}
-                  </View>
-
-                  {/* Active Anime Info */}
-                  {carouselItems[mobileCarouselIndex] && (
-                    <View style={styles.activeInfoContainer}>
-                      <Text style={[styles.activeTitle, { color: colors.text }]} numberOfLines={1}>
-                        {carouselItems[mobileCarouselIndex].title}
+                        ],
+                        !on && { backgroundColor: colors.glassHover },
+                      )}
+                    >
+                      <Text style={{ color: on ? colors.buttonPrimaryText : colors.text, fontSize: 13.5, fontWeight: "700" }}>
+                        {d}
                       </Text>
-                      <Text style={[styles.activeMeta, { color: colors.textSecondary }]}>
-                        {carouselItems[mobileCarouselIndex].genres.join(" • ")}  •  {carouselItems[mobileCarouselIndex].meta}
+                      {d === today && (
+                        <View style={[styles.todayDot, { backgroundColor: colors.accent }]} />
+                      )}
+                      <Text style={{ color: on ? colors.buttonPrimaryText : colors.textMuted, fontSize: 12, fontWeight: "600" }}>
+                        {byDay[d].length}
                       </Text>
-                    </View>
-                  )}
-                </View>
-              );
-            })()}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: gridGap, paddingBottom: 6, paddingTop: 4 }}>
+                {(byDay[shownDay] || []).map((a, i) => (
+                  <FadeIn key={`${shownDay}-${a.animeId}`} delay={i * 60} trigger={shownDay}>
+                    <PosterCard
+                      item={a}
+                      width={rowCardWidth}
+                      caption={`Episode ${a.episodes || "?"}${a.latestReleaseDate ? ` · ${a.latestReleaseDate}` : ""}`}
+                      onPress={() => openAnime(a)}
+                    />
+                  </FadeIn>
+                ))}
+              </ScrollView>
+            </FadeIn>
+          )}
 
-            {/* SECTION 1: ANIME ONGOING */}
-            {ongoingAnime.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View>
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <View style={{ width: 4, height: 20, backgroundColor: colors.accent, marginRight: 8, borderRadius: 2 }} />
-                      <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                        Anime Ongoing
+          {/* RECENTLY UPDATED */}
+          {ongoing.length > 0 && (
+            <FadeIn delay={220} style={styles.section}>
+              <SectionHead title="Baru Diperbarui" />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: gridGap, paddingBottom: 6, paddingTop: 4 }}>
+                {ongoing.slice(0, 10).map((a) => (
+                  <PosterCard
+                    key={a.animeId}
+                    item={a}
+                    width={rowCardWidth}
+                    caption={`Episode ${a.episodes || "?"}`}
+                    onPress={() => openAnime(a)}
+                  />
+                ))}
+              </ScrollView>
+            </FadeIn>
+          )}
+
+          {/* TRENDING / MOST POPULAR */}
+          <FadeIn delay={290} style={styles.section}>
+            <View style={styles.sectionHead}>
+              <View style={[styles.segment, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+                {([
+                  ["ongoing", "Trending"],
+                  ["completed", "Most Popular"],
+                ] as const).map(([key, label]) => {
+                  const on = activeTab === key;
+                  return (
+                    <Pressable
+                      key={key}
+                      onPress={() => setActiveTab(key)}
+                      style={[styles.segmentBtn, on && { backgroundColor: colors.buttonPrimaryBg }]}
+                    >
+                      <Text style={{ color: on ? colors.buttonPrimaryText : colors.textSecondary, fontSize: 13.5, fontWeight: "700" }}>
+                        {label}
                       </Text>
-                    </View>
-                    <Text style={[styles.sectionSubtitle, { color: colors.textSecondary, marginLeft: 12 }]}>
-                      Anime yang sedang tayang saat ini
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => navigation.navigate("AnimeList", { type: "ongoing", title: "Anime Ongoing" })}
-                    style={styles.seeAllButton}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.seeAllText, { color: colors.accent }]}>
-                      Lihat Semua
-                    </Text>
-                    <Ionicons name="chevron-forward" size={14} color={colors.accent} />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.gridContainer}>
-                  {ongoingAnime.slice(0, 10).map((item, index) => renderCard(item, index, "ONGOING"))}
-                </View>
+                    </Pressable>
+                  );
+                })}
               </View>
-            )}
-
-            {/* SECTION 2: ANIME COMPLETED */}
-            {completedAnime.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View>
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <View style={{ width: 4, height: 20, backgroundColor: colors.accent, marginRight: 8, borderRadius: 2 }} />
-                      <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                        Anime Completed
-                      </Text>
-                    </View>
-                    <Text style={[styles.sectionSubtitle, { color: colors.textSecondary, marginLeft: 12 }]}>
-                      Anime yang sudah selesai tayang
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => navigation.navigate("AnimeList", { type: "completed", title: "Anime Completed" })}
-                    style={styles.seeAllButton}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.seeAllText, { color: colors.accent }]}>
-                      Lihat Semua
-                    </Text>
-                    <Ionicons name="chevron-forward" size={14} color={colors.accent} />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.gridContainer}>
-                  {completedAnime.slice(0, 10).map((item, index) => renderCard(item, index, "COMPLETED"))}
-                </View>
-              </View>
-            )}
-          </View>
-        )}
+              <View style={{ flex: 1 }} />
+              <Pressable
+                onPress={() =>
+                  navigation.navigate("AnimeList",
+                    activeTab === "ongoing"
+                      ? { type: "ongoing", title: "Anime Ongoing" }
+                      : { type: "completed", title: "Anime Completed" })
+                }
+                style={hoverBg(
+                  [styles.sectionAction, { backgroundColor: colors.glass, borderColor: colors.glassBorder }],
+                  { backgroundColor: colors.glassHover },
+                )}
+              >
+                <Text style={{ color: colors.text, fontSize: 12.5, fontWeight: "600" }}>Lihat Semua</Text>
+                <Ionicons name="chevron-forward" size={13} color={colors.text} />
+              </Pressable>
+            </View>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: gridGap }}>
+              {gridItems.map((a, i) => (
+                <FadeIn key={`${activeTab}-${a.animeId}`} delay={i * 40} trigger={activeTab}>
+                  <PosterCard
+                    item={a}
+                    width={gridCardWidth}
+                    rank={i + 1}
+                    caption={
+                      activeTab === "ongoing"
+                        ? `Episode ${a.episodes || "?"}`
+                        : `${a.episodes || "?"} eps`
+                    }
+                    onPress={() => openAnime(a)}
+                  />
+                </FadeIn>
+              ))}
+            </View>
+          </FadeIn>
         </View>
 
-        {renderWebFooter()}
+        <View style={{ height: 40 }} />
+        <WebFooter />
       </ScrollView>
 
-      {/* SCROLL TO TOP BUTTON */}
       {showScrollToTop && (
-        <TouchableOpacity
-          style={[styles.scrollToTopButton, { backgroundColor: colors.accent }]}
-          activeOpacity={0.8}
-          onPress={scrollToTop}
+        <Pressable
+          style={[
+            styles.scrollTop,
+            { backgroundColor: colors.glassStrong, borderColor: colors.glassBorder },
+            glassWebStyle(20),
+          ]}
+          onPress={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
+          accessibilityLabel="Kembali ke atas"
         >
-          <Ionicons name="arrow-up" size={24} color="#FFF" />
-        </TouchableOpacity>
+          <Ionicons name="arrow-up" size={20} color={colors.text} />
+        </Pressable>
       )}
     </View>
   );
@@ -993,798 +746,202 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
 export default HomeScreen;
 
-/* styles */
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1 },
+
+  // Stage
+  stage: {
+    borderRadius: 28,
+    overflow: "hidden",
+    borderWidth: 1,
+    backgroundColor: "#0B0C0E",
+    justifyContent: "flex-end",
   },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  header: {
-    paddingTop: isWeb ? 16 : 50,
+  keyArtWrap: {
+    position: "absolute",
+    right: "7%",
+    top: "9%",
+    borderRadius: 22,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    ...Platform.select({ web: { boxShadow: "0 40px 90px rgba(0,0,0,0.6)" } as any }),
+  } as any,
+  keyArt: { width: "100%", height: "100%" },
+  mobileHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 16,
-    paddingBottom: 10,
-  },
-  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-  },
-  mobileWelcomeRow: {
-    flexDirection: "row",
     justifyContent: "space-between",
+    zIndex: 5,
+  },
+  heroIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
-    marginBottom: 14,
-    paddingHorizontal: 4,
-  },
-  mobileWelcomeTextCol: {
-    flex: 1,
     justifyContent: "center",
-    paddingRight: 10,
-    marginTop: 20,
-    marginBottom: 20,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
   },
-  mobileWelcomeTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 2,
-  },
-  mobileWelcomeSubtitle: {
-    fontSize: 11,
-    fontWeight: "normal",
-  },
-  mobileWelcomeRight: {
+  heroBody: { paddingBottom: 26 },
+  heroTitle: { color: "#FFF", fontWeight: "800", letterSpacing: -0.8 },
+  heroMeta: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 14 },
+  heroMetaText: { color: "rgba(255,255,255,0.82)", fontSize: 15, fontWeight: "600" },
+  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.4)" },
+  heroDesc: { color: "rgba(255,255,255,0.74)", fontSize: 14, lineHeight: 21, marginTop: 14, maxWidth: 470 },
+  heroActions: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 22 },
+  watchBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 9,
+    backgroundColor: "#FFF",
+    height: 44,
+    paddingHorizontal: 22,
+    borderRadius: 22,
   },
-  mobileThemeBtn: {
-    padding: 4,
-  },
-  mobileProfileAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  searchBar: {
-    flex: 1,
+  watchBtnText: { color: "#0B0C0E", fontSize: 14, fontWeight: "700" },
+  ghostBtn: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 40,
+    gap: 8,
+    height: 44,
+    paddingHorizontal: 20,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    paddingVertical: 0,
-    height: 40,
-  },
-  searchIconWrap: {
-    width: 28,
-    height: 28,
+  ghostBtnText: { color: "#FFF", fontSize: 14, fontWeight: "600" },
+  roundBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
   },
-  genreButton: {
+  indicators: { flexDirection: "row", gap: 8, marginTop: 26 },
+  indicatorTrack: { height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.28)", overflow: "hidden" },
+  indicatorFill: { height: 3, backgroundColor: "#FFF" },
+
+  // Strip
+  stripWrap: { position: "relative" },
+  stripTitle: { color: "#FFF", fontSize: 16, fontWeight: "700", marginBottom: 8 },
+  stripCount: { color: "rgba(255,255,255,0.55)", fontWeight: "500" },
+  stripCard: {
+    padding: 5,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+  },
+  stripImage: { width: "100%", aspectRatio: 1.9, borderRadius: 10 },
+  stripLabel: { color: "#FFF", fontSize: 12.5, fontWeight: "600", textAlign: "center", paddingVertical: 8, paddingHorizontal: 6 },
+  stripArrow: {
+    position: "absolute",
+    right: 14,
+    top: 62,
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: 20,
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 8,
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  heroContainer: {
-    height: isWeb ? 280 : 220,
-    marginHorizontal: 12,
-    marginTop: 12,
-    marginBottom: 24,
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  heroSlide: {
-    flex: 1,
-    backgroundColor: "#0D0D0D",
-    position: "relative",
-  },
-  heroImage: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: "100%",
-    height: "100%",
-    ...(isWeb
-      ? { filter: "blur(10px) brightness(0.9)", transform: [{ scale: 1.1 }] }
-      : {}),
-  },
-  heroGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    bottom: 0,
-    right: 0,
-  },
-  heroGradBottom: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 48,
-  },
-  heroContentRow: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: isWeb ? 24 : 16,
-    paddingBottom: 30,
-  },
-  heroPosterWrap: {
-    width: isWeb ? 140 : 100,
-    height: isWeb ? 200 : 145,
-    borderRadius: 10,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  heroPoster: {
-    width: "100%",
-    height: "100%",
-  },
-  heroInfoPanel: {
-    flex: 1,
-    marginLeft: isWeb ? 20 : 14,
-    justifyContent: "center",
-  },
-  heroLabel: {
-    color: "#A8A8A8",
-    fontSize: 10,
-    fontWeight: "bold",
-    letterSpacing: 1.5,
-    marginBottom: 6,
-    textTransform: "uppercase",
-  },
-  heroTitle: {
-    fontFamily: "Inter",
-    color: "#FFFFFF",
-    fontSize: isWeb ? 22 : 17,
-    fontWeight: "bold",
-    lineHeight: isWeb ? 28 : 23,
-    marginBottom: 4,
-  },
-  heroEpisodeCount: {
-    color: "#CCCCCC",
-    fontSize: 12,
-    fontWeight: "normal",
-    marginBottom: 6,
-  },
-  heroDescription: {
-    color: "#999999",
-    fontSize: isWeb ? 13 : 11,
-    lineHeight: isWeb ? 18 : 16,
-    marginBottom: 12,
-  },
-  heroBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 6,
-  },
-  heroBtnText: {
-    color: "#FFF",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  heroDot: {
-    backgroundColor: "rgba(255,255,255,0.35)",
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginHorizontal: 3,
-  },
-  heroActiveDot: {
-    width: 18,
-    height: 6,
-    borderRadius: 3,
-    marginHorizontal: 3,
-  },
-  section: {
-    marginBottom: 28,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  seeAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-  },
-  seeAllText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 12,
-  },
-  gridContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-  },
-  card: {
-    borderRadius: 10,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
-    marginBottom: 16,
-    padding: 4,
-  },
-  cardImageWrap: {
-    width: "100%",
-    aspectRatio: 3 / 4,
-    backgroundColor: "#1A1A1A",
-    position: "relative",
-  },
-  cardImage: {
-    width: "100%",
-    height: "100%",
-  },
-  rankBadge: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 5,
-  },
-  rankText: {
-    color: "#FFF",
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  typeBadge: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  typeText: {
-    color: "#FFF",
-    fontSize: 9,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  cardInfo: {
-    padding: 10,
-  },
-  cardTitle: {
-    fontSize: 13,
-    fontWeight: "bold",
-    lineHeight: 18,
-    marginBottom: 6,
-  },
-  cardMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  cardEpisode: {
-    fontSize: 11,
-    fontWeight: "normal",
-  },
-  cardViews: {
-    fontSize: 11,
-    fontWeight: "bold",
-  },
-  scrollToTopButton: {
-    position: "absolute",
-    bottom: 24,
-    right: 24,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  desktopScrollContent: {
-    paddingTop: 72,
-    paddingBottom: 60,
-  },
-  desktopContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 32,
-    paddingTop: 24,
-    gap: 32,
-    maxWidth: 1280,
-    alignSelf: "center",
-    width: "100%",
-  },
-  leftColumn: {
-    flex: 3,
-    gap: 28,
-  },
-  rightColumn: {
-    flex: 1,
-    gap: 24,
-  },
-  spotlightWrapper: {
-    position: "relative",
-    width: "100%",
+    backgroundColor: "rgba(20,21,24,0.6)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
   },
 
-  spotlightCard: {
-    flexDirection: "row",
-    padding: 24,
-    borderRadius: 5,
-    borderWidth: 1,
-    alignItems: "center",
-    position: "relative",
-    overflow: "hidden",
-    minHeight: 240,
-  },
-  spotlightBackground: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: "100%",
-    height: "100%",
-    opacity: 0.5,
-  },
-  spotlightGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  spotlightPoster: {
-    width: 140,
-    height: 200,
-    borderRadius: 5,
-    marginRight: 24,
-    zIndex: 1,
-  },
-  spotlightInfo: {
+  // Side panel
+  panelHeader: { padding: 20 },
+  brandBadge: { width: 54, height: 54, borderRadius: 27, alignItems: "center", justifyContent: "center" },
+  brandName: { fontSize: 17, fontWeight: "800", letterSpacing: 0.4 },
+  panelBtn: {
     flex: 1,
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  spotlightBadgeRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 10,
-  },
-  spotlightBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: "rgba(155, 92, 92, 0.25)",
-  },
-  spotlightBadgeText: {
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "#e30000ff",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  spotlightTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginBottom: 8,
-  },
-  spotlightSynopsis: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 16,
-  },
-  spotlightBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 10,
-  },
-  spotlightBtnText: {
-    color: "#FFF",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  desktopSection: {
-    gap: 16,
-  },
-  desktopSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  accentLine: {
-    width: 4,
-    height: 18,
-    backgroundColor: "#E63333",
-    borderRadius: 20,
-  },
-  desktopSectionTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  horizontalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  recentCard: {
-    flex: 1,
-    gap: 6,
-  },
-  recentPoster: {
-    width: "100%",
-    aspectRatio: 3 / 4,
-    borderRadius: 5,
-  },
-  recentEpisode: {
-    fontSize: 11,
-    fontWeight: "normal",
-  },
-  recentTitle: {
-    fontSize: 13,
-    fontWeight: "bold",
-  },
-  tabBar: {
-    flexDirection: "row",
-    gap: 24,
-    borderBottomWidth: 1,
-    marginBottom: 12,
-  },
-  tabButton: {
-    paddingVertical: 12,
-    position: "relative",
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  activeTabIndicator: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-  },
-  desktopGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
-  },
-  gridCard: {
-    width: "18%",
-    gap: 6,
-    marginBottom: 8,
-  },
-  gridPoster: {
-    width: "100%",
-    aspectRatio: 3 / 4,
-    borderRadius: 5,
-  },
-  sidebarCard: {
-    padding: 20,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 12,
-  },
-  sidebarCardTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  announcementText: {
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: 'justify',
-  },
-  discordButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#5865F2",
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  discordButtonText: {
-    color: "#FFF",
-    fontSize: 13,
-    fontWeight: "bold",
-  },
-  sidebarSection: {
-    marginBottom: 28,
-  },
-  sidebarHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  sidebarIndicator: {
-    width: 4,
-    height: 18,
-    backgroundColor: "#E63333",
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  sidebarSectionTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  sidebarItemsList: {
-    gap: 16,
-  },
-  sidebarItemRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  sidebarPoster: {
-    width: 70,
-    height: 95,
-    borderRadius: 3,
-  },
-  sidebarItemInfo: {
-    flex: 1,
-    justifyContent: "center",
-    gap: 4,
-  },
-  sidebarItemTitle: {
-    fontSize: 15,
-    fontWeight: "bold",
-  },
-  sidebarItemSubtitle: {
-    fontSize: 13,
-    fontWeight: "normal",
-  },
-  webFooterContainer: {
-    paddingTop: 48,
-    borderTopWidth: 1,
-    width: "100%",
-    marginTop: 48,
-    marginBottom: 0,
-  },
-  webFooterContent: {
-    maxWidth: 1200,
-    width: "100%",
-    alignSelf: "center",
-    paddingHorizontal: 24,
-    flexWrap: "wrap",
-    gap: 32,
-  },
-  footerBrandCol: {
-    gap: 16,
-  },
-  footerLogoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  footerLogoImg: {
-    width: 48,
-    height: 48,
-  },
-  footerLogoTextImg: {
-    width: 120,
-    height: 38,
-  },
-  footerDescription: {
-    fontSize: 14,
-    lineHeight: 22,
-    maxWidth: 450,
-  },
-  footerSocialsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
-  },
-  socialIconCircle: {
-    width: 38,
     height: 38,
     borderRadius: 19,
+    borderWidth: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    gap: 8,
   },
-  footerLinkCol: {
-    gap: 12,
-  },
-  footerColTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  footerLinkBtn: {
-    paddingVertical: 2,
-  },
-  footerLinkText: {
-    fontSize: 14,
-  },
-  taglineBadge: {
+  panelRound: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  hairline: { height: 1 },
+  panelTitle: { fontSize: 17, fontWeight: "700" },
+  popRow: { flexDirection: "row", gap: 14, padding: 8, borderRadius: 16, marginVertical: 4 },
+  popPoster: { width: 74, height: 104, borderRadius: 10 },
+  popTitle: { fontSize: 14.5, fontWeight: "700", lineHeight: 19 },
+
+  // Sections
+  section: { marginTop: 40 },
+  sectionHead: { flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 10 },
+  sectionTitle: { fontSize: 20, fontWeight: "800", letterSpacing: -0.3 },
+  sectionAction: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(230, 51, 51, 0.1)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 8,
-  },
-  taglineBadgeText: {
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  footerBottomRow: {
-    maxWidth: 1200,
-    width: "100%",
-    alignSelf: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    borderTopWidth: 1,
-    marginTop: 40,
-    alignItems: "center",
-  },
-  copyrightText: {
-    fontSize: 13,
-    textAlign: "center",
-  },
-  mobileLogoSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  mobileLogoOne: {
-    width: 32,
-    height: 32,
-  },
-  mobileLogoTwo: {
-    width: 80,
-    height: 28,
-    marginTop: 1,
-  },
-  mobileUserGreetingRow: {
-    paddingHorizontal: 4,
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  mobileGridCard: {
-    gap: 6,
-    marginBottom: 16,
-  },
-  mobileGridPoster: {
-    width: "100%",
-    aspectRatio: 3 / 4,
-    borderRadius: 8,
-  },
-  mobileHeader: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
-  mobileHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  mobileHeaderLeft: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  mobileWelcomeBackText: {
-    fontSize: 12,
-    fontWeight: "normal",
-    marginBottom: 4,
-  },
-  mobileWelcomeNameText: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  mobileHeaderRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  mobileHeaderIconButton: {
-    padding: 6,
-  },
-  mobileCarouselContainer: {
-    paddingVertical: 16,
-    width: "100%",
-  },
-  mobileCarouselCard: {
-    borderRadius: 10,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    backgroundColor: "#1A1A1A",
-  },
-  mobileCarouselImage: {
-    width: "100%",
-    height: "100%",
-  },
-  indicatorContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 16,
-    gap: 6,
-  },
-  indicatorDot: {
-    height: 6,
-    borderRadius: 3,
-  },
-  activeInfoContainer: {
-    alignItems: "center",
-    marginTop: 16,
-    paddingHorizontal: 32,
     gap: 4,
+    height: 34,
+    paddingHorizontal: 14,
+    borderRadius: 17,
+    borderWidth: 1,
   },
-  activeTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    textAlign: "center",
+  dayChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 40,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
   },
-  activeMeta: {
-    fontSize: 12,
-    textAlign: "center",
+  todayDot: { width: 6, height: 6, borderRadius: 3 },
+  segment: { flexDirection: "row", padding: 4, borderRadius: 22, borderWidth: 1 },
+  segmentBtn: { height: 34, paddingHorizontal: 16, borderRadius: 17, justifyContent: "center" },
+
+  // Poster card
+  posterFrame: { width: "100%", aspectRatio: 0.7, borderRadius: 18, overflow: "hidden", borderWidth: 1 },
+  posterShade: { position: "absolute", left: 0, right: 0, bottom: 0, height: "45%" },
+  posterRank: {
+    position: "absolute",
+    top: 6,
+    left: 12,
+    color: "#FFF",
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: -1,
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
+  },
+  posterCaptionRow: {
+    position: "absolute",
+    left: 10,
+    right: 10,
+    bottom: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  posterCaption: { color: "rgba(255,255,255,0.9)", fontSize: 11.5, fontWeight: "600", flex: 1 },
+  posterTitle: { fontSize: 13.5, fontWeight: "600", lineHeight: 18, marginTop: 9 },
+
+  scrollTop: {
+    position: "absolute",
+    bottom: 22,
+    right: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

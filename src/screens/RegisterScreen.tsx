@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { webAnim } from "../components/ui";
 import {
   View,
   Text,
@@ -903,7 +904,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   card: {
-    borderRadius: 16,
+    borderRadius: 28,
     borderWidth: 1,
     padding: 32,
     shadowColor: "#000",
@@ -917,7 +918,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: 8,
+    borderRadius: 14,
     marginBottom: 18,
   },
   messageIcon: {
@@ -941,10 +942,10 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 10,
+    borderRadius: 25,
     borderWidth: 1,
     paddingHorizontal: 14,
-    height: 48,
+    height: 50,
   },
   inputIcon: {
     marginRight: 10,
@@ -970,8 +971,8 @@ const styles = StyleSheet.create({
   registerButton: {
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 10,
-    height: 46,
+    borderRadius: 24,
+    height: 48,
     marginTop: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -1018,7 +1019,7 @@ const styles = StyleSheet.create({
   guestButton: {
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 10,
+    borderRadius: 22,
     height: 44,
     borderWidth: 1,
   },
@@ -1030,6 +1031,8 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     height: "100%",
+    ...(Platform.OS === "web" ? ({ backdropFilter: "blur(18px) saturate(140%)" } as any) : null),
+    ...webAnim.fade,
     justifyContent: "center",
     alignItems: "center",
     ...Platform.select({
@@ -1069,7 +1072,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     width: 820,
     height: 520,
-    borderRadius: 16,
+    borderRadius: 28,
+    ...webAnim.pop,
     borderWidth: 1,
     overflow: "hidden",
     shadowColor: "#000",
@@ -1140,7 +1144,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: 8,
+    borderRadius: 14,
     marginBottom: 18,
   },
   errorIcon: {
@@ -1156,7 +1160,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: 8,
+    borderRadius: 14,
     marginBottom: 18,
   },
   successText: {
@@ -1208,7 +1212,7 @@ const styles = StyleSheet.create({
   privacyModalContent: {
     width: "100%",
     maxWidth: 480,
-    borderRadius: 16,
+    borderRadius: 28,
     borderWidth: 1,
     padding: 24,
     elevation: 5,
@@ -1256,7 +1260,7 @@ const styles = StyleSheet.create({
   },
   modalCloseBtnBottom: {
     height: 40,
-    borderRadius: 8,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
     width: "100%",

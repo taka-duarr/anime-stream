@@ -34,7 +34,7 @@ const slides: SlideItem[] = [
     title: "Tonton Anime",
     description: "Tonton anime dengan mudah dimana saja kapan saja",
     icon: "play-circle-outline",
-    gradientColors: ["#FF4757", "#E63333"],
+    gradientColors: ["#EC2B55", "#EC2B55"],
   },
   {
     id: "2",

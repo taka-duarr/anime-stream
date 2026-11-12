@@ -29,7 +29,7 @@ interface GenreListScreenProps {
 }
 
 const GENRE_COLORS = [
-  "#FF4757", "#2ED573", "#1E90FF", "#FFA502", "#9B59B6", 
+  "#EC2B55", "#2ED573", "#1E90FF", "#FFA502", "#9B59B6", 
   "#1ABC9C", "#E67E22", "#E84393", "#00CEC9", "#6C5CE7",
   "#FF7675", "#0984E3", "#D63031", "#E17055", "#FD79A8"
 ];

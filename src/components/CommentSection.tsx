@@ -15,11 +15,29 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
+import { Glass, glassWebStyle, FadeIn, Shimmer } from "./ui";
 
 interface CommentSectionProps {
   animeId: string;
   navigation: any;
 }
+
+const formatTimeAgo = (dateStr?: string) => {
+  if (!dateStr) return "";
+  try {
+    const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+    if (diff < 60) return "Baru saja";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m lalu`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}j lalu`;
+    if (diff < 2592000) return `${Math.floor(diff / 86400)}h lalu`;
+    return new Date(dateStr).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+    });
+  } catch {
+    return "";
+  }
+};
 
 const CommentSection: React.FC<CommentSectionProps> = ({
   animeId,
@@ -39,13 +57,11 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [sortOrder, setSortOrder] = useState<"latest" | "oldest">("latest");
+  const [likesMap, setLikesMap] = useState<Record<number, { likes: number; liked: boolean }>>({});
 
   useEffect(() => {
-    console.log("[COMMENT SECTION] Component mounted with animeId:", animeId);
-    if (!animeId) {
-      console.error("[COMMENT SECTION] ERROR: animeId is undefined or null!");
-      return;
-    }
+    if (!animeId) return;
     loadComments();
   }, [animeId]);
 
@@ -56,7 +72,6 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   const loadComments = async () => {
     try {
       setLoading(true);
-      console.log("[COMMENT SECTION] Loading comments for anime:", animeId);
       const fetchedComments = await api.getComments(animeId);
 
       const commentMap = new Map<number, api.Comment>();
@@ -146,7 +161,6 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   // DELETE COMMENT
   // ============================================
 
-  // Opens the custom delete confirmation modal (cross-platform: works on web & mobile)
   const handleDeleteComment = (commentId: number) => {
     setDeleteTargetId(commentId);
     setShowDeleteModal(true);
@@ -171,7 +185,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   };
 
   // ============================================
-  // EDIT COMMENT
+  // EDIT & REPLY
   // ============================================
 
   const handleEditComment = (comment: api.Comment) => {
@@ -179,10 +193,6 @@ const CommentSection: React.FC<CommentSectionProps> = ({
     setCommentText(comment.content);
     setReplyingTo(null);
   };
-
-  // ============================================
-  // REPLY — Cek Auth Langsung
-  // ============================================
 
   const handleReplyComment = (comment: api.Comment) => {
     if (!isAuthenticated) {
@@ -194,18 +204,34 @@ const CommentSection: React.FC<CommentSectionProps> = ({
     setCommentText("");
   };
 
-  // ============================================
-  // CANCEL
-  // ============================================
-
   const handleCancel = () => {
     setReplyingTo(null);
     setEditingComment(null);
     setCommentText("");
   };
 
+  const handleLike = (id: number) => {
+    setLikesMap((prev) => {
+      const current = prev[id] || { likes: 0, liked: false };
+      return {
+        ...prev,
+        [id]: {
+          likes: current.liked ? current.likes - 1 : current.likes + 1,
+          liked: !current.liked,
+        },
+      };
+    });
+  };
+
+  // Sorted Comments
+  const displayedComments = [...comments].sort((a, b) => {
+    const timeA = new Date(a.created_at).getTime();
+    const timeB = new Date(b.created_at).getTime();
+    return sortOrder === "latest" ? timeB - timeA : timeA - timeB;
+  });
+
   // ============================================
-  // LOGIN MODAL — Themed
+  // LOGIN MODAL — Glassmorphic
   // ============================================
 
   const renderLoginModal = () => (
@@ -216,23 +242,33 @@ const CommentSection: React.FC<CommentSectionProps> = ({
       onRequestClose={() => setShowLoginModal(false)}
     >
       <TouchableOpacity
-        style={styles.modalOverlay}
+        style={[styles.modalOverlay, glassWebStyle(24)]}
         activeOpacity={1}
         onPress={() => setShowLoginModal(false)}
       >
         <TouchableOpacity
-          style={[styles.modalCard, { backgroundColor: colors.card }]}
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: colors.glassStrong,
+              borderColor: colors.glassBorder,
+            },
+            glassWebStyle(36),
+          ]}
           activeOpacity={1}
           onPress={(e) => e.stopPropagation()}
         >
-          {/* Icon */}
+          {/* Glowing Icon */}
           <View
             style={[
               styles.modalIconWrap,
-              { backgroundColor: colors.accent + "20" },
+              {
+                backgroundColor: colors.accent + "18",
+                borderColor: colors.accent + "40",
+              },
             ]}
           >
-            <Ionicons name="lock-closed" size={36} color={colors.accent} />
+            <Ionicons name="lock-closed" size={32} color={colors.accent} />
           </View>
 
           {/* Title */}
@@ -242,13 +278,12 @@ const CommentSection: React.FC<CommentSectionProps> = ({
 
           {/* Subtitle */}
           <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-            Anda harus login terlebih dahulu untuk dapat menulis komentar atau
-            membalas komentar orang lain.
+            Masuk untuk menulis komentar, membalas diskusi, atau berinteraksi dengan komunitas.
           </Text>
 
           {/* Divider */}
           <View
-            style={[styles.modalDivider, { backgroundColor: colors.border }]}
+            style={[styles.modalDivider, { backgroundColor: colors.glassBorder }]}
           />
 
           {/* Login Button */}
@@ -262,7 +297,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
           >
             <Ionicons
               name="log-in-outline"
-              size={20}
+              size={18}
               color="#FFF"
               style={{ marginRight: 8 }}
             />
@@ -274,8 +309,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({
             style={[
               styles.modalCancelBtn,
               {
-                backgroundColor: colors.bgSecondary,
-                borderColor: colors.border,
+                backgroundColor: colors.searchBg,
+                borderColor: colors.glassBorder,
               },
             ]}
             activeOpacity={0.8}
@@ -296,205 +331,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   );
 
   // ============================================
-  // RENDER COMMENT ITEM
-  // ============================================
-
-  const renderComment = (comment: api.Comment, isReply: boolean = false) => {
-    const isOwnComment =
-      !!isAuthenticated &&
-      !!username &&
-      (comment.username || "").toLowerCase() === username.toLowerCase();
-    const displayUsername =
-      comment.username ||
-      comment.user?.username ||
-      `User ${comment.user_id || comment.user?.id || "Unknown"}`;
-    const avatarLetter = displayUsername.charAt(0).toUpperCase();
-
-    return (
-      <View key={comment.id} style={styles.commentContainer}>
-        <View style={[styles.commentItem, isReply && styles.replyItem]}>
-          {/* Avatar */}
-          <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-            <Text style={styles.avatarText}>{avatarLetter}</Text>
-          </View>
-
-          {/* Content */}
-          <View style={styles.contentArea}>
-            {/* Header */}
-            <View style={styles.headerRow}>
-              <View style={styles.userInfoRow}>
-                <Text style={[styles.username, { color: colors.text }]}>
-                  {displayUsername}
-                </Text>
-                
-                {isDesktop && (
-                  <>
-                    <Text style={[styles.userLevel, { color: colors.textSecondary }]}>
-                      Level 2 (Otooto)
-                    </Text>
-                    <View style={[styles.modBadge, { backgroundColor: colors.accent }]}>
-                      <Text style={styles.modBadgeText}>Moderator</Text>
-                    </View>
-                    <Text style={[styles.postIdText, { color: colors.textMuted }]}>
-                      #245
-                    </Text>
-                  </>
-                )}
-
-                {isOwnComment && !isDesktop && (
-                  <View
-                    style={[
-                      styles.badge,
-                      { backgroundColor: colors.accent + "20" },
-                    ]}
-                  >
-                    <Text style={[styles.badgeText, { color: colors.accent }]}>
-                      YOU
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Edit / Delete */}
-              {isOwnComment && (
-                <View style={styles.actionButtons}>
-                  <TouchableOpacity
-                    onPress={() => handleEditComment(comment)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons
-                      name="create-outline"
-                      size={16}
-                      color={colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handleDeleteComment(comment.id)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons
-                      name="trash-outline"
-                      size={16}
-                      color={colors.accent}
-                    />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-
-            {/* Comment Text */}
-            <Text style={[styles.commentText, { color: colors.text }]}>
-              {comment.content || ""}
-            </Text>
-
-            {/* Actions interaction row matching mockup */}
-            <View style={styles.interactionRow}>
-              {isDesktop ? (
-                <>
-                  <TouchableOpacity style={styles.thumbsBtn}>
-                    <Ionicons
-                      name="thumbs-up-outline"
-                      size={16}
-                      color={colors.accent}
-                    />
-                    <Text style={[styles.thumbsText, { color: colors.accent }]}>
-                      12
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.thumbsBtn}>
-                    <Ionicons
-                      name="thumbs-down-outline"
-                      size={16}
-                      color={colors.textSecondary}
-                    />
-                    <Text style={[styles.thumbsText, { color: colors.textSecondary }]}>
-                      1
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handleReplyComment(comment)}
-                    style={styles.replyTextBtn}
-                  >
-                    <Text style={[styles.replyText, { color: colors.textSecondary }]}>
-                      REPLY
-                    </Text>
-                  </TouchableOpacity>
-
-                  <Text style={[styles.timestampDesktop, { color: colors.textMuted }]}>
-                    1 hour ago
-                  </Text>
-
-                  <TouchableOpacity style={styles.moreIconBtn}>
-                    <Ionicons name="ellipsis-horizontal" size={16} color={colors.textMuted} />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <TouchableOpacity style={styles.interactionBtn}>
-                    <Ionicons
-                      name="heart-outline"
-                      size={16}
-                      color={colors.textMuted}
-                    />
-                    <Text
-                      style={[styles.interactionText, { color: colors.textMuted }]}
-                    >
-                      0
-                    </Text>
-                  </TouchableOpacity>
-
-                  {!isReply && (
-                    <TouchableOpacity
-                      onPress={() => handleReplyComment(comment)}
-                      style={styles.interactionBtn}
-                    >
-                      <Ionicons
-                        name="arrow-undo-outline"
-                        size={16}
-                        color={colors.textMuted}
-                      />
-                      <Text
-                        style={[
-                          styles.interactionText,
-                          { color: colors.textMuted },
-                        ]}
-                      >
-                        Balas
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  
-                  <Text style={[styles.timestamp, { color: colors.textMuted }]}>
-                    •{" "}
-                    {new Date(comment.created_at).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </Text>
-                </>
-              )}
-            </View>
-          </View>
-        </View>
-
-        {/* Replies */}
-        {!isReply && comment.replies && comment.replies.length > 0 && (
-          <View style={styles.repliesSection}>
-            {comment.replies.map((reply) => renderComment(reply, true))}
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  // ============================================
-  // MAIN RENDER
-  // ============================================
-
-  // ============================================
-  // DELETE CONFIRM MODAL — Cross-platform (Web + Mobile)
+  // DELETE CONFIRM MODAL — Glassmorphic
   // ============================================
 
   const renderDeleteModal = () => (
@@ -505,23 +342,33 @@ const CommentSection: React.FC<CommentSectionProps> = ({
       onRequestClose={cancelDelete}
     >
       <TouchableOpacity
-        style={styles.modalOverlay}
+        style={[styles.modalOverlay, glassWebStyle(24)]}
         activeOpacity={1}
         onPress={cancelDelete}
       >
         <TouchableOpacity
-          style={[styles.modalCard, { backgroundColor: colors.card }]}
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: colors.glassStrong,
+              borderColor: colors.glassBorder,
+            },
+            glassWebStyle(36),
+          ]}
           activeOpacity={1}
           onPress={(e) => e.stopPropagation()}
         >
-          {/* Icon */}
+          {/* Glowing Red Icon */}
           <View
             style={[
               styles.modalIconWrap,
-              { backgroundColor: "#FF474720" },
+              {
+                backgroundColor: "rgba(239, 68, 68, 0.16)",
+                borderColor: "rgba(239, 68, 68, 0.4)",
+              },
             ]}
           >
-            <Ionicons name="trash" size={36} color="#FF4747" />
+            <Ionicons name="trash-outline" size={32} color="#EF4444" />
           </View>
 
           {/* Title */}
@@ -531,24 +378,23 @@ const CommentSection: React.FC<CommentSectionProps> = ({
 
           {/* Subtitle */}
           <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-            Komentar yang dihapus tidak dapat dikembalikan. Apakah Anda yakin
-            ingin menghapus komentar ini?
+            Komentar yang dihapus tidak dapat dipulihkan. Apakah Anda yakin ingin menghapusnya?
           </Text>
 
           {/* Divider */}
           <View
-            style={[styles.modalDivider, { backgroundColor: colors.border }]}
+            style={[styles.modalDivider, { backgroundColor: colors.glassBorder }]}
           />
 
           {/* Delete Button */}
           <TouchableOpacity
-            style={[styles.modalLoginBtn, { backgroundColor: "#FF4747" }]}
+            style={[styles.modalLoginBtn, { backgroundColor: "#EF4444" }]}
             activeOpacity={0.85}
             onPress={confirmDelete}
           >
             <Ionicons
               name="trash-outline"
-              size={20}
+              size={18}
               color="#FFF"
               style={{ marginRight: 8 }}
             />
@@ -560,8 +406,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({
             style={[
               styles.modalCancelBtn,
               {
-                backgroundColor: colors.bgSecondary,
-                borderColor: colors.border,
+                backgroundColor: colors.searchBg,
+                borderColor: colors.glassBorder,
               },
             ]}
             activeOpacity={0.8}
@@ -581,8 +427,246 @@ const CommentSection: React.FC<CommentSectionProps> = ({
     </Modal>
   );
 
+  // ============================================
+  // RENDER COMMENT ITEM — Glassmorphic Card
+  // ============================================
+
+  const renderComment = (comment: api.Comment, isReply: boolean = false) => {
+    const isOwnComment =
+      !!isAuthenticated &&
+      !!username &&
+      (comment.username || "").toLowerCase() === username.toLowerCase();
+    const displayUsername =
+      comment.username ||
+      comment.user?.username ||
+      `User ${comment.user_id || comment.user?.id || "Unknown"}`;
+    const avatarLetter = displayUsername.charAt(0).toUpperCase();
+    const timeAgo = formatTimeAgo(comment.created_at);
+    const likeData = likesMap[comment.id] || { likes: 0, liked: false };
+
+    return (
+      <View key={comment.id} style={styles.commentContainer}>
+        <View
+          style={[
+            styles.commentCard,
+            isReply ? styles.replyCard : null,
+            {
+              backgroundColor: isReply ? colors.searchBg : colors.glass,
+              borderColor: colors.glassBorder,
+            },
+            glassWebStyle(isReply ? 12 : 20),
+          ]}
+        >
+          {/* Avatar with accent ring glow */}
+          <View
+            style={[
+              styles.avatar,
+              {
+                backgroundColor: colors.accent + "22",
+                borderColor: colors.accent + "50",
+              },
+            ]}
+          >
+            <Text style={[styles.avatarText, { color: colors.accent }]}>
+              {avatarLetter}
+            </Text>
+          </View>
+
+          {/* Content */}
+          <View style={styles.contentArea}>
+            {/* Header */}
+            <View style={styles.headerRow}>
+              <View style={styles.userInfoRow}>
+                <Text style={[styles.username, { color: colors.text }]}>
+                  {displayUsername}
+                </Text>
+
+                {isDesktop && (
+                  <>
+                    <View
+                      style={[
+                        styles.levelPill,
+                        {
+                          backgroundColor: colors.searchBg,
+                          borderColor: colors.glassBorder,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.userLevel, { color: colors.textSecondary }]}>
+                        Otaku
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.modBadge,
+                        {
+                          backgroundColor: colors.accent + "20",
+                          borderColor: colors.accent + "40",
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.modBadgeText, { color: colors.accent }]}>
+                        Member
+                      </Text>
+                    </View>
+                  </>
+                )}
+
+                {isOwnComment && (
+                  <View
+                    style={[
+                      styles.badge,
+                      {
+                        backgroundColor: colors.accent + "20",
+                        borderColor: colors.accent + "45",
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.badgeText, { color: colors.accent }]}>
+                      YOU
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.timestampWrap}>
+                  <Ionicons name="time-outline" size={12} color={colors.textMuted} />
+                  <Text style={[styles.timestampText, { color: colors.textMuted }]}>
+                    {timeAgo}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Edit / Delete Buttons */}
+              {isOwnComment && (
+                <View style={styles.actionButtons}>
+                  <TouchableOpacity
+                    style={[
+                      styles.iconCircleBtn,
+                      {
+                        backgroundColor: colors.searchBg,
+                        borderColor: colors.glassBorder,
+                      },
+                    ]}
+                    onPress={() => handleEditComment(comment)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons
+                      name="create-outline"
+                      size={13}
+                      color={colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.iconCircleBtn,
+                      {
+                        backgroundColor: "rgba(239, 68, 68, 0.12)",
+                        borderColor: "rgba(239, 68, 68, 0.3)",
+                      },
+                    ]}
+                    onPress={() => handleDeleteComment(comment.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={13}
+                      color="#EF4444"
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {/* Comment Text */}
+            <Text style={[styles.commentText, { color: colors.text }]}>
+              {comment.content || ""}
+            </Text>
+
+            {/* Interaction Row */}
+            <View style={styles.interactionRow}>
+              {/* Thumbs up / Like */}
+              <TouchableOpacity
+                style={[
+                  styles.pillBtn,
+                  {
+                    backgroundColor: likeData.liked
+                      ? colors.accent + "20"
+                      : colors.searchBg,
+                    borderColor: likeData.liked
+                      ? colors.accent + "50"
+                      : colors.glassBorder,
+                  },
+                ]}
+                onPress={() => handleLike(comment.id)}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={likeData.liked ? "thumbs-up" : "thumbs-up-outline"}
+                  size={13}
+                  color={likeData.liked ? colors.accent : colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.pillBtnText,
+                    {
+                      color: likeData.liked ? colors.accent : colors.textSecondary,
+                    },
+                  ]}
+                >
+                  {likeData.likes}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Reply Button */}
+              {!isReply && (
+                <TouchableOpacity
+                  style={[
+                    styles.pillBtn,
+                    {
+                      backgroundColor: colors.searchBg,
+                      borderColor: colors.glassBorder,
+                    },
+                  ]}
+                  onPress={() => handleReplyComment(comment)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="arrow-undo-outline"
+                    size={13}
+                    color={colors.textSecondary}
+                  />
+                  <Text
+                    style={[styles.pillBtnText, { color: colors.textSecondary }]}
+                  >
+                    Balas
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Nested Replies */}
+        {!isReply && comment.replies && comment.replies.length > 0 && (
+          <View
+            style={[
+              styles.repliesSection,
+              { borderLeftColor: colors.glassBorder },
+            ]}
+          >
+            {comment.replies.map((reply) => renderComment(reply, true))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // ============================================
+  // MAIN COMPONENT
+  // ============================================
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+    <View style={styles.container}>
       {/* Login Modal */}
       {renderLoginModal()}
 
@@ -592,37 +676,106 @@ const CommentSection: React.FC<CommentSectionProps> = ({
       {/* Section Header */}
       <View style={styles.sectionHeader}>
         <View style={styles.sectionHeaderLeft}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Comments <Text style={{ color: colors.accent }}>({comments.length})</Text>
-          </Text>
-        </View>
-        {isDesktop && (
-          <View style={styles.sectionHeaderRight}>
-            <Text style={{ color: colors.textSecondary, fontSize: 13, marginRight: 8, fontWeight: "600" }}>Latest Comments</Text>
-            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+          <View
+            style={[
+              styles.headerIconWrap,
+              {
+                backgroundColor: colors.accent + "18",
+                borderColor: colors.accent + "35",
+              },
+            ]}
+          >
+            <Ionicons name="chatbubbles" size={17} color={colors.accent} />
           </View>
-        )}
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Komentar
+          </Text>
+          <View
+            style={[
+              styles.countBadge,
+              {
+                backgroundColor: colors.accent + "18",
+                borderColor: colors.accent + "35",
+              },
+            ]}
+          >
+            <Text style={[styles.countBadgeText, { color: colors.accent }]}>
+              {comments.length}
+            </Text>
+          </View>
+        </View>
+
+        {/* Sort Button */}
+        <TouchableOpacity
+          style={[
+            styles.sortBtn,
+            {
+              backgroundColor: colors.glass,
+              borderColor: colors.glassBorder,
+            },
+          ]}
+          onPress={() =>
+            setSortOrder((prev) => (prev === "latest" ? "oldest" : "latest"))
+          }
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name="swap-vertical"
+            size={13}
+            color={colors.textSecondary}
+          />
+          <Text style={[styles.sortBtnText, { color: colors.textSecondary }]}>
+            {sortOrder === "latest" ? "Terbaru" : "Terlama"}
+          </Text>
+          <Ionicons
+            name="chevron-down"
+            size={13}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Input Area */}
-      <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.inputContainer,
+          {
+            backgroundColor: colors.glass,
+            borderColor: colors.glassBorder,
+          },
+          glassWebStyle(24),
+        ]}
+      >
         {/* Reply/Edit Banner */}
         {(replyingTo || editingComment) && (
           <View
             style={[
               styles.actionBanner,
-              { backgroundColor: colors.bgSecondary },
+              {
+                backgroundColor: colors.searchBg,
+                borderColor: colors.glassBorder,
+              },
             ]}
           >
-            <Text
-              style={[styles.actionBannerText, { color: colors.textSecondary }]}
+            <View style={styles.actionBannerLeft}>
+              <Ionicons
+                name={editingComment ? "create-outline" : "arrow-undo-outline"}
+                size={16}
+                color={colors.accent}
+              />
+              <Text style={[styles.actionBannerText, { color: colors.text }]}>
+                {editingComment
+                  ? "Mengedit komentar..."
+                  : "Membalas komentar..."}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={handleCancel}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              {editingComment ? "Mengedit komentar" : "Membalas komentar"}
-            </Text>
-            <TouchableOpacity onPress={handleCancel}>
               <Ionicons
                 name="close-circle"
-                size={20}
+                size={18}
                 color={colors.textSecondary}
               />
             </TouchableOpacity>
@@ -635,55 +788,83 @@ const CommentSection: React.FC<CommentSectionProps> = ({
             style={[
               styles.guestBanner,
               {
-                backgroundColor: colors.accent + "15",
-                borderColor: colors.accent + "40",
+                backgroundColor: colors.accent + "12",
+                borderColor: colors.accent + "30",
               },
             ]}
             activeOpacity={0.8}
             onPress={() => setShowLoginModal(true)}
           >
-            <Ionicons
-              name="lock-closed-outline"
-              size={16}
-              color={colors.accent}
-            />
-            <Text style={[styles.guestBannerText, { color: colors.accent }]}>
-              Login untuk menulis komentar
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.accent} />
+            <View
+              style={[
+                styles.guestIconWrap,
+                { backgroundColor: colors.accent + "20" },
+              ]}
+            >
+              <Ionicons
+                name="lock-closed"
+                size={15}
+                color={colors.accent}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.guestBannerTitle, { color: colors.text }]}>
+                Gabung dalam diskusi
+              </Text>
+              <Text
+                style={[
+                  styles.guestBannerSubtitle,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                Login untuk mulai menulis atau membalas komentar
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.guestLoginPill,
+                { backgroundColor: colors.accent },
+              ]}
+            >
+              <Text style={styles.guestLoginPillText}>Login</Text>
+            </View>
           </TouchableOpacity>
         )}
 
-        {/* Input Row - Desktop Watch Form vs Mobile Form */}
+        {/* Input Row - Desktop Form vs Mobile Form */}
         {isDesktop ? (
           <View style={styles.desktopInputWrap}>
             <TouchableOpacity
               style={{ width: "100%" }}
-              activeOpacity={isAuthenticated ? 1 : 0.7}
+              activeOpacity={isAuthenticated ? 1 : 0.8}
               onPress={!isAuthenticated ? () => setShowLoginModal(true) : undefined}
             >
               <TextInput
                 style={[
                   styles.desktopTextInput,
                   {
-                    backgroundColor: colors.bgSecondary,
+                    backgroundColor: colors.searchBg,
                     color: colors.text,
-                    borderColor: colors.border,
-                    opacity: isAuthenticated ? 1 : 0.5,
+                    borderColor: colors.glassBorder,
+                    opacity: isAuthenticated ? 1 : 0.6,
                     outline: "none",
                   } as any,
                 ]}
                 placeholder={
                   !isAuthenticated
-                    ? "Login untuk berkomentar..."
-                    : "Type your comment here..."
+                    ? "Login terlebih dahulu untuk berkomentar..."
+                    : replyingTo
+                    ? "Tulis balasan Anda di sini..."
+                    : editingComment
+                    ? "Edit komentar Anda di sini..."
+                    : "Bagikan pendapat atau reaksimu tentang episode ini..."
                 }
                 placeholderTextColor={colors.textMuted}
                 value={commentText}
                 onChangeText={setCommentText}
                 multiline
                 maxLength={500}
-                numberOfLines={4}
+                numberOfLines={3}
                 editable={!!isAuthenticated}
               />
             </TouchableOpacity>
@@ -691,23 +872,65 @@ const CommentSection: React.FC<CommentSectionProps> = ({
             <View style={styles.toolbarRow}>
               {/* Left format tools */}
               <View style={styles.toolbarLeft}>
-                <TouchableOpacity style={styles.toolbarIconBtn}>
-                  <Ionicons name="camera-outline" size={20} color={colors.textSecondary} />
+                <TouchableOpacity
+                  style={[
+                    styles.toolbarIconBtn,
+                    {
+                      backgroundColor: colors.searchBg,
+                      borderColor: colors.glassBorder,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.toolbarIconBtn}>
-                  <Ionicons name="happy-outline" size={20} color={colors.textSecondary} />
+                <TouchableOpacity
+                  style={[
+                    styles.toolbarIconBtn,
+                    {
+                      backgroundColor: colors.searchBg,
+                      borderColor: colors.glassBorder,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="happy-outline"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.toolbarIconBtn}>
-                  <Text style={[styles.toolbarText, { color: colors.textSecondary }]}>B</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.toolbarIconBtn,
+                    {
+                      backgroundColor: colors.searchBg,
+                      borderColor: colors.glassBorder,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.toolbarText, { color: colors.textSecondary }]}
+                  >
+                    B
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.toolbarIconBtn}>
-                  <Text style={[styles.toolbarText, { color: colors.textSecondary }]}>I</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.toolbarIconBtn}>
-                  <Text style={[styles.toolbarText, { color: colors.textSecondary }]}>U</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.toolbarIconBtn}>
-                  <Text style={[styles.toolbarText, { color: colors.textSecondary }]}>S</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.toolbarIconBtn,
+                    {
+                      backgroundColor: colors.searchBg,
+                      borderColor: colors.glassBorder,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.toolbarText, { color: colors.textSecondary }]}
+                  >
+                    I
+                  </Text>
                 </TouchableOpacity>
               </View>
 
@@ -716,15 +939,30 @@ const CommentSection: React.FC<CommentSectionProps> = ({
                 style={[
                   styles.desktopPostBtn,
                   { backgroundColor: colors.accent },
-                  (!commentText.trim() || submitting || !isAuthenticated) && styles.desktopPostBtnDisabled,
+                  (!commentText.trim() || submitting || !isAuthenticated) &&
+                    styles.desktopPostBtnDisabled,
                 ]}
-                onPress={isAuthenticated ? handleSubmitComment : () => setShowLoginModal(true)}
+                onPress={
+                  isAuthenticated
+                    ? handleSubmitComment
+                    : () => setShowLoginModal(true)
+                }
                 disabled={submitting || !commentText.trim() || !isAuthenticated}
               >
                 {submitting ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
-                  <Text style={styles.postBtnText}>Post</Text>
+                  <>
+                    <Ionicons
+                      name="paper-plane"
+                      size={14}
+                      color="#FFF"
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.postBtnText}>
+                      {editingComment ? "Simpan" : "Kirim"}
+                    </Text>
+                  </>
                 )}
               </TouchableOpacity>
             </View>
@@ -733,17 +971,17 @@ const CommentSection: React.FC<CommentSectionProps> = ({
           <View style={styles.inputRow}>
             <TouchableOpacity
               style={{ flex: 1 }}
-              activeOpacity={isAuthenticated ? 1 : 0.7}
+              activeOpacity={isAuthenticated ? 1 : 0.8}
               onPress={!isAuthenticated ? () => setShowLoginModal(true) : undefined}
             >
               <TextInput
                 style={[
                   styles.input,
                   {
-                    backgroundColor: colors.bgSecondary,
+                    backgroundColor: colors.searchBg,
                     color: colors.text,
-                    borderColor: colors.border,
-                    opacity: isAuthenticated ? 1 : 0.5,
+                    borderColor: colors.glassBorder,
+                    opacity: isAuthenticated ? 1 : 0.6,
                   },
                 ]}
                 placeholder={
@@ -753,7 +991,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
                     ? "Edit komentar Anda..."
                     : replyingTo
                     ? "Tulis balasan Anda..."
-                    : "Tulis komentar Anda..."
+                    : "Tulis komentar..."
                 }
                 placeholderTextColor={colors.textMuted}
                 value={commentText}
@@ -782,8 +1020,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
                 <Ionicons
-                  name={isAuthenticated ? "send" : "lock-closed"}
-                  size={20}
+                  name={isAuthenticated ? "paper-plane" : "lock-closed"}
+                  size={17}
                   color="#FFF"
                 />
               )}
@@ -795,28 +1033,80 @@ const CommentSection: React.FC<CommentSectionProps> = ({
       {/* Comment List */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Memuat komentar...
-          </Text>
+          {[1, 2, 3].map((key) => (
+            <View
+              key={key}
+              style={[
+                styles.skeletonCard,
+                {
+                  backgroundColor: colors.glass,
+                  borderColor: colors.glassBorder,
+                },
+                glassWebStyle(16),
+              ]}
+            >
+              <View style={styles.skeletonHeader}>
+                <Shimmer style={styles.skeletonAvatar} />
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Shimmer style={{ width: 110, height: 13, borderRadius: 6 }} />
+                  <Shimmer style={{ width: 60, height: 10, borderRadius: 4 }} />
+                </View>
+              </View>
+              <Shimmer
+                style={{
+                  width: "92%",
+                  height: 12,
+                  borderRadius: 4,
+                  marginTop: 12,
+                }}
+              />
+              <Shimmer
+                style={{
+                  width: "65%",
+                  height: 12,
+                  borderRadius: 4,
+                  marginTop: 6,
+                }}
+              />
+            </View>
+          ))}
         </View>
-      ) : comments.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons
-            name="chatbubble-outline"
-            size={48}
-            color={colors.textMuted}
-          />
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+      ) : displayedComments.length === 0 ? (
+        <View
+          style={[
+            styles.emptyCard,
+            {
+              backgroundColor: colors.glass,
+              borderColor: colors.glassBorder,
+            },
+            glassWebStyle(16),
+          ]}
+        >
+          <View
+            style={[
+              styles.emptyIconWrap,
+              {
+                backgroundColor: colors.searchBg,
+                borderColor: colors.glassBorder,
+              },
+            ]}
+          >
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={36}
+              color={colors.textMuted}
+            />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
             Belum ada komentar
           </Text>
-          <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>
-            Jadilah yang pertama berkomentar!
+          <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
+            Jadilah yang pertama berbagi pemikiran tentang anime ini!
           </Text>
         </View>
       ) : (
         <View style={styles.commentsList}>
-          {comments.map((comment) => renderComment(comment))}
+          {displayedComments.map((comment) => renderComment(comment))}
         </View>
       )}
     </View>
@@ -830,37 +1120,78 @@ const CommentSection: React.FC<CommentSectionProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    paddingVertical: 20,
+    paddingVertical: 12,
+    backgroundColor: "transparent",
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     marginBottom: 16,
-    gap: 8,
+  },
+  sectionHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  headerIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+  },
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  sortBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  sortBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   inputContainer: {
     marginHorizontal: 16,
     marginBottom: 20,
-    borderRadius: 12,
-    padding: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 1,
   },
   actionBanner: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 8,
-    borderRadius: 8,
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  actionBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   actionBannerText: {
     fontSize: 13,
@@ -869,90 +1200,186 @@ const styles = StyleSheet.create({
   guestBanner: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  guestIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  guestBannerTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  guestBannerSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  guestLoginPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  guestLoginPillText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  desktopInputWrap: {
+    width: "100%",
+  },
+  desktopTextInput: {
+    width: "100%",
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    fontSize: 14,
+    minHeight: 88,
+  },
+  toolbarRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+  },
+  toolbarLeft: {
+    flexDirection: "row",
     gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    alignItems: "center",
+  },
+  toolbarIconBtn: {
+    width: 32,
+    height: 32,
     borderRadius: 8,
     borderWidth: 1,
-    marginBottom: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  guestBannerText: {
-    flex: 1,
+  toolbarText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  desktopPostBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    justifyContent: "center",
+  },
+  desktopPostBtnDisabled: {
+    opacity: 0.45,
+  },
+  postBtnText: {
+    color: "#FFF",
+    fontSize: 13,
+    fontWeight: "700",
   },
   inputRow: {
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 8,
+    gap: 10,
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    borderRadius: 14,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
-    maxHeight: 100,
+    maxHeight: 96,
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: "center",
     alignItems: "center",
   },
   sendButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.45,
   },
   loadingContainer: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  skeletonCard: {
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  skeletonHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 40,
+    gap: 10,
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
+  skeletonAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
-  emptyContainer: {
+  emptyCard: {
+    marginHorizontal: 16,
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1,
     alignItems: "center",
-    paddingVertical: 40,
   },
-  emptyText: {
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  emptyTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    marginTop: 12,
+    fontWeight: "700",
+    marginBottom: 6,
   },
-  emptySubtext: {
-    fontSize: 14,
-    marginTop: 4,
+  emptySubtitle: {
+    fontSize: 13,
+    textAlign: "center",
   },
   commentsList: {
     paddingHorizontal: 16,
   },
   commentContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  commentItem: {
+  commentCard: {
     flexDirection: "row",
     alignItems: "flex-start",
-    paddingVertical: 8,
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
   },
-  replyItem: {
-    marginLeft: 48,
-    paddingVertical: 6,
+  replyCard: {
+    borderRadius: 14,
+    padding: 12,
   },
   avatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
+    borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
   avatarText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 15,
+    fontWeight: "800",
   },
   contentArea: {
     flex: 1,
@@ -966,221 +1393,162 @@ const styles = StyleSheet.create({
   userInfoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     flexWrap: "wrap",
   },
   username: {
-    fontSize: 14,
+    fontSize: 13.5,
+    fontWeight: "700",
+  },
+  levelPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  userLevel: {
+    fontSize: 10.5,
+    fontWeight: "600",
+  },
+  modBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  modBadgeText: {
+    fontSize: 10.5,
     fontWeight: "700",
   },
   badge: {
     paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingVertical: 1,
+    borderRadius: 6,
+    borderWidth: 1,
   },
   badgeText: {
-    fontSize: 9,
+    fontSize: 9.5,
     fontWeight: "800",
     letterSpacing: 0.5,
   },
-  timestamp: {
-    fontSize: 12,
+  timestampWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  timestampText: {
+    fontSize: 11.5,
   },
   actionButtons: {
     flexDirection: "row",
-    gap: 12,
+    gap: 6,
+  },
+  iconCircleBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   commentText: {
-    fontSize: 14,
+    fontSize: 13.5,
     lineHeight: 20,
     marginBottom: 8,
   },
   interactionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 8,
   },
-  interactionBtn: {
+  pillBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingVertical: 2,
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 1,
   },
-  interactionText: {
-    fontSize: 12,
+  pillBtnText: {
+    fontSize: 11.5,
     fontWeight: "600",
+  },
+  repliesSection: {
+    borderLeftWidth: 2,
+    marginLeft: 18,
+    paddingLeft: 12,
+    marginTop: 8,
+    gap: 8,
   },
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    backgroundColor: "rgba(0, 0, 0, 0.72)",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
   modalCard: {
     width: "100%",
     maxWidth: 380,
-    borderRadius: 20,
-    padding: 28,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 26,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+    elevation: 12,
   },
   modalIconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
-    marginBottom: 10,
+    marginBottom: 8,
     textAlign: "center",
   },
   modalSubtitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 24,
+    lineHeight: 20,
+    marginBottom: 20,
   },
   modalDivider: {
     width: "100%",
     height: 1,
-    marginBottom: 20,
+    marginBottom: 18,
   },
   modalLoginBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginBottom: 12,
+    paddingVertical: 13,
+    borderRadius: 14,
+    marginBottom: 10,
   },
   modalLoginBtnText: {
     color: "#FFF",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
   },
   modalCancelBtn: {
     width: "100%",
-    paddingVertical: 13,
-    borderRadius: 12,
+    paddingVertical: 12,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   modalCancelBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  sectionHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  sectionHeaderRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  desktopInputWrap: {
-    width: "100%",
-  },
-  desktopTextInput: {
-    width: "100%",
-    borderRadius: 8,
-    borderWidth: 1,
-    padding: 16,
-    fontSize: 14,
-    minHeight: 100,
-  },
-  toolbarRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 12,
-  },
-  toolbarLeft: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-  },
-  toolbarIconBtn: {
-    padding: 4,
-  },
-  toolbarText: {
     fontSize: 14,
     fontWeight: "600",
-  },
-  desktopPostBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  desktopPostBtnDisabled: {
-    opacity: 0.5,
-  },
-  postBtnText: {
-    color: "#FFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  userLevel: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  modBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
-  modBadgeText: {
-    color: "white",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  postIdText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  thumbsBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 2,
-  },
-  thumbsText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  replyTextBtn: {
-    paddingVertical: 2,
-  },
-  replyText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  timestampDesktop: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  moreIconBtn: {
-    padding: 2,
-  },
-  repliesSection: {
-    borderLeftWidth: 1.5,
-    borderLeftColor: "rgba(255,255,255,0.08)",
-    marginLeft: 24,
-    paddingLeft: 16,
-    marginTop: 8,
   },
 }) as any;
 

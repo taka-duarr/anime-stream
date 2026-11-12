@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -34,6 +35,8 @@ import OnboardingScreen from "./src/screens/OnboardingScreen";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { WebNavbar } from "./src/components/WebNavbar";
+import { SplashIntro } from "./src/components/SplashIntro";
+import { glassWebStyle, NATIVE_DRIVER } from "./src/components/ui";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -48,7 +51,29 @@ if (isWeb) {
     style.type = "text/css";
     style.appendChild(
       doc.createTextNode(`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        html, body { background: #0B0C0E; }
+        * { scrollbar-width: thin; scrollbar-color: rgba(140,144,152,0.35) transparent; }
+        *::-webkit-scrollbar { width: 8px; height: 8px; }
+        *::-webkit-scrollbar-thumb { background: rgba(140,144,152,0.35); border-radius: 8px; }
+        *::-webkit-scrollbar-track { background: transparent; }
+        ::selection { background: rgba(236,43,85,0.45); color: #fff; }
+        @keyframes ng-kenburns {
+          0% { transform: scale(1.06) translate3d(0, 0, 0); }
+          100% { transform: scale(1.16) translate3d(-1.5%, -1.5%, 0); }
+        }
+        @keyframes ng-float {
+          0%, 100% { transform: translateY(0) rotate(-2.5deg); }
+          50% { transform: translateY(-10px) rotate(-1.5deg); }
+        }
+        @keyframes ng-pop {
+          0% { opacity: 0; transform: translateY(26px) scale(0.96); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes ng-fade { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) {
+          * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
         body, input, select, textarea, button {
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
@@ -99,7 +124,31 @@ const getActiveRouteName = (state: NavigationState | undefined): string => {
   return route.name;
 };
 
-// Bottom Navbar khusus untuk Mode Mobile (Elegan)
+// One icon in the floating dock: the active one pops into a filled circle.
+const DockIcon = ({ name, focused, label, activeBg, activeFg, idleFg }: any) => {
+  const v = React.useRef(new Animated.Value(focused ? 1 : 0)).current;
+  React.useEffect(() => {
+    Animated.spring(v, {
+      toValue: focused ? 1 : 0,
+      useNativeDriver: NATIVE_DRIVER,
+      speed: 18,
+      bounciness: 10,
+    }).start();
+  }, [focused]);
+  return (
+    <View style={styles.dockIconWrap} accessibilityLabel={label}>
+      <Animated.View
+        style={[
+          styles.dockIconBg,
+          { backgroundColor: activeBg, opacity: v, transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] },
+        ]}
+      />
+      <Ionicons name={name as any} size={21} color={focused ? activeFg : idleFg} />
+    </View>
+  );
+};
+
+// Bottom Navbar khusus untuk Mode Mobile: dock kaca mengambang
 const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
@@ -110,15 +159,15 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
   if (width >= 768) return <View style={{ height: 0 }} />;
 
   return (
+    <View style={{ backgroundColor: colors.bg, paddingBottom: 10 + insets.bottom, paddingTop: 8, alignItems: "center" }}>
     <View
       style={[
         styles.tabBarContainer,
         {
-          backgroundColor: colors.sidebar,
-          borderTopColor: colors.border,
-          paddingBottom: (Platform.OS === "ios" ? 12 : 6) + insets.bottom,
-          height: 64 + insets.bottom,
+          backgroundColor: colors.glassStrong,
+          borderColor: colors.glassBorder,
         },
+        glassWebStyle(24),
       ]}
     >
       {state.routes.map((route: any, index: number) => {
@@ -144,7 +193,7 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
         const getIconName = (routeName: string, focused: boolean) => {
           switch (routeName) {
             case "HomeTab":
-              return focused ? "film" : "film-outline";
+              return focused ? "home" : "home-outline";
             case "GenreTab":
               return focused ? "grid" : "grid-outline";
             case "SearchTab":
@@ -189,57 +238,21 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
             accessibilityLabel={options.tabBarAccessibilityLabel}
             testID={options.tabBarTestID}
             onPress={onPress}
-            style={[
-              styles.tabButton,
-              isSearchTab && {
-                justifyContent: "center",
-                alignItems: "center",
-              },
-            ]}
+            style={styles.tabButton}
             activeOpacity={0.8}
           >
-            {isSearchTab ? (
-              <View
-                style={[
-                  styles.searchTabHighlight,
-                  {
-                    backgroundColor: colors.accent,
-                    shadowColor: colors.accent,
-                    borderColor: colors.sidebar,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name={isFocused ? "search" : "search-outline"}
-                  size={28}
-                  color="#FFF"
-                />
-              </View>
-            ) : (
-              <>
-                <View style={styles.iconWrap}>
-                  <Ionicons
-                    name={iconName as any}
-                    size={22}
-                    color={isFocused ? colors.accent : colors.textSecondary}
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    {
-                      color: isFocused ? colors.accent : colors.textSecondary,
-                      fontWeight: isFocused ? "bold" : "normal",
-                    },
-                  ]}
-                >
-                  {label}
-                </Text>
-              </>
-            )}
+            <DockIcon
+              name={iconName}
+              focused={isFocused}
+              label={label}
+              activeBg={colors.buttonPrimaryBg}
+              activeFg={colors.buttonPrimaryText}
+              idleFg={colors.textSecondary}
+            />
           </TouchableOpacity>
         );
       })}
+    </View>
     </View>
   );
 };
@@ -406,7 +419,12 @@ const MobileLayout = () => {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>{isWeb ? <WebLayout /> : <MobileLayout />}</AuthProvider>
+      <AuthProvider>
+        <View style={{ flex: 1 }}>
+          {isWeb ? <WebLayout /> : <MobileLayout />}
+          <SplashIntro />
+        </View>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
@@ -414,19 +432,35 @@ export default function App() {
 const styles = StyleSheet.create({
   tabBarContainer: {
     flexDirection: "row",
-    borderTopWidth: 1,
-    paddingTop: 6,
-    elevation: 10,
+    borderWidth: 1,
+    borderRadius: 32,
+    height: 60,
+    paddingHorizontal: 8,
+    gap: 4,
+    alignItems: "center",
+    elevation: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    overflow: "visible",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
   },
   tabButton: {
-    flex: 1,
+    width: 56,
+    height: 60,
     justifyContent: "center",
     alignItems: "center",
+  },
+  dockIconWrap: {
+    width: 46,
+    height: 46,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dockIconBg: {
+    position: "absolute",
+    width: 46,
+    height: 46,
+    borderRadius: 23,
   },
   iconWrap: {
     paddingHorizontal: 16,

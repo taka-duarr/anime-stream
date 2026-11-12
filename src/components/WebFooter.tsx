@@ -24,7 +24,7 @@ export const WebFooter = () => {
   if (!isDesktop) return null;
 
   return (
-    <View style={[styles.webFooterContainer, { backgroundColor: isDark ? "#121212" : colors.bgSecondary, borderTopColor: colors.border }]}>
+    <View style={[styles.webFooterContainer, { backgroundColor: "transparent", borderTopColor: colors.border }]}>
       <View style={[styles.webFooterContent, isDesktop && { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }]}>
         {/* Logo & Brand Info */}
         <View style={[styles.footerBrandCol, isDesktop ? { width: "35%" } : { marginBottom: 24 }]}>

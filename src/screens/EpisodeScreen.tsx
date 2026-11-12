@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
   useWindowDimensions,
   Alert,
+  Pressable,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,6 +30,9 @@ import * as api from "../services/api";
 import EpisodeList from "../components/EpisodeList";
 import CommentSection from "../components/CommentSection";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { FadeIn, Glass, Lift, Rating, Shimmer, StatusPill, glassWebStyle, webAnim } from "../components/ui";
+
+const isWeb = Platform.OS === "web";
 
 const parseDurationToSeconds = (durationStr?: string): number => {
   if (!durationStr) return 24 * 60;
@@ -84,7 +88,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const { colors, isDark } = useTheme();
   const { isAuthenticated } = useAuth();
 
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
   const isDesktop = Platform.OS === "web" && width >= 768;
 
   // Desktop Streaming States
@@ -95,8 +99,43 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const [episodeDetail, setEpisodeDetail] = useState<any>(null);
   const [relatedSeries, setRelatedSeries] = useState<any[]>([]);
   const [suggestedSeries, setSuggestedSeries] = useState<any[]>([]);
-  const [sidebarTab, setSidebarTab] = useState<"episodes" | "recommendations">("episodes");
   const [watchProgress, setWatchProgress] = useState<Record<string, { watchedSeconds: number; totalSeconds: number }>>({});
+  const [isServerMenuOpen, setIsServerMenuOpen] = useState(false);
+
+  const activeQuality = useMemo(() => {
+    if (!activeServer || !episodeDetail?.serverqualities) return "";
+    for (const q of episodeDetail.serverqualities) {
+      if (q.serverList?.some((s: any) => s.serverId === activeServer.serverId)) {
+        return (q.title || "").trim();
+      }
+    }
+    return "";
+  }, [activeServer, episodeDetail]);
+
+  const activeServerLabel = useMemo(() => {
+    if (loadingVideo) return "Menghubungkan...";
+    if (!activeServer || activeServer.title === "Default" || activeServer.serverId === "") {
+      return "Default";
+    }
+    const cleanTitle = (activeServer.title || "").trim();
+    return activeQuality ? `${cleanTitle} (${activeQuality})` : cleanTitle;
+  }, [activeServer, activeQuality, loadingVideo]);
+
+  const allServerOptions = useMemo(() => {
+    if (!episodeDetail?.serverqualities) return [];
+    return episodeDetail.serverqualities.flatMap((q: any) => {
+      const cleanQuality = (q.title || "").trim();
+      return (q.serverList || []).map((s: any) => {
+        const cleanServer = (s.title || "").trim();
+        return {
+          ...s,
+          title: cleanServer,
+          qualityTitle: cleanQuality,
+          label: `${cleanServer} (${cleanQuality})`,
+        };
+      });
+    });
+  }, [episodeDetail]);
 
   // Load streaming URL for desktop player
   const loadStreamingUrl = async (episodeId: string, server?: any) => {
@@ -388,1464 +427,798 @@ export default function EpisodeScreen({ route, navigation }: any) {
     }
   };
 
+  // ============================================
+  // SHARED ACTIONS (used by the stage, the rail and the side panel)
+  // ============================================
+
+  const markWatched = (episodeId: string) => {
+    if (!isAuthenticated || !bookId || !episodeId) return;
+    api
+      .saveWatchHistory(bookId, episodeId)
+      .then(() => setWatchedEpisodes((prev) => (prev.includes(episodeId) ? prev : [...prev, episodeId])))
+      .catch((err) => console.error("Gagal menyimpan riwayat:", err));
+  };
+
+  // Desktop: pick an episode for the inline player
+  const selectEpisode = (ep: Episode) => {
+    setActiveEpisode(ep);
+    setIsPlayingWeb(false);
+    loadStreamingUrl(ep.chapterId);
+    markWatched(ep.chapterId);
+  };
+
+  // Desktop: start the inline player for the active episode
+  const startPlaying = () => {
+    setIsPlayingWeb(true);
+    if (activeEpisode?.chapterId) markWatched(activeEpisode.chapterId);
+  };
+
+  // Mobile: open an episode in the full-screen player
+  const openInPlayer = (ep: Episode) => {
+    markWatched(ep.chapterId);
+    navigation.navigate("Video", { episode: ep, episodes, animeId: bookId });
+  };
+
+  const downloadActive = () => {
+    const urls = episodeDetail?.downloadUrlqualities?.[0]?.urls;
+    if (urls && urls.length > 0) {
+      if (typeof globalThis !== "undefined" && (globalThis as any).window) {
+        (globalThis as any).window.open(urls[0].url, "_blank");
+      }
+    } else {
+      Alert.alert("Unduh", "Tautan unduhan tidak tersedia untuk episode ini.");
+    }
+  };
+
+  const animeTitle = detail?.title || title;
+  const isOngoing = (detail?.status || "").toLowerCase().includes("ongoing");
+  const epNumber = (ep: Episode) => {
+    const m = ep.chapterName.match(/(?:Episode|Ep)\s*(\d+)/i);
+    return m ? m[1].padStart(2, "0") : "•";
+  };
+  const hoverBg = (base: any, hover: any) => ({ hovered, pressed }: any) => [base, (hovered || pressed) && hover];
+
   if (loading) {
     return (
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: colors.bg,
-            justifyContent: "center",
-            alignItems: "center",
-          },
-        ]}
-      >
-        <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={{ marginTop: 10, color: colors.textSecondary }}>
-          Memuat Detail...
-        </Text>
+      <View style={[styles.container, { backgroundColor: colors.bg, padding: isDesktop ? 24 : 12, paddingTop: isDesktop ? 24 : insets.top + 12 }]}>
+        <View style={{ flexDirection: "row", gap: 16, flex: 1 }}>
+          <Shimmer style={{ flex: 1, borderRadius: 28 }} />
+          {isDesktop && width >= 1120 && <Shimmer style={{ width: 340, borderRadius: 28 }} />}
+        </View>
       </View>
     );
   }
 
-  // Error state UI
   if (error) {
     return (
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: colors.bg,
-            justifyContent: "center",
-            alignItems: "center",
-            padding: 20,
-          },
-        ]}
-      >
-        <Ionicons name="alert-circle-outline" size={64} color={colors.accent} />
-        <Text
-          style={{
-            marginTop: 16,
-            fontSize: 18,
-            fontWeight: "600",
-            color: colors.text,
-            textAlign: "center",
-          }}
-        >
-          Oops! Terjadi Kesalahan
-        </Text>
-        <Text
-          style={{
-            marginTop: 8,
-            fontSize: 14,
-            color: colors.textSecondary,
-            textAlign: "center",
-            lineHeight: 20,
-          }}
-        >
-          {error}
-        </Text>
-        <View style={{ flexDirection: "row", marginTop: 24, gap: 12 }}>
-          <TouchableOpacity
-            style={{
-              backgroundColor: colors.accent,
-              paddingHorizontal: 24,
-              paddingVertical: 12,
-              borderRadius: 8,
-            }}
-            onPress={fetchData}
-          >
-            <Text style={{ color: "#FFF", fontWeight: "600" }}>Coba Lagi</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={{
-              backgroundColor: colors.card,
-              paddingHorizontal: 24,
-              paddingVertical: 12,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={{ color: colors.text, fontWeight: "600" }}>
-              Kembali
-            </Text>
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.container, { backgroundColor: colors.bg, justifyContent: "center", alignItems: "center", padding: 20 }]}>
+        <Glass radius={28} style={{ padding: 32, alignItems: "center", maxWidth: 440 }}>
+          <Ionicons name="alert-circle-outline" size={56} color={colors.accent} />
+          <Text style={{ marginTop: 16, fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" }}>
+            Oops! Terjadi Kesalahan
+          </Text>
+          <Text style={{ marginTop: 8, fontSize: 14, color: colors.textSecondary, textAlign: "center", lineHeight: 20 }}>
+            {error}
+          </Text>
+          <View style={{ flexDirection: "row", marginTop: 24, gap: 12 }}>
+            <Pressable style={[styles.pillBtn, { backgroundColor: colors.buttonPrimaryBg }]} onPress={fetchData}>
+              <Text style={{ color: colors.buttonPrimaryText, fontWeight: "700" }}>Coba Lagi</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.pillBtn, { backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassBorder }]}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={{ color: colors.text, fontWeight: "600" }}>Kembali</Text>
+            </Pressable>
+          </View>
+        </Glass>
       </View>
     );
   }
 
-  const renderHeader = () => (
-    <>
-      {isDesktop ? (
-        <View style={styles.desktopHeaderContainer}>
-          <ImageBackground
-            source={{
-              uri: detail?.poster || "https://via.placeholder.com/400x600",
-            }}
-            style={styles.desktopBgImage}
-            resizeMode="cover"
-            blurRadius={20}
-          >
-            <View
-              style={[
-                styles.desktopBgOverlay,
-                {
-                  backgroundColor: isDark
-                    ? "rgba(0,0,0,0.85)"
-                    : "rgba(255,255,255,0.85)",
-                },
-              ]}
-            />
-
-            <View
-              style={[
-                styles.toolbar,
-                { paddingTop: 20, paddingHorizontal: 32 },
-              ]}
-            >
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => navigation.goBack()}
-              >
-                <Ionicons name="arrow-back" size={24} color="#FFF" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.desktopContentRow}>
-              <View style={styles.desktopPosterWrap}>
-                <Image
-                  source={{ uri: detail?.poster }}
-                  style={styles.desktopPosterImage}
-                  contentFit="cover"
-                />
-              </View>
-
-              <View style={styles.desktopInfoCol}>
-                <Text
-                  style={[
-                    styles.titleText,
-                    { color: colors.text, fontSize: 36, marginBottom: 16 },
-                  ]}
-                >
-                  {detail?.title || title}
-                </Text>
-
-                <View style={[styles.statsRow, { marginBottom: 20 }]}>
-                  <Ionicons name="star" size={16} color={colors.accent} />
-                  <Text
-                    style={[
-                      styles.scoreText,
-                      { color: colors.accent, fontSize: 16 },
-                    ]}
-                  >
-                    {detail?.score || "N/A"}
-                  </Text>
-                  <Text style={styles.dotSeparator}>•</Text>
-                  <Text
-                    style={[
-                      styles.statText,
-                      { color: colors.textSecondary, fontSize: 16 },
-                    ]}
-                  >
-                    {detail?.type || "TV"}
-                  </Text>
-                  <Text style={styles.dotSeparator}>•</Text>
-                  <Text
-                    style={[
-                      styles.statText,
-                      { color: colors.textSecondary, fontSize: 16 },
-                    ]}
-                  >
-                    {detail?.status || "Ongoing"}
-                  </Text>
-                  <Text style={styles.dotSeparator}>•</Text>
-                  <Text
-                    style={[
-                      styles.statText,
-                      { color: colors.textSecondary, fontSize: 16 },
-                    ]}
-                  >
-                    {episodes.length} Episodes
-                  </Text>
-                </View>
-
-                <View style={[styles.tagsRow, { marginBottom: 24 }]}>
-                  {detail?.genreList?.slice(0, 5).map((genre, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.tagBadge,
-                        {
-                          backgroundColor: isDark
-                            ? "rgba(230,51,51,0.15)"
-                            : "#FFE5E8",
-                          paddingHorizontal: 16,
-                          paddingVertical: 6,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.tagText,
-                          { color: colors.accent, fontSize: 14 },
-                        ]}
-                      >
-                        {genre.title}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-
-                <View
-                  style={[
-                    styles.actionsRow,
-                    { justifyContent: "flex-start", marginBottom: 32 },
-                  ]}
-                >
-                  <TouchableOpacity
-                    style={[
-                      styles.watchButton,
-                      {
-                        backgroundColor: colors.accent,
-                        maxWidth: 200,
-                        paddingVertical: 16,
-                      },
-                    ]}
-                    activeOpacity={0.8}
-                    onPress={() => {
-                      if (episodes.length > 0) {
-                        const targetEp = episodes[episodes.length - 1];
-                        if (isAuthenticated && bookId && targetEp.chapterId) {
-                          api.saveWatchHistory(bookId, targetEp.chapterId)
-                            .then(() => {
-                              setWatchedEpisodes(prev => {
-                                if (!prev.includes(targetEp.chapterId)) {
-                                  return [...prev, targetEp.chapterId];
-                                }
-                                return prev;
-                              });
-                            })
-                            .catch(err => console.error("Gagal menyimpan riwayat:", err));
-                        }
-                        navigation.navigate("Video", {
-                          episode: targetEp,
-                          episodes,
-                          animeId: bookId,
-                        });
-                      }
-                    }}
-                  >
-                    <Ionicons
-                      name="play-circle"
-                      size={24}
-                      color="#FFF"
-                      style={{ marginRight: 8 }}
-                    />
-                    <Text style={styles.watchButtonText}>Watch Now</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.secondaryButton,
-                      {
-                        backgroundColor: colors.card,
-                        marginLeft: 16,
-                        height: 56,
-                        width: 56,
-                      },
-                    ]}
-                    onPress={toggleBookmark}
-                    disabled={bookmarkLoading}
-                  >
-                    {bookmarkLoading ? (
-                      <ActivityIndicator size="small" color={colors.accent} />
-                    ) : (
-                      <Ionicons
-                        name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                        size={26}
-                        color={isBookmarked ? colors.accent : colors.text}
-                      />
-                    )}
-                  </TouchableOpacity>
-                </View>
-
-                <Text
-                  style={[
-                    styles.sectionTitle,
-                    { color: colors.text, fontSize: 20 },
-                  ]}
-                >
-                  Synopsis
-                </Text>
-                <Text
-                  style={[
-                    styles.synopsisText,
-                    {
-                      color: colors.textSecondary,
-                      fontSize: 15,
-                      lineHeight: 24,
-                    },
-                  ]}
-                  numberOfLines={6}
-                >
-                  {detail?.synopsis?.paragraphs?.join("\n\n") ||
-                    "No synopsis available."}
-                </Text>
-              </View>
-            </View>
-          </ImageBackground>
-        </View>
-      ) : (
-        <>
-          <View style={styles.heroContainer}>
-            <ImageBackground
-              source={{
-                uri: detail?.poster || "https://via.placeholder.com/400x600",
-              }}
-              style={styles.heroImage}
-              resizeMode="cover"
-            >
-              <View style={[styles.toolbar, { paddingTop: insets.top + 10 }]}>
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={() => navigation.goBack()}
-                >
-                  <Ionicons name="arrow-back" size={24} color="#FFF" />
-                </TouchableOpacity>
-              </View>
-              <LinearGradient
-                colors={[
-                  "transparent",
-                  isDark ? "rgba(18,18,18,0.8)" : "rgba(240,240,240,0.8)",
-                  colors.bg,
-                ]}
-                style={styles.heroGradient}
-              />
-            </ImageBackground>
-          </View>
-          <View
-            style={[styles.contentContainer, { backgroundColor: colors.bg }]}
-          >
-            <Text style={[styles.titleText, { color: colors.text }]}>
-              {detail?.title || title}
-            </Text>
-            <View style={styles.statsRow}>
-              <Ionicons name="star" size={16} color={colors.accent} />
-              <Text style={[styles.scoreText, { color: colors.accent }]}>
-                {detail?.score || "N/A"}
-              </Text>
-              <Text style={styles.dotSeparator}>•</Text>
-              <Text style={[styles.statText, { color: colors.textSecondary }]}>
-                {detail?.type || "TV"}
-              </Text>
-              <Text style={styles.dotSeparator}>•</Text>
-              <Text style={[styles.statText, { color: colors.textSecondary }]}>
-                {detail?.status || "Ongoing"}
-              </Text>
-              <Text style={styles.dotSeparator}>•</Text>
-              <Text style={[styles.statText, { color: colors.textSecondary }]}>
-                {episodes.length} Episodes
-              </Text>
-            </View>
-            <View style={styles.tagsRow}>
-              {detail?.genreList?.slice(0, 5).map((genre, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.tagBadge,
-                    {
-                      backgroundColor: isDark
-                        ? "rgba(230,51,51,0.15)"
-                        : "#FFE5E8",
-                    },
-                  ]}
-                >
-                  <Text style={[styles.tagText, { color: colors.accent }]}>
-                    {genre.title}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            <View style={styles.actionsRow}>
-              <TouchableOpacity
-                style={[styles.watchButton, { backgroundColor: colors.accent }]}
-                activeOpacity={0.8}
-                onPress={() => {
-                  if (episodes.length > 0) {
-                    const targetEp = episodes[episodes.length - 1];
-                    if (isAuthenticated && bookId && targetEp.chapterId) {
-                      api.saveWatchHistory(bookId, targetEp.chapterId)
-                        .then(() => {
-                          setWatchedEpisodes(prev => {
-                            if (!prev.includes(targetEp.chapterId)) {
-                              return [...prev, targetEp.chapterId];
-                            }
-                            return prev;
-                          });
-                        })
-                        .catch(err => console.error("Gagal menyimpan riwayat:", err));
-                    }
-                    navigation.navigate("Video", {
-                      episode: targetEp,
-                      episodes,
-                      animeId: bookId,
-                    });
-                  }
-                }}
-              >
-                <Ionicons
-                  name="play-circle"
-                  size={24}
-                  color="#FFF"
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={styles.watchButtonText}>Watch Now</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.secondaryButton,
-                  { backgroundColor: colors.card },
-                ]}
-                onPress={toggleBookmark}
-                disabled={bookmarkLoading}
-              >
-                {bookmarkLoading ? (
-                  <ActivityIndicator size="small" color={colors.accent} />
-                ) : (
-                  <Ionicons
-                    name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                    size={24}
-                    color={isBookmarked ? colors.accent : colors.text}
-                  />
-                )}
-              </TouchableOpacity>
-            </View>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Synopsis
-            </Text>
-            <Text
-              style={[styles.synopsisText, { color: colors.textSecondary }]}
-              numberOfLines={5}
-            >
-              {detail?.synopsis?.paragraphs?.join("\n\n") ||
-                "No synopsis available."}
-            </Text>
-          </View>
-        </>
-      )}
-
-      <View
-        style={[
-          styles.episodeHeader,
-          isDesktop && { paddingHorizontal: 32, marginTop: 10 },
-        ]}
-      >
+  // ---------------- hero text block (shared) ----------------
+  const heroInfo = (compact: boolean) => (
+    <View style={{ paddingHorizontal: compact ? 20 : 52, maxWidth: compact ? undefined : 760 }}>
+      <FadeIn distance={22}>
         <Text
-          style={[
-            styles.sectionTitle,
-            { color: colors.text, fontSize: isDesktop ? 22 : 18 },
-          ]}
+          style={[styles.heroTitle, compact ? { fontSize: 28, lineHeight: 34 } : { fontSize: 46, lineHeight: 52 }]}
+          numberOfLines={3}
         >
-          Episodes
+          {animeTitle}
+          {isDesktop && activeEpisode ? (
+            <Text style={{ color: "rgba(255,255,255,0.55)" }}>
+              {"  |  "}
+              {getCleanEpisodeTitle(activeEpisode.chapterName, animeTitle)}
+            </Text>
+          ) : null}
         </Text>
-      </View>
-    </>
+      </FadeIn>
+      <FadeIn delay={90} style={styles.heroMeta}>
+        <Rating score={detail?.score || "N/A"} size={15} color="#FFF" />
+        <View style={styles.dot} />
+        <StatusPill kind={isOngoing ? "ongoing" : "completed"} label={detail?.status || "Ongoing"} onDark />
+        <View style={styles.dot} />
+        <Text style={styles.heroMetaText}>{detail?.type || "TV"}</Text>
+        <View style={styles.dot} />
+        <Text style={styles.heroMetaText}>{episodes.length} Episodes</Text>
+      </FadeIn>
+      <FadeIn delay={150} style={styles.genreRow}>
+        {detail?.genreList?.slice(0, 5).map((genre, i) => (
+          <View key={i} style={[styles.genreChip, glassWebStyle(12)]}>
+            <Text style={styles.genreChipText}>{genre.title}</Text>
+          </View>
+        ))}
+      </FadeIn>
+      <FadeIn delay={210}>
+        <Text style={styles.heroSynopsis} numberOfLines={compact ? 5 : 4}>
+          {detail?.synopsis?.paragraphs?.join("\n\n") || "No synopsis available."}
+        </Text>
+      </FadeIn>
+      <FadeIn delay={270} style={styles.heroActions}>
+        <Lift
+          hoverScale={1.05}
+          lift={2}
+          accessibilityLabel="Watch Now"
+          onPress={() => {
+            if (isDesktop) startPlaying();
+            else if (episodes.length > 0) openInPlayer(episodes[episodes.length - 1]);
+          }}
+        >
+          <View style={styles.watchBtn}>
+            <Ionicons name="play" size={15} color="#0B0C0E" />
+            <Text style={styles.watchBtnText}>Watch Now</Text>
+          </View>
+        </Lift>
+        <Lift hoverScale={1.05} lift={2} onPress={toggleBookmark} disabled={bookmarkLoading} accessibilityLabel="My List">
+          <View style={[styles.ghostBtn, glassWebStyle(14), isBookmarked && { backgroundColor: "rgba(255,255,255,0.28)" }]}>
+            {bookmarkLoading ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name={isBookmarked ? "bookmark" : "add"} size={16} color="#FFF" />
+                <Text style={styles.ghostBtnText}>{isBookmarked ? "Saved to List" : "My List"}</Text>
+              </>
+            )}
+          </View>
+        </Lift>
+        {isDesktop && (
+          <Lift hoverScale={1.08} lift={2} onPress={downloadActive} accessibilityLabel="Download">
+            <View style={[styles.roundBtn, glassWebStyle(14)]}>
+              <Ionicons name="download-outline" size={17} color="#FFF" />
+            </View>
+          </Lift>
+        )}
+      </FadeIn>
+    </View>
   );
 
+  // ---------------- DESKTOP ----------------
   if (isDesktop) {
+    const wide = width >= 1120;
+    const stageMin = Math.max(windowHeight - 48, 640);
+
+    const sidePanel = (
+      <Glass radius={28} style={wide ? { width: 344, maxHeight: Math.max(stageMin, 720) } : { marginTop: 16, maxHeight: 640 }}>
+        {/* Anime identity, like the channel header in the reference */}
+        <View style={{ padding: 20, flexDirection: "row", gap: 14, alignItems: "center" }}>
+          <Image source={{ uri: detail?.poster }} style={styles.panelAvatar as any} contentFit="cover" />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontSize: 15.5, fontWeight: "800" }} numberOfLines={2}>
+              {detail?.studios || animeTitle}
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12.5, marginTop: 3 }} numberOfLines={1}>
+              {[detail?.releaseDate, detail?.duration].filter(Boolean).join(" · ") || "Anime"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20, marginBottom: 4 }} />
+
+        <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 12, paddingTop: 10 }}>
+          {([
+            ["Top Rated", relatedSeries, "completed", "Anime Completed", "Completed"],
+            ["Ongoing Series", suggestedSeries, "ongoing", "Anime Ongoing", "Ongoing"],
+          ] as const).map(([heading, list, type, listTitle, fallback], gi) => (
+            <View key={heading} style={{ marginTop: gi === 0 ? 0 : 18 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 8, marginBottom: 6 }}>
+                <Text style={[styles.panelTitle, { color: colors.text, flex: 1, marginBottom: 0, paddingHorizontal: 0 }]}>{heading}</Text>
+                <Pressable onPress={() => navigation.navigate("AnimeList", { type, title: listTitle })}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: "700" }}>VIEW ALL</Text>
+                </Pressable>
+              </View>
+              {list.length > 0 ? (
+                list.map((item: any, i: number) => (
+                  <FadeIn key={item.animeId} delay={i * 60}>
+                    <Pressable
+                      onPress={() => navigation.push("Episode", { bookId: item.animeId, title: item.title })}
+                      style={hoverBg(styles.recRow, { backgroundColor: colors.glass })}
+                    >
+                      <Image source={{ uri: item.poster }} style={styles.recPoster as any} contentFit="cover" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700", lineHeight: 19 }} numberOfLines={2}>
+                          {item.title}
+                        </Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 }}>
+                          <Rating score={item.score} size={12} />
+                          <StatusPill kind={type} label={item.status || fallback} small />
+                        </View>
+                      </View>
+                    </Pressable>
+                  </FadeIn>
+                ))
+              ) : (
+                <ActivityIndicator size="small" color={colors.text} style={{ alignSelf: "flex-start", margin: 10 }} />
+              )}
+            </View>
+          ))}
+        </ScrollView>
+      </Glass>
+    );
+
     return (
       <View style={[styles.container, { backgroundColor: colors.bg }]}>
-        <StatusBar
-          style={isDark ? "light" : "dark"}
-          // @ts-ignore
-          backgroundColor="transparent"
-          translucent
-        />
-        
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 40, paddingVertical: 32 }}
-        >
-          {/* Back Button */}
-          <TouchableOpacity
-            style={[styles.desktopBackBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={18} color={colors.text} style={{ marginRight: 6 }} />
-            <Text style={[styles.desktopBackText, { color: colors.text }]}>Kembali ke Beranda</Text>
-          </TouchableOpacity>
-
-          {/* TWO COLUMN STREAMING VIEW */}
-          <View style={styles.desktopMainRow}>
-            {/* Left Column: Player, Dropdowns, Comments */}
-            <View style={styles.desktopLeftCol}>
-              
-              {/* VIDEO PLAYER WINDOW */}
-              <View style={[styles.playerContainer, { backgroundColor: "black" }]}>
-                {!isPlayingWeb ? (
-                  <TouchableOpacity
-                    style={styles.desktopPlayPlaceholder}
-                    activeOpacity={0.9}
-                    onPress={() => {
-                      setIsPlayingWeb(true);
-                      if (isAuthenticated && bookId && activeEpisode?.chapterId) {
-                        api.saveWatchHistory(bookId, activeEpisode.chapterId)
-                          .then(() => {
-                            setWatchedEpisodes((prev) => {
-                              if (!prev.includes(activeEpisode.chapterId)) {
-                                  return [...prev, activeEpisode.chapterId];
-                              }
-                              return prev;
-                            });
-                          })
-                          .catch((err) => console.error("Gagal menyimpan riwayat tontonan desktop:", err));
-                      }
-                    }}
-                  >
-                    <Image
-                      source={{ uri: detail?.poster || "https://via.placeholder.com/400x600" }}
+        <StatusBar style="light" />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24 }}>
+          <View style={{ width: "100%", maxWidth: 1480, alignSelf: "center" }}>
+            <FadeIn duration={800} distance={26} style={{ zIndex: isServerMenuOpen ? 9999 : 2, position: "relative" }}>
+              <View style={wide ? { flexDirection: "row", gap: 16, alignItems: "flex-start" } : undefined}>
+                {/* STAGE */}
+                <View style={[styles.stage, { flex: wide ? 1 : undefined, minHeight: stageMin, borderColor: colors.glassBorder, zIndex: isServerMenuOpen ? 9999 : 2 }]}>
+                  {/* Background art (contained with rounded corners so dropdown can overflow gracefully) */}
+                  <View style={[StyleSheet.absoluteFill, { borderRadius: 28, overflow: "hidden" }]}>
+                    <View style={[StyleSheet.absoluteFill, webAnim.kenburns]}>
+                      <Image source={{ uri: detail?.poster }} style={StyleSheet.absoluteFill as any} contentFit="cover" blurRadius={28} />
+                    </View>
+                    <LinearGradient
+                      colors={["rgba(8,9,11,0.93)", "rgba(8,9,11,0.6)", "rgba(8,9,11,0.12)"]}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 0.9, y: 0.5 }}
                       style={StyleSheet.absoluteFill}
-                      contentFit="cover"
                     />
-                    <View style={styles.playOverlay}>
-                      <Ionicons name="play-circle" size={80} color={colors.accent} />
-                      <Text style={styles.playPlaceholderText}>Klik untuk Memutar Video</Text>
-                    </View>
-                  </TouchableOpacity>
-                ) : streamingUrl ? (
-                  <iframe
-                    key={streamingUrl}
-                    src={api.getProxiedVideoUrl(streamingUrl)}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      border: "none",
-                      backgroundColor: "black",
-                    }}
-                    allowFullScreen
-                    allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <View style={styles.playerPlaceholder}>
-                    <ActivityIndicator size="large" color={colors.accent} />
-                    <Text style={{ color: "white", marginTop: 16 }}>Memuat Video...</Text>
+                    <LinearGradient
+                      colors={["rgba(8,9,11,0.35)", "rgba(8,9,11,0.5)", "rgba(8,9,11,0.96)"]}
+                      locations={[0, 0.55, 1]}
+                      style={StyleSheet.absoluteFill}
+                    />
                   </View>
-                )}
-                {loadingVideo && isPlayingWeb && (
-                  <View style={styles.playerLoadingOverlay}>
-                    <ActivityIndicator size="large" color={colors.accent} />
-                  </View>
-                )}
-              </View>
 
-                            {/* WATCH NOW SECTION WITH RED VERTICAL LINE */}
-              <View style={[styles.sectionHeaderRow, { alignItems: 'flex-start', marginTop: 24 }]}>
-                <View style={[styles.verticalAccentBar, { backgroundColor: colors.accent, marginTop: 4 }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.desktopWatchNowText, { color: colors.text, fontSize: 24, fontWeight: 'bold' }]}>
-                    {detail?.title || title}
-                  </Text>
-                  {activeEpisode && (
-                    <Text style={{ color: colors.accent, fontSize: 15, fontWeight: '600', marginTop: 6 }}>
-                      Sedang Menonton: {getCleanEpisodeTitle(activeEpisode.chapterName, detail?.title || title)}
-                    </Text>
-                  )}
-                </View>
-              </View>
-
-              {/* CONTROLS CARD */}
-              <View style={[styles.controlsCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
-                <View style={styles.dropdownsRow}>
-
-
-                  {/* Server Selector */}
-                  <View style={styles.controlGroup}>
-                    <Text style={[styles.controlLabel, { color: colors.textSecondary }]}>Servers</Text>
-                    <select
-                      value={activeServer?.serverId || ""}
-                      onChange={async (e) => {
-                        if (episodeDetail?.serverqualities) {
-                          for (const q of episodeDetail.serverqualities) {
-                            const found = q.serverList?.find((s: any) => s.serverId === (e.target as any).value);
-                            if (found) {
-                              loadStreamingUrl(activeEpisode!.chapterId, found);
-                              break;
-                            }
-                          }
-                        }
-                      }}
-                      style={{
-                        backgroundColor: colors.card,
-                        color: colors.text,
-                        border: `1px solid ${colors.border}`,
-                        padding: "10px 16px",
-                        borderRadius: "8px",
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        outline: "none",
-                        width: "160px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {episodeDetail?.serverqualities?.flatMap((q: any) => 
-                        q.serverList?.map((s: any) => (
-                          <option key={s.serverId} value={s.serverId}>
-                            {s.title} ({q.title})
-                          </option>
-                        ))
-                      ) || <option>Official</option>}
-                    </select>
-                  </View>
-                </View>
-
-                {/* Action Buttons: Save to My List & Download */}
-                <View style={styles.desktopActionBtnGroup}>
-                  {/* Save to My List Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.desktopBookmarkBtn,
-                      {
-                        backgroundColor: isBookmarked ? colors.card : colors.accent,
-                        borderColor: colors.border,
-                        borderWidth: isBookmarked ? 1 : 0,
-                      },
-                    ]}
-                    activeOpacity={0.85}
-                    onPress={toggleBookmark}
-                    disabled={bookmarkLoading}
+                  {/* Back */}
+                  <Pressable
+                    onPress={() => navigation.goBack()}
+                    style={hoverBg([styles.backBtn, glassWebStyle(14)], { backgroundColor: "rgba(255,255,255,0.26)" })}
                   >
-                    {bookmarkLoading ? (
-                      <ActivityIndicator size="small" color={isBookmarked ? colors.accent : "white"} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name={isBookmarked ? "bookmark" : "bookmark-outline"}
-                          size={16}
-                          color={isBookmarked ? colors.accent : "white"}
-                          style={{ marginRight: 6 }}
-                        />
-                        <Text
-                          style={[
-                            styles.downloadBtnText,
-                            { color: isBookmarked ? colors.accent : "white" },
-                          ]}
-                        >
-                          {isBookmarked ? "Saved to List" : "Save to List"}
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
+                    <Ionicons name="arrow-back" size={16} color="#FFF" />
+                    <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "600" }}>Kembali ke Beranda</Text>
+                  </Pressable>
 
-                  {/* Download Button */}
-                  <TouchableOpacity
-                    style={[styles.desktopDownloadBtn, { backgroundColor: colors.accent }]}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      if (episodeDetail?.downloadUrlqualities && episodeDetail.downloadUrlqualities.length > 0) {
-                        const urls = episodeDetail.downloadUrlqualities[0].urls;
-                        if (urls && urls.length > 0) {
-                          if (typeof globalThis !== "undefined" && (globalThis as any).window) {
-                            (globalThis as any).window.open(urls[0].url, "_blank");
-                          }
-                        }
-                      } else {
-                        Alert.alert("Unduh", "Tautan unduhan tidak tersedia untuk episode ini.");
-                      }
-                    }}
-                  >
-                    <Ionicons name="download" size={16} color="white" style={{ marginRight: 6 }} />
-                    <Text style={styles.downloadBtnText}>Download</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* COMMENTS SECTION */}
-              <View style={{ marginTop: 12 }}>
-                <CommentSection animeId={bookId} navigation={navigation} />
-              </View>
-
-            </View>
-
-            {/* Right Column: Dynamic Sidebar (Episodes / Recommendations) */}
-            <View style={styles.desktopRightCol}>
-              
-
-              {/* Tab Selector */}
-              <View style={[styles.tabContainer, { borderBottomColor: colors.border }]}>
-                <TouchableOpacity
-                  style={[
-                    styles.tabButton,
-                    sidebarTab === "episodes" && [styles.activeTabButton, { borderBottomColor: colors.accent }]
-                  ]}
-                  onPress={() => setSidebarTab("episodes")}
-                >
-                  <Ionicons
-                    name="play-circle-outline"
-                    size={18}
-                    color={sidebarTab === "episodes" ? colors.accent : colors.textSecondary}
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text
-                    style={[
-                      styles.tabText,
-                      { color: sidebarTab === "episodes" ? colors.text : colors.textSecondary }
-                    ]}
-                  >
-                    Episodes
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.tabButton,
-                    sidebarTab === "recommendations" && [styles.activeTabButton, { borderBottomColor: colors.accent }]
-                  ]}
-                  onPress={() => setSidebarTab("recommendations")}
-                >
-                  <Ionicons
-                    name="grid-outline"
-                    size={16}
-                    color={sidebarTab === "recommendations" ? colors.accent : colors.textSecondary}
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text
-                    style={[
-                      styles.tabText,
-                      { color: sidebarTab === "recommendations" ? colors.text : colors.textSecondary }
-                    ]}
-                  >
-                    Rekomendasi
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Tab Contents */}
-              {sidebarTab === "episodes" ? (
-                <View style={styles.sidebarEpisodeListContainer}>
-                  <Text style={[styles.sidebarEpisodesTitle, { color: colors.text }]}>
-                    Daftar Episode
-                  </Text>
-                  
-                  <ScrollView
-                    nestedScrollEnabled={true}
-                    showsVerticalScrollIndicator={false}
-                    style={{ maxHeight: 600 }}
-                  >
-                    {episodes.map((ep) => {
-                      const cleanTitle = getCleanEpisodeTitle(ep.chapterName, detail?.title || title);
-                      const isWatched = watchedEpisodes.includes(ep.chapterId) || !!watchProgress[ep.chapterId];
-                      const isActive = activeEpisode?.chapterId === ep.chapterId;
-                      
-                      return (
-                        <TouchableOpacity
-                          key={ep.chapterId}
-                          style={[
-                            styles.sidebarEpisodeCard,
-                            { 
-                              backgroundColor: isWatched && !isActive ? colors.bgSecondary : colors.card, 
-                              borderColor: colors.border 
-                            },
-                            isActive && { borderColor: colors.accent, borderWidth: 1 },
-                            isWatched && !isActive && { opacity: 0.6 }
-                          ]}
-                          onPress={() => {
-                            setActiveEpisode(ep);
-                            setIsPlayingWeb(false);
-                            loadStreamingUrl(ep.chapterId);
-                            if (isAuthenticated && bookId && ep.chapterId) {
-                              api.saveWatchHistory(bookId, ep.chapterId)
-                                .then(() => {
-                                  setWatchedEpisodes(prev => {
-                                    if (!prev.includes(ep.chapterId)) {
-                                      return [...prev, ep.chapterId];
-                                    }
-                                    return prev;
-                                  });
-                                })
-                                .catch(err => console.error("Gagal menyimpan riwayat:", err));
-                            }
-                          }}
-                        >
-                          <View style={styles.sidebarEpisodeImageWrapper}>
-                            <Image
-                              source={{ uri: ep.chapterImg || detail?.poster }}
-                              style={styles.sidebarEpisodeImage}
-                              contentFit="cover"
-                            />
+                  {isPlayingWeb ? (
+                    /* PLAYER MODE */
+                    <FadeIn style={{ paddingHorizontal: 28, paddingTop: 76 }}>
+                      <View style={styles.playerFrame}>
+                        {streamingUrl ? (
+                          <iframe
+                            key={streamingUrl}
+                            src={api.getProxiedVideoUrl(streamingUrl)}
+                            style={{ width: "100%", height: "100%", border: "none", backgroundColor: "black" }}
+                            allowFullScreen
+                            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <View style={styles.playerCenter}>
+                            <ActivityIndicator size="large" color="#FFF" />
+                            <Text style={{ color: "white", marginTop: 16 }}>Memuat Video...</Text>
                           </View>
-                          <View style={styles.sidebarEpisodeInfo}>
-                            <Text
-                              style={[
-                                styles.sidebarEpisodeTitleText,
-                                { color: isActive ? colors.accent : (isWatched ? colors.textMuted : colors.text) }
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {cleanTitle}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.sidebarEpisodeSubText,
-                                { color: colors.textSecondary }
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {ep.duration || "24 Min"}{(() => {
-                                const prog = watchProgress[ep.chapterId];
-                                if (prog && prog.watchedSeconds > 0) {
-                                  const mins = Math.round(prog.watchedSeconds / 60);
-                                  return ` • Ditonton ${mins}m`;
-                                }
-                                return "";
-                              })()}
-                            </Text>
+                        )}
+                        {loadingVideo && (
+                          <View style={[StyleSheet.absoluteFill, styles.playerCenter, { backgroundColor: "rgba(0,0,0,0.6)" }]}>
+                            <ActivityIndicator size="large" color="#FFF" />
                           </View>
-                          {isActive && (
-                            <Ionicons name="play" size={16} color={colors.accent} style={{ marginLeft: 6 }} />
+                        )}
+                      </View>
+
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginTop: 18, flexWrap: "wrap" }}>
+                        <View style={{ flex: 1, minWidth: 260 }}>
+                          <Text style={{ color: "#FFF", fontSize: 22, fontWeight: "800", letterSpacing: -0.3 }} numberOfLines={2}>
+                            {animeTitle}
+                          </Text>
+                          {activeEpisode && (
+                            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, fontWeight: "600", marginTop: 4 }}>
+                              Sedang Menonton: {getCleanEpisodeTitle(activeEpisode.chapterName, animeTitle)}
+                            </Text>
                           )}
-                          {(() => {
-                            const prog = watchProgress[ep.chapterId];
-                            if (prog && prog.watchedSeconds > 0 && prog.totalSeconds > 0) {
-                              const percent = Math.min(Math.round((prog.watchedSeconds / prog.totalSeconds) * 100), 100);
-                              return (
-                                <View style={styles.progressBarBg}>
-                                  <View style={[styles.progressBarFill, { width: `${percent}%`, backgroundColor: colors.accent }]} />
+                        </View>
+                        <Pressable
+                          onPress={toggleBookmark}
+                          disabled={bookmarkLoading}
+                          style={hoverBg([styles.ghostBtn, glassWebStyle(14), { height: 40 }], { backgroundColor: "rgba(255,255,255,0.26)" })}
+                        >
+                          {bookmarkLoading ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                          ) : (
+                            <>
+                              <Ionicons name={isBookmarked ? "bookmark" : "bookmark-outline"} size={15} color="#FFF" />
+                              <Text style={styles.ghostBtnText}>{isBookmarked ? "Saved to List" : "Save to List"}</Text>
+                            </>
+                          )}
+                        </Pressable>
+                        <Pressable
+                          onPress={downloadActive}
+                          style={hoverBg([styles.watchBtn, { height: 40 }], { opacity: 0.86 })}
+                        >
+                          <Ionicons name="download" size={15} color="#0B0C0E" />
+                          <Text style={styles.watchBtnText}>Download</Text>
+                        </Pressable>
+                      </View>
+                    </FadeIn>
+                  ) : (
+                    /* HERO MODE */
+                    <View style={{ flex: 1, justifyContent: "flex-end", paddingTop: 90 }}>
+                      <View style={[styles.keyArtWrap, webAnim.float]}>
+                        <Image source={{ uri: detail?.poster }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                      </View>
+                      {heroInfo(false)}
+                    </View>
+                  )}
+
+                  {/* SERVER SELECTOR (Glassmorphic Vertical Dropdown) */}
+                  <View style={[styles.serverRowWrap, { paddingHorizontal: isPlayingWeb ? 28 : 52 }]}>
+                    <View style={styles.serverRowInner}>
+                      <Text style={styles.serverLabel}>Servers</Text>
+
+                      {/* Dropdown Anchor & Button */}
+                      <View style={styles.dropdownAnchor}>
+                        <Pressable
+                          onPress={() => setIsServerMenuOpen((prev) => !prev)}
+                          style={hoverBg(
+                            [
+                              styles.serverTriggerBtn,
+                              {
+                                backgroundColor: isServerMenuOpen
+                                  ? "rgba(255,255,255,0.22)"
+                                  : "rgba(255,255,255,0.13)",
+                                borderColor: isServerMenuOpen
+                                  ? colors.accent
+                                  : "rgba(255,255,255,0.24)",
+                              },
+                              glassWebStyle(16),
+                            ],
+                            { backgroundColor: "rgba(255,255,255,0.22)" }
+                          )}
+                          accessibilityLabel="Pilih Server"
+                        >
+                          <Text style={styles.serverTriggerText} numberOfLines={1}>
+                            {activeServerLabel}
+                          </Text>
+                          <Ionicons
+                            name={isServerMenuOpen ? "chevron-up" : "chevron-down"}
+                            size={14}
+                            color="rgba(255,255,255,0.85)"
+                          />
+                        </Pressable>
+
+                        {/* Downward Vertical List Menu */}
+                        {isServerMenuOpen && (
+                          <>
+                            {/* Backdrop to close on click outside */}
+                            <Pressable
+                              style={styles.dropdownBackdrop as any}
+                              onPress={() => setIsServerMenuOpen(false)}
+                            />
+
+                            <View
+                              style={[
+                                styles.serverDropdownList,
+                                {
+                                  backgroundColor: isDark ? "rgba(18, 20, 26, 0.96)" : "rgba(240, 242, 246, 0.96)",
+                                  borderColor: colors.glassBorder,
+                                },
+                                glassWebStyle(28),
+                              ]}
+                            >
+                              <ScrollView
+                                nestedScrollEnabled
+                                showsVerticalScrollIndicator={true}
+                                style={{ maxHeight: 440 }}
+                                contentContainerStyle={{ padding: 6 }}
+                              >
+                                {/* Default option */}
+                                <Pressable
+                                  onPress={() => {
+                                    loadStreamingUrl(activeEpisode!.chapterId);
+                                    setIsServerMenuOpen(false);
+                                  }}
+                                  style={hoverBg(
+                                    [
+                                      styles.serverOptionItem,
+                                      (!activeServer || activeServer?.title === "Default" || activeServer?.serverId === "") && {
+                                        backgroundColor: colors.accent,
+                                      },
+                                    ],
+                                    (!activeServer || activeServer?.title === "Default" || activeServer?.serverId === "")
+                                      ? { backgroundColor: colors.accent }
+                                      : { backgroundColor: colors.glassHover }
+                                  )}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.serverOptionItemText,
+                                      {
+                                        color: (!activeServer || activeServer?.title === "Default" || activeServer?.serverId === "")
+                                          ? "#FFF"
+                                          : colors.text,
+                                        fontWeight: (!activeServer || activeServer?.title === "Default" || activeServer?.serverId === "")
+                                          ? "700"
+                                          : "500",
+                                      },
+                                    ]}
+                                  >
+                                    Default
+                                  </Text>
+                                  {(!activeServer || activeServer?.title === "Default" || activeServer?.serverId === "") && (
+                                    <Ionicons name="checkmark" size={15} color="#FFF" style={{ marginLeft: "auto" }} />
+                                  )}
+                                </Pressable>
+
+                                {/* All quality servers listed downward */}
+                                {allServerOptions.map((item: any) => {
+                                  const isSelected = activeServer?.serverId === item.serverId;
+                                  return (
+                                    <Pressable
+                                      key={item.serverId}
+                                      onPress={() => {
+                                        loadStreamingUrl(activeEpisode!.chapterId, item);
+                                        setIsServerMenuOpen(false);
+                                      }}
+                                      style={hoverBg(
+                                        [
+                                          styles.serverOptionItem,
+                                          isSelected && {
+                                            backgroundColor: colors.accent,
+                                          },
+                                        ],
+                                        isSelected
+                                          ? { backgroundColor: colors.accent }
+                                          : { backgroundColor: colors.glassHover }
+                                      )}
+                                    >
+                                      <Text
+                                        style={[
+                                          styles.serverOptionItemText,
+                                          {
+                                            color: isSelected ? "#FFF" : colors.text,
+                                            fontWeight: isSelected ? "700" : "500",
+                                          },
+                                        ]}
+                                      >
+                                        {item.label}
+                                      </Text>
+                                      {isSelected && (
+                                        <Ionicons name="checkmark" size={15} color="#FFF" style={{ marginLeft: "auto" }} />
+                                      )}
+                                    </Pressable>
+                                  );
+                                })}
+                              </ScrollView>
+                            </View>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* EPISODE RAIL */}
+                  <View style={{ marginTop: 26 }}>
+                    <Text style={[styles.railTitle, { paddingHorizontal: isPlayingWeb ? 28 : 52 }]}>
+                      List Episodes <Text style={{ color: "rgba(255,255,255,0.55)", fontWeight: "500" }}>({episodes.length} Eps)</Text>
+                    </Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ paddingHorizontal: isPlayingWeb ? 28 : 52, gap: 10, paddingBottom: 26, paddingTop: 6 }}
+                    >
+                      {episodes.map((ep, i) => {
+                        const isActive = activeEpisode?.chapterId === ep.chapterId;
+                        const isWatched = watchedEpisodes.includes(ep.chapterId) || !!watchProgress[ep.chapterId];
+                        const prog = watchProgress[ep.chapterId];
+                        const percent =
+                          prog && prog.totalSeconds > 0 ? Math.min((prog.watchedSeconds / prog.totalSeconds) * 100, 100) : 0;
+                        return (
+                          <FadeIn key={ep.chapterId} delay={Math.min(i, 12) * 35}>
+                            <Lift onPress={() => selectEpisode(ep)} style={{ width: 132 }} accessibilityLabel={ep.chapterName}>
+                              <View
+                                style={[
+                                  styles.railCard,
+                                  glassWebStyle(18),
+                                  isActive && { backgroundColor: "#FFF", borderColor: "#FFF" },
+                                  isWatched && !isActive && { opacity: 0.62 },
+                                ]}
+                              >
+                                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+                                  <Text style={[styles.railNumber, isActive && { color: "#0B0C0E" }]}>{epNumber(ep)}</Text>
+                                  <Ionicons
+                                    name={isActive ? "play" : isWatched ? "checkmark-circle" : "play-outline"}
+                                    size={15}
+                                    color={isActive ? "#0B0C0E" : "rgba(255,255,255,0.75)"}
+                                  />
                                 </View>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              ) : (
-                <View>
-                  {/* TOP RATED */}
-                  <View style={styles.sidebarGroup}>
-                    <View style={styles.sidebarHeader}>
-                      <Text style={[styles.sidebarTitle, { color: colors.text }]}>Top Rated</Text>
-                      <TouchableOpacity
-                        onPress={() => navigation.navigate("AnimeList", { type: "completed", title: "Anime Completed" })}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.viewAllLink, { color: colors.accent }]}>VIEW ALL</Text>
-                      </TouchableOpacity>
-                    </View>
-                    
-                    <View style={styles.sidebarList}>
-                      {relatedSeries.length > 0 ? (
-                        relatedSeries.map((item) => (
-                          <TouchableOpacity
-                            key={item.animeId}
-                            style={[styles.sidebarCard, { backgroundColor: colors.card }]}
-                            activeOpacity={0.8}
-                            onPress={() => {
-                              navigation.push("Episode", {
-                                bookId: item.animeId,
-                                title: item.title,
-                              });
-                            }}
-                          >
-                            <Image
-                              source={{ uri: item.poster }}
-                              style={styles.sidebarPoster as any}
-                              contentFit="cover"
-                            />
-                            <View style={styles.sidebarInfo}>
-                              <Text style={[styles.sidebarCardTitle, { color: colors.text }]} numberOfLines={2}>
-                                {item.title}
-                              </Text>
-                              <Text style={[styles.sidebarCardSub, { color: colors.textSecondary }]}>
-                                {item.status || "Completed"}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        ))
-                      ) : (
-                        <ActivityIndicator size="small" color={colors.accent} style={{ alignSelf: "flex-start", marginTop: 10 }} />
-                      )}
-                    </View>
-                  </View>
-
-                  {/* ONGOING SERIES */}
-                  <View style={[styles.sidebarGroup, { marginTop: 40 }]}>
-                    <View style={styles.sidebarHeader}>
-                      <Text style={[styles.sidebarTitle, { color: colors.text }]}>Ongoing Series</Text>
-                      <TouchableOpacity
-                        onPress={() => navigation.navigate("AnimeList", { type: "ongoing", title: "Anime Ongoing" })}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.viewAllLink, { color: colors.accent }]}>VIEW ALL</Text>
-                      </TouchableOpacity>
-                    </View>
-                    
-                    <View style={styles.sidebarList}>
-                      {suggestedSeries.length > 0 ? (
-                        suggestedSeries.map((item) => (
-                          <TouchableOpacity
-                            key={item.animeId}
-                            style={[styles.sidebarCard, { backgroundColor: colors.card }]}
-                            activeOpacity={0.8}
-                            onPress={() => {
-                              navigation.push("Episode", {
-                                bookId: item.animeId,
-                                title: item.title,
-                              });
-                            }}
-                          >
-                            <Image
-                              source={{ uri: item.poster }}
-                              style={styles.sidebarPoster as any}
-                              contentFit="cover"
-                            />
-                            <View style={styles.sidebarInfo}>
-                              <Text style={[styles.sidebarCardTitle, { color: colors.text }]} numberOfLines={2}>
-                                {item.title}
-                              </Text>
-                              <Text style={[styles.sidebarCardSub, { color: colors.textSecondary }]}>
-                                {item.status || "Episode 1"}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        ))
-                      ) : (
-                        <ActivityIndicator size="small" color={colors.accent} style={{ alignSelf: "flex-start", marginTop: 10 }} />
-                      )}
-                    </View>
+                                <Text style={[styles.railLabel, isActive && { color: "#0B0C0E" }]} numberOfLines={1}>
+                                  {getCleanEpisodeTitle(ep.chapterName, animeTitle)}
+                                </Text>
+                                <Text style={[styles.railSub, isActive && { color: "rgba(11,12,14,0.6)" }]} numberOfLines={1}>
+                                  {ep.releaseTime || ep.duration || "24 Min"}
+                                </Text>
+                                {percent > 0 && (
+                                  <View style={styles.railProgress}>
+                                    <View style={{ width: `${percent}%`, height: 3, backgroundColor: colors.accent }} />
+                                  </View>
+                                )}
+                              </View>
+                            </Lift>
+                          </FadeIn>
+                        );
+                      })}
+                    </ScrollView>
                   </View>
                 </View>
-              )}
 
+                {sidePanel}
+              </View>
+            </FadeIn>
 
-            </View>
+            {/* COMMENTS */}
+            <FadeIn delay={200} style={{ marginTop: 20, zIndex: 1, position: "relative" }}>
+              <Glass radius={28} style={{ padding: 8 }}>
+                <CommentSection animeId={bookId} navigation={navigation} />
+              </Glass>
+            </FadeIn>
           </View>
         </ScrollView>
       </View>
     );
   }
 
+  // ---------------- MOBILE ----------------
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <StatusBar
-        style={isDark ? "light" : "dark"}
-        // @ts-ignore
-        backgroundColor="transparent"
-        translucent
-      />
+      <StatusBar style="light" />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40, paddingTop: insets.top + 8 }}>
+        <FadeIn duration={700} style={{ paddingHorizontal: 12 }}>
+          <View style={[styles.stage, { borderColor: colors.glassBorder, minHeight: 560, justifyContent: "flex-end", paddingBottom: 24 }]}>
+            <Image source={{ uri: detail?.poster }} style={StyleSheet.absoluteFill as any} contentFit="cover" />
+            <LinearGradient
+              colors={["rgba(8,9,11,0.25)", "rgba(8,9,11,0.6)", "rgba(8,9,11,0.97)"]}
+              locations={[0, 0.45, 0.85]}
+              style={StyleSheet.absoluteFill}
+            />
+            <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, { paddingHorizontal: 0, width: 40, justifyContent: "center", left: 14, top: 14 }]}>
+              <Ionicons name="arrow-back" size={18} color="#FFF" />
+            </Pressable>
+            {heroInfo(true)}
+          </View>
+        </FadeIn>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
-      >
-        {/* Header Section */}
-        {renderHeader()}
-
-        {/* Episode List Section with Separate Scroll */}
-        <View
-          style={[
-            styles.episodeHeader,
-            isDesktop && { paddingHorizontal: 32, marginTop: 10 },
-          ]}
-        >
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: colors.text, fontSize: isDesktop ? 22 : 18 },
-            ]}
-          >
-            Episodes ({episodes.length})
+        <View style={styles.episodeHeader}>
+          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+            List Episodes <Text style={{ color: colors.textMuted, fontWeight: "500" }}>({episodes.length} Eps)</Text>
           </Text>
         </View>
 
         <EpisodeList
           episodes={episodes}
           posterUrl={detail?.poster}
-          animeTitle={detail?.title || title}
+          animeTitle={animeTitle}
           watchedEpisodes={watchedEpisodes}
-          onEpisodePress={(episode) => {
-            if (isAuthenticated && bookId && episode.chapterId) {
-              api.saveWatchHistory(bookId, episode.chapterId)
-                .then(() => {
-                  setWatchedEpisodes(prev => {
-                    if (!prev.includes(episode.chapterId)) {
-                      return [...prev, episode.chapterId];
-                    }
-                    return prev;
-                  });
-                })
-                .catch(err => console.error("Gagal menyimpan riwayat:", err));
-            }
-            navigation.navigate("Video", {
-              episode,
-              episodes,
-              animeId: bookId,
-            });
-          }}
+          onEpisodePress={openInPlayer}
           maxHeight={episodes.length > 0 ? Math.min(episodes.length * 94 + 20, 380) : 380}
         />
 
-        {/* Comment Section */}
-        <CommentSection animeId={bookId} navigation={navigation} />
+        <FadeIn delay={200} style={{ marginHorizontal: 16, marginTop: 20, marginBottom: 32 }}>
+          <Glass radius={24} style={{ padding: 6 }}>
+            <CommentSection animeId={bookId} navigation={navigation} />
+          </Glass>
+        </FadeIn>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tabContainer: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    marginBottom: 20,
-    gap: 16,
-  },
-  tabButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
-  },
-  activeTabButton: {
-    borderBottomWidth: 2,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  sidebarEpisodeListContainer: {
-    flex: 1,
-  },
-  sidebarEpisodesTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 16,
-  },
-  sidebarEpisodeCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 8,
-    borderRadius: 8,
+  container: { flex: 1 },
+  stage: {
+    borderRadius: 28,
     borderWidth: 1,
-    marginBottom: 10,
-    gap: 12,
+    backgroundColor: "#0B0C0E",
     position: "relative",
-    overflow: "hidden",
   },
-  sidebarEpisodeImageWrapper: {
-    width: 80,
-    height: 48,
-    borderRadius: 6,
-    overflow: "hidden",
-  },
-  sidebarEpisodeImage: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#000",
-  },
-  progressBarBg: {
+  backBtn: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    width: "100%",
-    height: 4,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    zIndex: 10,
-  },
-  progressBarFill: {
-    height: "100%",
-    zIndex: 11,
-  },
-  sidebarEpisodeInfo: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  sidebarEpisodeTitleText: {
-    fontSize: 13,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  sidebarEpisodeSubText: {
-    fontSize: 11,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  desktopHeaderContainer: {
-    width: "100%",
-    minHeight: 500,
-    marginBottom: 20,
-  },
-  desktopBgImage: {
-    width: "100%",
-    minHeight: 500,
-  },
-  desktopBgOverlay: {
-    ...StyleSheet.absoluteFill,
-  },
-  desktopContentRow: {
-    flexDirection: "row",
-    paddingHorizontal: 32,
-    paddingTop: 20,
-    paddingBottom: 40,
-    gap: 40,
-  },
-  desktopPosterWrap: {
-    width: 250,
-    height: 350,
-    borderRadius: 16,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  desktopPosterImage: {
-    width: "100%",
-    height: "100%",
-  },
-  desktopInfoCol: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  heroContainer: {
-    width: "100%",
-    height: 400,
-  },
-  heroImage: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "space-between",
-  },
-  toolbar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-  },
-  toolbarRight: {
-    flexDirection: "row",
-  },
-  iconButton: {
-    width: 40,
+    top: 22,
+    left: 24,
+    zIndex: 5,
     height: 40,
+    paddingHorizontal: 16,
     borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroGradient: {
-    height: 120,
-    width: "100%",
-  },
-  contentContainer: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
-    marginTop: -20, // Menarik konten naik sedikit menyatu dengan gradient
-  },
-  titleText: {
-    fontFamily: "Inter",
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#001F3F", // Warna biru sangat gelap hampir hitam
-    marginBottom: 8,
-    lineHeight: 32,
-  },
-  statsRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
-  },
-  scoreText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#FF4757",
-    marginLeft: 4,
-  },
-  dotSeparator: {
-    fontSize: 14,
-    color: "#999",
-    marginHorizontal: 8,
-  },
-  statText: {
-    fontSize: 14,
-    color: "#4B5563",
-    fontWeight: "normal",
-  },
-  tagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 20,
     gap: 8,
-  },
-  tagBadge: {
-    backgroundColor: "#FFE5E8", // Pink sangat pudar
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  tagText: {
-    color: "#FF4757",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  actionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 24,
-    gap: 12,
-  },
-  watchButton: {
-    flex: 1, // Mengambil ruang tersisa penuh
-    backgroundColor: "#FF4757",
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: "#FF4757",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-  },
-  watchButtonText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  secondaryButton: {
-    width: 50,
-    height: 50,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#001F3F",
-    marginBottom: 8,
-  },
-  synopsisText: {
-    fontSize: 14,
-    color: "#4B5563", // Abu-abu tulisan
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  episodeHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    paddingHorizontal: 16,
-  },
-  listPaddingWrapper: {
-    paddingHorizontal: 16,
-  },
-  desktopBackBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.14)",
     borderWidth: 1,
-    alignSelf: "flex-start",
-    marginBottom: 24,
+    borderColor: "rgba(255,255,255,0.22)",
   },
-  desktopBackText: {
-    fontSize: 13,
-    fontWeight: "bold",
+  keyArtWrap: {
+    position: "absolute",
+    right: "7%",
+    top: 70,
+    width: 250,
+    height: 356,
+    borderRadius: 22,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    ...Platform.select({ web: { boxShadow: "0 40px 90px rgba(0,0,0,0.6)" } as any }),
+  } as any,
+  heroTitle: { color: "#FFF", fontWeight: "800", letterSpacing: -0.6 },
+  heroMeta: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 14 },
+  heroMetaText: { color: "rgba(255,255,255,0.82)", fontSize: 15, fontWeight: "600" },
+  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.4)" },
+  genreRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
+  genreChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
   },
-  desktopMainRow: {
+  genreChipText: { color: "rgba(255,255,255,0.9)", fontSize: 12.5, fontWeight: "600" },
+  heroSynopsis: { color: "rgba(255,255,255,0.74)", fontSize: 14, lineHeight: 21, marginTop: 14, maxWidth: 520 },
+  heroActions: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 22, flexWrap: "wrap" },
+  watchBtn: {
     flexDirection: "row",
-    gap: 32,
-    alignItems: "flex-start",
+    alignItems: "center",
+    gap: 9,
+    backgroundColor: "#FFF",
+    height: 44,
+    paddingHorizontal: 22,
+    borderRadius: 22,
   },
-  desktopLeftCol: {
-    flex: 2.3,
+  watchBtnText: { color: "#0B0C0E", fontSize: 14, fontWeight: "700" },
+  ghostBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 44,
+    paddingHorizontal: 20,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
   },
-  desktopRightCol: {
-    flex: 1,
-    maxWidth: 320,
-    width: "100%",
+  ghostBtnText: { color: "#FFF", fontSize: 14, fontWeight: "600" },
+  roundBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
   },
-  playerContainer: {
+  pillBtn: { height: 44, paddingHorizontal: 24, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+
+  // Player
+  playerFrame: {
     width: "100%",
     aspectRatio: 16 / 9,
-    borderRadius: 16,
+    maxHeight: 620,
+    borderRadius: 18,
     overflow: "hidden",
-    position: "relative",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-  },
-  playerPlaceholder: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  playerLoadingOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 10,
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 24,
-    marginBottom: 16,
-    gap: 10,
-  },
-  verticalAccentBar: {
-    width: 4,
-    height: 20,
-    borderRadius: 2,
-  },
-  desktopWatchNowText: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  controlsCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-  },
-  dropdownsRow: {
-    flexDirection: "row",
-    gap: 24,
-  },
-  controlGroup: {
-    gap: 8,
-  },
-  controlLabel: {
-    fontSize: 11,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  episodeSelectWrap: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-  },
-  epNavRow: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  navArrowBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
-    borderWidth: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  desktopDownloadBtn: {
-    flexDirection: "row",
-    height: 38,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  desktopBookmarkBtn: {
-    flexDirection: "row",
-    height: 38,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  desktopActionBtnGroup: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-  },
-  downloadBtnText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  sidebarGroup: {
-    width: "100%",
-  },
-  sidebarHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  sidebarTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  viewAllLink: {
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  sidebarList: {
-    gap: 12,
-  },
-  sidebarCard: {
-    flexDirection: "row",
-    borderRadius: 5,
-    padding: 8,
-    gap: 12,
-  },
-  sidebarPoster: {
-    width: 50,
-    height: 70,
-    borderRadius: 3,
-  },
-  sidebarInfo: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  sidebarCardTitle: {
-    fontSize: 13,
-    fontWeight: "medium",
-    lineHeight: 17,
-    marginBottom: 4,
-  },
-  sidebarCardSub: {
-    fontSize: 11,
-    fontWeight: "normal",
-  },
-  desktopPlayPlaceholder: {
-    ...StyleSheet.absoluteFill,
-    justifyContent: "center",
-    alignItems: "center",
     backgroundColor: "#000",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    ...Platform.select({ web: { boxShadow: "0 30px 80px rgba(0,0,0,0.55)" } as any }),
+  } as any,
+  playerCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  // Rail
+  railTitle: { color: "#FFF", fontSize: 16, fontWeight: "700", marginBottom: 8 },
+  railCard: {
+    height: 104,
     borderRadius: 16,
+    padding: 12,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
     overflow: "hidden",
   },
-  playOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
+  railNumber: { color: "#FFF", fontSize: 30, fontWeight: "800", letterSpacing: -1, lineHeight: 32 },
+  railLabel: { color: "#FFF", fontSize: 12.5, fontWeight: "700", marginTop: 10 },
+  railSub: { color: "rgba(255,255,255,0.6)", fontSize: 11.5, marginTop: 2 },
+  railProgress: { position: "absolute", left: 0, right: 0, bottom: 0, height: 3, backgroundColor: "rgba(255,255,255,0.18)" },
+
+  // Side panel
+  panelAvatar: { width: 54, height: 54, borderRadius: 27 },
+  panelTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8, paddingHorizontal: 8 },
+  recRow: { flexDirection: "row", gap: 14, padding: 8, borderRadius: 16, marginBottom: 2 },
+  recPoster: { width: 68, height: 96, borderRadius: 10 },
+
+  episodeHeader: { paddingHorizontal: 20, marginTop: 24, marginBottom: 10 },
+
+  // Server selector
+  serverRowWrap: {
+    marginTop: 22,
+    position: "relative",
+    zIndex: 1000,
   },
-  playPlaceholderText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
-    marginTop: 12,
+  serverRowInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  serverLabel: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  dropdownAnchor: {
+    position: "relative",
+    zIndex: 100,
+  },
+  serverTriggerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: 16,
+    height: 38,
+    borderRadius: 20,
+    borderWidth: 1,
+    minWidth: 190,
+  },
+  serverTriggerText: {
+    color: "#FFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  dropdownBackdrop: {
+    position: (isWeb ? "fixed" : "absolute") as any,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 90,
+  },
+  serverDropdownList: {
+    position: "absolute",
+    top: 44,
+    left: 0,
+    minWidth: 220,
+    maxHeight: 460,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+    zIndex: 1000,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 18px 45px rgba(0,0,0,0.75)",
+      } as any,
+      default: {
+        elevation: 16,
+      },
+    }),
+  },
+  serverOptionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    height: 36,
+    borderRadius: 10,
+    marginBottom: 2,
+  },
+  serverOptionItemText: {
+    fontSize: 13,
   },
 });
-

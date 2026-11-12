@@ -1058,9 +1058,9 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
                 value={currentTime}
                 minimumValue={0}
                 maximumValue={duration || 1}
-                minimumTrackTintColor="#FF4757"
+                minimumTrackTintColor="#EC2B55"
                 maximumTrackTintColor="rgba(255,255,255,0.3)"
-                thumbTintColor="#FF4757"
+                thumbTintColor="#EC2B55"
                 onSlidingComplete={(value) => seekTo(value)}
                 onValueChange={(value) => setCurrentTime(value)}
               />
@@ -1232,7 +1232,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
       {/* LOADING INDICATOR */}
       {loadingVideo && (
         <View style={styles.centerOverlay}>
-          <ActivityIndicator size="large" color="#FF4757" />
+          <ActivityIndicator size="large" color="#EC2B55" />
           <Text style={styles.bufferingText}>Memuat Video...</Text>
         </View>
       )}
@@ -1243,7 +1243,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
           <Ionicons
             name="warning"
             size={40}
-            color="#FF4757"
+            color="#EC2B55"
             style={{ marginBottom: 10 }}
           />
           <Text
@@ -1315,7 +1315,7 @@ const VideoScreenWebView = ({ route }: { route: RouteProp<any, any> }) => {
           }}
         >
           <View style={styles.tapToPlayContent}>
-            <Ionicons name="play-circle" size={80} color="#FF4757" />
+            <Ionicons name="play-circle" size={80} color="#EC2B55" />
             <Text style={styles.tapToPlayText}>Tap untuk Memutar Video</Text>
           </View>
         </TouchableOpacity>
@@ -1598,7 +1598,7 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     marginTop: 15,
-    backgroundColor: "#FF4757",
+    backgroundColor: "#EC2B55",
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 8,
@@ -1639,10 +1639,18 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    marginTop: 44,
+    marginHorizontal: 14,
+    paddingVertical: 8,
+    paddingLeft: 18,
+    paddingRight: 8,
+    borderRadius: 28,
+    backgroundColor: "rgba(24,26,31,0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    ...(Platform.OS === "web"
+      ? ({ backdropFilter: "blur(22px) saturate(150%)" } as any)
+      : null),
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -1661,15 +1669,18 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(255,255,255,0.16)",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.8)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+    ...(Platform.OS === "web"
+      ? ({ backdropFilter: "blur(18px)" } as any)
+      : null),
   },
   episodeTitle: {
     color: "white",
-    fontSize: 18,
+    fontSize: 15.5,
     fontWeight: "700",
     textAlign: "left",
     flex: 1,
@@ -1685,10 +1696,15 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 100,
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 25,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    backgroundColor: "rgba(24,26,31,0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 30,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    ...(Platform.OS === "web"
+      ? ({ backdropFilter: "blur(22px) saturate(150%)" } as any)
+      : null),
   },
   iconButton: {
     alignItems: "center",
@@ -1808,12 +1824,18 @@ const styles = StyleSheet.create({
   },
   bottomControls: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingBottom: 20,
+    bottom: 18,
+    left: 14,
+    right: 14,
+    paddingVertical: 6,
     paddingHorizontal: 16,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 28,
+    backgroundColor: "rgba(24,26,31,0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    ...(Platform.OS === "web"
+      ? ({ backdropFilter: "blur(22px) saturate(150%)" } as any)
+      : null),
   },
   progressContainer: {
     flexDirection: "row",

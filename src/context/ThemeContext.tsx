@@ -16,38 +16,72 @@ export interface ThemeColors {
   searchBg: string;
   tabBg: string;
   overlay: string;
+  // Glass design tokens
+  glass: string; // translucent panel fill
+  glassStrong: string; // denser fill for bars/docks sitting over content
+  glassBorder: string; // hairline highlight around glass
+  glassHover: string;
+  star: string;
+  ongoingBg: string;
+  ongoingText: string;
+  completeBg: string;
+  completeText: string;
+  buttonPrimaryBg: string; // neutral high-contrast pill button
+  buttonPrimaryText: string;
 }
 
 export const DARK_COLORS: ThemeColors = {
-  bg: "#121212",
-  bgSecondary: "#1A1A1A",
-  sidebar: "#202020",
-  card: "#2A2A2A",
-  text: "#FFFFFF",
-  textSecondary: "#A8A8A8",
-  textMuted: "#585858",
-  accent: "#E63333",
-  accentDark: "#B82222",
-  border: "#333333",
-  searchBg: "#2A2A2A",
-  tabBg: "#2A2A2A",
-  overlay: "rgba(0,0,0,0.7)",
+  bg: "#0B0C0E",
+  bgSecondary: "#111317",
+  sidebar: "#15171B",
+  card: "#1A1C21",
+  text: "#F4F5F7",
+  textSecondary: "#A9ADB6",
+  textMuted: "#6B7079",
+  accent: "#EC2B55",
+  accentDark: "#C01E43",
+  border: "rgba(255,255,255,0.09)",
+  searchBg: "rgba(255,255,255,0.07)",
+  tabBg: "rgba(255,255,255,0.07)",
+  overlay: "rgba(5,6,8,0.72)",
+  glass: "rgba(255,255,255,0.065)",
+  glassStrong: "rgba(24,26,31,0.74)",
+  glassBorder: "rgba(255,255,255,0.13)",
+  glassHover: "rgba(255,255,255,0.12)",
+  star: "#F5B83D",
+  ongoingBg: "rgba(214,190,96,0.26)",
+  ongoingText: "#EBDC93",
+  completeBg: "rgba(92,184,122,0.26)",
+  completeText: "#A5E6BB",
+  buttonPrimaryBg: "#FFFFFF",
+  buttonPrimaryText: "#0B0C0E",
 };
 
 export const LIGHT_COLORS: ThemeColors = {
-  bg: "#F5F6F8",
-  bgSecondary: "#EAECEF",
-  sidebar: "#FFFFFF",
-  card: "#FFFFFF",
-  text: "#1E293B",
-  textSecondary: "#475569",
-  textMuted: "#64748B",
-  accent: "#FF4757",
-  accentDark: "#E11D48",
-  border: "#E2E8F0",
-  searchBg: "#F1F5F9",
-  tabBg: "#E2E8F0",
+  bg: "#DCDDDF",
+  bgSecondary: "#D0D1D4",
+  sidebar: "#ECEDEF",
+  card: "#F1F2F3",
+  text: "#17181B",
+  textSecondary: "#4B4F57",
+  textMuted: "#7C8088",
+  accent: "#E11D48",
+  accentDark: "#BE123C",
+  border: "rgba(0,0,0,0.09)",
+  searchBg: "rgba(0,0,0,0.06)",
+  tabBg: "rgba(0,0,0,0.06)",
   overlay: "rgba(15, 23, 42, 0.4)",
+  glass: "rgba(255,255,255,0.5)",
+  glassStrong: "rgba(238,239,241,0.8)",
+  glassBorder: "rgba(255,255,255,0.85)",
+  glassHover: "rgba(255,255,255,0.75)",
+  star: "#D99712",
+  ongoingBg: "rgba(160,132,24,0.2)",
+  ongoingText: "#6E5A0C",
+  completeBg: "rgba(34,139,74,0.18)",
+  completeText: "#1B6B3A",
+  buttonPrimaryBg: "#17181B",
+  buttonPrimaryText: "#FFFFFF",
 };
 
 interface ThemeContextType {

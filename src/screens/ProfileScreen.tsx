@@ -24,6 +24,8 @@ import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { WebFooter } from "../components/WebFooter";
 import * as api from "../services/api";
+import { LinearGradient } from "expo-linear-gradient";
+import { FadeIn, Glass, Lift } from "../components/ui";
 
 const ProfileScreen = ({ navigation }: any) => {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -316,8 +318,8 @@ const ProfileScreen = ({ navigation }: any) => {
       activeOpacity={onPress ? 0.6 : 1}
       disabled={!onPress}
     >
-      <View style={styles.iconContainer}>
-        <Ionicons name={icon} size={20} color={colors.accent} />
+      <View style={[styles.iconContainer, { backgroundColor: colors.searchBg }]}>
+        <Ionicons name={icon} size={19} color={colors.text} />
       </View>
       <View style={styles.settingContent}>
         <Text style={[styles.settingTitle, { color: colors.text }]}>
@@ -371,63 +373,84 @@ const ProfileScreen = ({ navigation }: any) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: isDesktop ? 72 : 0 }, isDesktop && { maxWidth: 680, width: "100%", alignSelf: "center", paddingHorizontal: 16 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: isDesktop ? 84 : 8 }, isDesktop && { maxWidth: 1080, width: "100%", alignSelf: "center", paddingHorizontal: 24 }]}
       >
         {isDesktop && renderHeader(true)}
-        {/* PROFILE CARD */}
-        <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
-          <TouchableOpacity
-            style={[styles.avatar, { backgroundColor: colors.accent }]}
-            onPress={() => isAuthenticated && setIsEditModalVisible(true)}
-            disabled={!isAuthenticated || uploadingPicture}
-            activeOpacity={0.8}
-          >
-            {uploadingPicture ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : profilePicture ? (
-              <Image
-                source={{ uri: profilePicture }}
-                style={styles.avatarImage}
-                contentFit="cover"
-              />
-            ) : (
-              <Ionicons name="person" size={28} color="#FFF" />
-            )}
-            {isAuthenticated && !uploadingPicture && (
-              <View style={styles.avatarEditBadge}>
-                <Ionicons name="camera" size={10} color="#FFF" />
+        {/* PROFILE STAGE */}
+        <FadeIn duration={750} distance={22}>
+          <Glass radius={28} style={{ overflow: "hidden", marginHorizontal: isDesktop ? 0 : 12 }}>
+            <LinearGradient
+              colors={[isDark ? "rgba(236,43,85,0.22)" : "rgba(225,29,72,0.12)", "transparent"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0.75, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={[styles.stageRow, { padding: isDesktop ? 32 : 20 }]}>
+              <TouchableOpacity
+                style={[styles.avatarRing, { borderColor: colors.glassBorder }]}
+                onPress={() => isAuthenticated && setIsEditModalVisible(true)}
+                disabled={!isAuthenticated || uploadingPicture}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
+                  {uploadingPicture ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : profilePicture ? (
+                    <Image source={{ uri: profilePicture }} style={styles.avatarImage} contentFit="cover" />
+                  ) : (
+                    <Ionicons name="person" size={38} color="#FFF" />
+                  )}
+                </View>
+                {isAuthenticated && !uploadingPicture && (
+                  <View style={[styles.avatarEditBadge, { backgroundColor: colors.buttonPrimaryBg }]}>
+                    <Ionicons name="camera" size={13} color={colors.buttonPrimaryText} />
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.profileDetails}>
+                <Text style={{ color: colors.textSecondary, fontSize: 12.5, fontWeight: "700", letterSpacing: 1.2 }}>
+                  {isAuthenticated ? "AKUN" : "TAMU"}
+                </Text>
+                <Text style={[styles.profileName, { color: colors.text, fontSize: isDesktop ? 38 : 26 }]} numberOfLines={1}>
+                  {isAuthenticated ? (customDisplayName || username) : "Anime Lover"}
+                </Text>
+                <Text style={[styles.profileEmail, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {isAuthenticated ? (customEmail || `${username?.toLowerCase() || "user"}@gmail.com`) : "guest@nganime.com"}
+                </Text>
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+                  {isAuthenticated ? (
+                    <Lift onPress={() => setIsEditModalVisible(true)} hoverScale={1.04} lift={2}>
+                      <View style={[styles.stageBtn, { backgroundColor: colors.buttonPrimaryBg }]}>
+                        <Ionicons name="create-outline" size={16} color={colors.buttonPrimaryText} />
+                        <Text style={{ color: colors.buttonPrimaryText, fontSize: 14, fontWeight: "700" }}>Edit Profile</Text>
+                      </View>
+                    </Lift>
+                  ) : (
+                    <Lift onPress={handleLogin} hoverScale={1.04} lift={2}>
+                      <View style={[styles.stageBtn, { backgroundColor: colors.buttonPrimaryBg }]}>
+                        <Ionicons name="log-in-outline" size={16} color={colors.buttonPrimaryText} />
+                        <Text style={{ color: colors.buttonPrimaryText, fontSize: 14, fontWeight: "700" }}>Login Now</Text>
+                      </View>
+                    </Lift>
+                  )}
+                  <Lift onPress={() => navigation.navigate("MyListTab")} hoverScale={1.04} lift={2}>
+                    <View style={[styles.stageBtn, { backgroundColor: colors.searchBg, borderWidth: 1, borderColor: colors.glassBorder }]}>
+                      <Ionicons name="bookmark-outline" size={16} color={colors.text} />
+                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>My List</Text>
+                    </View>
+                  </Lift>
+                </View>
               </View>
-            )}
-          </TouchableOpacity>
+            </View>
+          </Glass>
+        </FadeIn>
 
-          <View style={styles.profileDetails}>
-            <Text style={[styles.profileName, { color: colors.text }]}>
-              {isAuthenticated ? (customDisplayName || username) : "Anime Lover"}
-            </Text>
-            <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>
-              {isAuthenticated ? (customEmail || `${username?.toLowerCase() || "user"}@gmail.com`) : "guest@nganime.com"}
-            </Text>
-            {isAuthenticated ? (
-              <TouchableOpacity onPress={() => setIsEditModalVisible(true)} activeOpacity={0.7}>
-                <Text style={[styles.editProfileLink, { color: colors.accent }]}>
-                  Edit Profile
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity onPress={handleLogin} activeOpacity={0.7}>
-                <Text style={[styles.editProfileLink, { color: colors.accent }]}>
-                  Login Now
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-
-
+        <View style={isDesktop ? styles.groupsGrid : { paddingHorizontal: 12 }}>
         {/* APPEARANCE */}
+        <FadeIn delay={120} style={isDesktop ? styles.groupCol : undefined}>
         <SectionHeader title="APPEARANCE" />
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Glass radius={24} style={styles.sectionCard}>
           <SettingItem
             icon="moon"
             title="Dark Mode"
@@ -446,11 +469,13 @@ const ProfileScreen = ({ navigation }: any) => {
               />
             }
           />
-        </View>
+        </Glass>
+        </FadeIn>
 
         {/* APP INFO */}
+        <FadeIn delay={190} style={isDesktop ? styles.groupCol : undefined}>
         <SectionHeader title="ABOUT" />
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Glass radius={24} style={styles.sectionCard}>
           <SettingItem
             icon="information-circle"
             title="Tentang Aplikasi"
@@ -470,11 +495,13 @@ const ProfileScreen = ({ navigation }: any) => {
             onPress={() => openURL("https://github.com/taka-duarr/anime-stream")}
             isLast={true}
           />
-        </View>
+        </Glass>
+        </FadeIn>
 
         {/* SUPPORT */}
+        <FadeIn delay={260} style={isDesktop ? styles.groupCol : undefined}>
         <SectionHeader title="SUPPORT" />
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Glass radius={24} style={styles.sectionCard}>
           <SettingItem
             icon="bug"
             title="Laporkan Bug"
@@ -492,11 +519,13 @@ const ProfileScreen = ({ navigation }: any) => {
             onPress={() => { }}
             isLast={true}
           />
-        </View>
+        </Glass>
+        </FadeIn>
 
         {/* LEGAL */}
+        <FadeIn delay={330} style={isDesktop ? styles.groupCol : undefined}>
         <SectionHeader title="LEGAL" />
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Glass radius={24} style={styles.sectionCard}>
           <SettingItem
             icon="document-text"
             title="Kebijakan Privasi"
@@ -508,11 +537,13 @@ const ProfileScreen = ({ navigation }: any) => {
             onPress={() => { }}
             isLast={true}
           />
-        </View>
+        </Glass>
+        </FadeIn>
 
         {/* ACCOUNT SECTION */}
+        <FadeIn delay={400} style={isDesktop ? styles.groupCol : undefined}>
         <SectionHeader title="ACCOUNT" />
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Glass radius={24} style={styles.sectionCard}>
           {isAuthenticated ? (
             <>
               <SettingItem
@@ -538,6 +569,9 @@ const ProfileScreen = ({ navigation }: any) => {
               isLast={true}
             />
           )}
+        </Glass>
+        </FadeIn>
+
         </View>
 
         {/* FOOTER */}
@@ -795,7 +829,7 @@ const ProfileScreen = ({ navigation }: any) => {
                   styles.inputField,
                   {
                     color: colors.text,
-                    backgroundColor: isDark ? "#2A2A2A" : colors.bgSecondary,
+                    backgroundColor: colors.searchBg,
                     borderColor: colors.border,
                   },
                 ]}
@@ -812,7 +846,7 @@ const ProfileScreen = ({ navigation }: any) => {
                   styles.inputField,
                   {
                     color: colors.text,
-                    backgroundColor: isDark ? "#2A2A2A" : colors.bgSecondary,
+                    backgroundColor: colors.searchBg,
                     borderColor: colors.border,
                   },
                 ]}
@@ -889,7 +923,7 @@ const ProfileScreen = ({ navigation }: any) => {
                     customAlert.title.toLowerCase().includes("sukses")
                       ? "#4CAF50"
                       : customAlert.title.toLowerCase().includes("error") || customAlert.title.toLowerCase().includes("gagal")
-                      ? "#E63333"
+                      ? "#EC2B55"
                       : colors.accent
                   }
                 />
@@ -920,7 +954,7 @@ const ProfileScreen = ({ navigation }: any) => {
                         },
                         isCancel
                           ? { borderWidth: 1, borderColor: colors.border }
-                          : { backgroundColor: isDestructive ? "#E63333" : colors.accent }
+                          : { backgroundColor: isDestructive ? "#EC2B55" : colors.accent }
                       ]}
                       onPress={() => {
                         setCustomAlert({ ...customAlert, visible: false });
@@ -976,15 +1010,43 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
   },
+  stageRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 22,
+  },
+  avatarRing: {
+    padding: 5,
+    borderRadius: 60,
+    borderWidth: 1,
+  },
+  stageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 42,
+    paddingHorizontal: 20,
+    borderRadius: 21,
+  },
+  groupsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: 16,
+    alignItems: "flex-start",
+  },
+  groupCol: {
+    width: "49%",
+    flexGrow: 1,
+    minWidth: 320,
+  },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
     overflow: "hidden",
-    marginRight: 16,
   },
   avatarImage: {
     width: "100%",
@@ -992,11 +1054,11 @@ const styles = StyleSheet.create({
   },
   avatarEditBadge: {
     position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    bottom: 2,
+    right: 2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
@@ -1006,8 +1068,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   profileName: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 26,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+    marginTop: 2,
     marginBottom: 2,
   },
   profileEmail: {
@@ -1022,16 +1086,13 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 12,
     fontWeight: "700",
-    letterSpacing: 0.5,
-    paddingHorizontal: 16,
-    paddingTop: 24,
+    letterSpacing: 1.2,
+    paddingHorizontal: 8,
+    paddingTop: 26,
     paddingBottom: 8,
   },
   sectionCard: {
-    borderRadius: 8,
-    borderWidth: 1,
-    marginHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 4,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -1042,13 +1103,13 @@ const styles = StyleSheet.create({
   settingItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 15,
+    paddingHorizontal: 18,
   },
   iconContainer: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -1076,7 +1137,7 @@ const styles = StyleSheet.create({
   // MODAL STYLES
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(5, 6, 8, 0.72)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -1084,7 +1145,9 @@ const styles = StyleSheet.create({
   modalContent: {
     width: "100%",
     maxWidth: 400,
-    borderRadius: 20,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: "rgba(140,144,152,0.22)",
     elevation: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
