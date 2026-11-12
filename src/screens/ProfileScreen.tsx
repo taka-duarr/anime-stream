@@ -166,6 +166,39 @@ const ProfileScreen = ({ navigation }: any) => {
     }
   };
 
+  // Cabut semua sesi di server (semua perangkat), lalu logout lokal seperti biasa
+  const handleLogoutAll = async () => {
+    try {
+      await api.logoutAllDevices();
+    } catch (error) {
+      console.error("[PROFILE SCREEN] Logout semua perangkat gagal:", error);
+      showCustomAlert(
+        "Gagal",
+        "Tidak bisa keluar dari semua perangkat. Periksa koneksi lalu coba lagi."
+      );
+      return;
+    }
+    await handleLogout();
+  };
+
+  const handleLogoutAllPress = () => {
+    showCustomAlert(
+      "Keluar dari Semua Perangkat",
+      "Semua perangkat yang masuk ke akun ini akan keluar, termasuk perangkat ini. Lanjutkan?",
+      [
+        {
+          text: "Batal",
+          style: "cancel",
+        },
+        {
+          text: "Ya, Keluar Semua",
+          style: "destructive",
+          onPress: handleLogoutAll,
+        },
+      ]
+    );
+  };
+
   const handleLogoutPress = () => {
     showCustomAlert(
       "Konfirmasi Logout",
@@ -481,13 +514,21 @@ const ProfileScreen = ({ navigation }: any) => {
         <SectionHeader title="ACCOUNT" />
         <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {isAuthenticated ? (
-            <SettingItem
-              icon="log-out"
-              title="Logout"
-              subtitle="Keluar dari akun Anda"
-              onPress={handleLogoutPress}
-              isLast={true}
-            />
+            <>
+              <SettingItem
+                icon="log-out"
+                title="Logout"
+                subtitle="Keluar dari akun Anda"
+                onPress={handleLogoutPress}
+              />
+              <SettingItem
+                icon="shield-checkmark"
+                title="Keluar dari Semua Perangkat"
+                subtitle="Cabut semua sesi, berguna jika akun dicurigai bocor"
+                onPress={handleLogoutAllPress}
+                isLast={true}
+              />
+            </>
           ) : (
             <SettingItem
               icon="log-in"

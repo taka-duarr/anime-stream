@@ -751,8 +751,17 @@ authApi.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Kalau bukan 401, atau ini sudah request retry, lempar error langsung
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    // Kalau bukan 401, atau ini sudah request retry, lempar error langsung.
+    // Request ke /auth/refresh dan /auth/login juga jangan diproses di sini:
+    // - refresh yang 401 akan mengantre menunggu dirinya sendiri (menggantung selamanya)
+    // - login yang 401 hanya berarti password salah, bukan sesi habis
+    const requestUrl: string = originalRequest?.url || "";
+    if (
+      error.response?.status !== 401 ||
+      originalRequest._retry ||
+      requestUrl.includes("/api/auth/refresh") ||
+      requestUrl.includes("/api/auth/login")
+    ) {
       return Promise.reject(error);
     }
 
@@ -765,6 +774,7 @@ authApi.interceptors.response.use(
 
     // Kalau sedang proses refresh, antrekan request yang gagal
     if (isRefreshing) {
+      originalRequest._retry = true; // cegah loop refresh kalau retry-nya 401 lagi
       return new Promise((resolve, reject) => {
         failedQueue.push({ resolve, reject });
       })
@@ -800,10 +810,19 @@ authApi.interceptors.response.use(
       // Ulangi request asli dengan token baru
       originalRequest.headers["Authorization"] = `Bearer ${newAccessToken}`;
       return authApi(originalRequest);
-    } catch (refreshError) {
-      console.log("[AUTH INTERCEPTOR] Refresh token gagal/expired, force logout.");
+    } catch (refreshError: any) {
       processQueue(refreshError, null);
-      onForceLogout?.();
+
+      // Logout HANYA jika server memastikan refresh token tidak valid (401/403).
+      // Kalau penyebabnya jaringan putus / server error (5xx / tanpa respons),
+      // sesi tetap dipertahankan supaya user tidak ter-logout karena gangguan sesaat.
+      const status = refreshError?.response?.status;
+      if (status === 401 || status === 403) {
+        console.log("[AUTH INTERCEPTOR] Refresh token ditolak server, force logout.");
+        onForceLogout?.();
+      } else {
+        console.log("[AUTH INTERCEPTOR] Refresh gagal sementara (bukan penolakan token), sesi dipertahankan.");
+      }
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;
@@ -884,11 +903,31 @@ export const login = async (username: string, password: string) => {
 
 /**
  * LOGOUT USER
- * Clears the authentication token
+ * Clears the token locally right away, and revokes this device's session on the server
+ * (best effort: if the request fails the user is still logged out locally).
  */
 export const logout = () => {
   console.log("[AUTH] Logging out user");
-  setAuthToken(null);
+  const refreshToken = refreshTokenInMemory;
+  setAuthToken(null); // also clears the in-memory refresh token
+
+  if (refreshToken) {
+    authApi
+      .post("/api/auth/logout", { refresh_token: refreshToken }, { timeout: 8000 })
+      .catch((error: any) =>
+        console.log("[AUTH] Gagal mencabut sesi di server (diabaikan):", error?.message),
+      );
+  }
+};
+
+/**
+ * LOGOUT FROM ALL DEVICES
+ * Endpoint: POST /api/auth/logout-all
+ * Revokes every session of the current user on the server. Must be called while still
+ * logged in; afterwards the caller should do the normal local logout.
+ */
+export const logoutAllDevices = async () => {
+  await authApi.post("/api/auth/logout-all");
 };
 
 // ============================================
