@@ -78,6 +78,7 @@ export default function EpisodeScreen({ route, navigation }: any) {
   const { bookId, title } = route.params ?? {};
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [detail, setDetail] = useState<AnimeDetail | null>(null);
+  const [artwork, setArtwork] = useState<api.AnimeArtwork | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -401,6 +402,8 @@ export default function EpisodeScreen({ route, navigation }: any) {
 
       setEpisodes(sortedEpisodes);
       setDetail(animeDetail);
+      setArtwork(null);
+      api.getAnimeArtwork(animeDetail.title || title).then(setArtwork);
 
       // Hot-select first episode on desktop load
       if (isDesktop && sortedEpisodes.length > 0) {
@@ -472,6 +475,10 @@ export default function EpisodeScreen({ route, navigation }: any) {
 
   const animeTitle = detail?.title || title;
   const isOngoing = (detail?.status || "").toLowerCase().includes("ongoing");
+  // Best image for each spot: wide banner > large cover > the API's small poster.
+  const heroArt = artwork?.banner || artwork?.cover || detail?.poster;
+  const railArt = artwork?.banner || artwork?.cover || detail?.poster;
+
   const epNumber = (ep: Episode) => {
     const m = ep.chapterName.match(/(?:Episode|Ep)\s*(\d+)/i);
     return m ? m[1].padStart(2, "0") : "•";
@@ -666,18 +673,42 @@ export default function EpisodeScreen({ route, navigation }: any) {
                 <View style={[styles.stage, { flex: wide ? 1 : undefined, minHeight: stageMin, borderColor: colors.glassBorder, zIndex: isServerMenuOpen ? 9999 : 2 }]}>
                   {/* Background art (contained with rounded corners so dropdown can overflow gracefully) */}
                   <View style={[StyleSheet.absoluteFill, { borderRadius: 28, overflow: "hidden" }]}>
-                    <View style={[StyleSheet.absoluteFill, webAnim.kenburns]}>
-                      <Image source={{ uri: detail?.poster }} style={StyleSheet.absoluteFill as any} contentFit="cover" blurRadius={28} />
+                    {/* Wide banner fills the whole stage. Without one, the portrait
+                        cover sits in the right part only: stretching it full width
+                        would upscale it ~3x and look soft. */}
+                    <View
+                      style={[
+                        artwork?.banner ? StyleSheet.absoluteFill : styles.heroArtRight,
+                        webAnim.kenburns,
+                      ]}
+                    >
+                      <Image
+                        source={{ uri: heroArt }}
+                        style={StyleSheet.absoluteFill as any}
+                        contentFit="cover"
+                        contentPosition={artwork?.banner ? "center" : "top"}
+                        transition={500}
+                      />
+                      {!artwork?.banner && (
+                        // Melt the cover's left edge into the stage so it has no seam
+                        <LinearGradient
+                          colors={["#0B0C0E", "rgba(11,12,14,0)"]}
+                          start={{ x: 0, y: 0.5 }}
+                          end={{ x: 0.45, y: 0.5 }}
+                          style={StyleSheet.absoluteFill}
+                        />
+                      )}
                     </View>
                     <LinearGradient
-                      colors={["rgba(8,9,11,0.93)", "rgba(8,9,11,0.6)", "rgba(8,9,11,0.12)"]}
+                      colors={["rgba(8,9,11,0.9)", "rgba(8,9,11,0.55)", "rgba(8,9,11,0.05)"]}
+                      locations={[0, 0.42, 0.85]}
                       start={{ x: 0, y: 0.5 }}
-                      end={{ x: 0.9, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
                       style={StyleSheet.absoluteFill}
                     />
                     <LinearGradient
-                      colors={["rgba(8,9,11,0.35)", "rgba(8,9,11,0.5)", "rgba(8,9,11,0.96)"]}
-                      locations={[0, 0.55, 1]}
+                      colors={["rgba(8,9,11,0.15)", "rgba(8,9,11,0.2)", "rgba(8,9,11,0.82)", "rgba(8,9,11,0.97)"]}
+                      locations={[0, 0.4, 0.75, 1]}
                       style={StyleSheet.absoluteFill}
                     />
                   </View>
@@ -754,9 +785,6 @@ export default function EpisodeScreen({ route, navigation }: any) {
                   ) : (
                     /* HERO MODE */
                     <View style={{ flex: 1, justifyContent: "flex-end", paddingTop: 90 }}>
-                      <View style={[styles.keyArtWrap, webAnim.float]}>
-                        <Image source={{ uri: detail?.poster }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                      </View>
                       {heroInfo(false)}
                     </View>
                   )}
@@ -925,34 +953,48 @@ export default function EpisodeScreen({ route, navigation }: any) {
                           prog && prog.totalSeconds > 0 ? Math.min((prog.watchedSeconds / prog.totalSeconds) * 100, 100) : 0;
                         return (
                           <FadeIn key={ep.chapterId} delay={Math.min(i, 12) * 35}>
-                            <Lift onPress={() => selectEpisode(ep)} style={{ width: 132 }} accessibilityLabel={ep.chapterName}>
+                            <Lift onPress={() => selectEpisode(ep)} style={{ width: 200 }} accessibilityLabel={ep.chapterName}>
                               <View
                                 style={[
                                   styles.railCard,
                                   glassWebStyle(18),
-                                  isActive && { backgroundColor: "#FFF", borderColor: "#FFF" },
+                                  isActive && { borderColor: "#FFF", backgroundColor: "rgba(255,255,255,0.24)" },
                                   isWatched && !isActive && { opacity: 0.62 },
                                 ]}
                               >
-                                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-                                  <Text style={[styles.railNumber, isActive && { color: "#0B0C0E" }]}>{epNumber(ep)}</Text>
-                                  <Ionicons
-                                    name={isActive ? "play" : isWatched ? "checkmark-circle" : "play-outline"}
-                                    size={15}
-                                    color={isActive ? "#0B0C0E" : "rgba(255,255,255,0.75)"}
+                                <View style={styles.railThumb}>
+                                  {/* No per-episode stills exist, so each card shows a
+                                      different slice of the wide banner (or cover). */}
+                                  <Image
+                                    source={{ uri: railArt }}
+                                    style={StyleSheet.absoluteFill as any}
+                                    contentFit="cover"
+                                    contentPosition={
+                                      artwork?.banner
+                                        ? { left: `${(i * 23) % 100}%`, top: "50%" }
+                                        : { top: `${(i * 31) % 100}%`, left: "50%" }
+                                    }
+                                    transition={400}
                                   />
-                                </View>
-                                <Text style={[styles.railLabel, isActive && { color: "#0B0C0E" }]} numberOfLines={1}>
-                                  {getCleanEpisodeTitle(ep.chapterName, animeTitle)}
-                                </Text>
-                                <Text style={[styles.railSub, isActive && { color: "rgba(11,12,14,0.6)" }]} numberOfLines={1}>
-                                  {ep.releaseTime || ep.duration || "24 Min"}
-                                </Text>
-                                {percent > 0 && (
-                                  <View style={styles.railProgress}>
-                                    <View style={{ width: `${percent}%`, height: 3, backgroundColor: colors.accent }} />
+                                  <LinearGradient colors={["transparent", "rgba(0,0,0,0.55)"]} style={StyleSheet.absoluteFill} />
+                                  <Text style={styles.railNumber}>{epNumber(ep)}</Text>
+                                  <View style={[styles.railPlay, isActive && { backgroundColor: "#FFF" }]}>
+                                    <Ionicons
+                                      name={isWatched && !isActive ? "checkmark" : "play"}
+                                      size={12}
+                                      color={isActive ? "#0B0C0E" : "#FFF"}
+                                    />
                                   </View>
-                                )}
+                                  {percent > 0 && (
+                                    <View style={styles.railProgress}>
+                                      <View style={{ width: `${percent}%`, height: 3, backgroundColor: colors.accent }} />
+                                    </View>
+                                  )}
+                                </View>
+                                <Text style={styles.railLabel} numberOfLines={1}>
+                                  {getCleanEpisodeTitle(ep.chapterName, animeTitle)}
+                                  {ep.releaseTime ? <Text style={styles.railSub}>{"  \u00B7  "}{ep.releaseTime}</Text> : null}
+                                </Text>
                               </View>
                             </Lift>
                           </FadeIn>
@@ -985,7 +1027,13 @@ export default function EpisodeScreen({ route, navigation }: any) {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40, paddingTop: insets.top + 8 }}>
         <FadeIn duration={700} style={{ paddingHorizontal: 12 }}>
           <View style={[styles.stage, { borderColor: colors.glassBorder, minHeight: 560, justifyContent: "flex-end", paddingBottom: 24 }]}>
-            <Image source={{ uri: detail?.poster }} style={StyleSheet.absoluteFill as any} contentFit="cover" />
+            <Image
+              source={{ uri: artwork?.cover || detail?.poster }}
+              style={StyleSheet.absoluteFill as any}
+              contentFit="cover"
+              contentPosition="top"
+              transition={500}
+            />
             <LinearGradient
               colors={["rgba(8,9,11,0.25)", "rgba(8,9,11,0.6)", "rgba(8,9,11,0.97)"]}
               locations={[0, 0.45, 0.85]}
@@ -1124,18 +1172,43 @@ const styles = StyleSheet.create({
 
   // Rail
   railTitle: { color: "#FFF", fontSize: 16, fontWeight: "700", marginBottom: 8 },
+  heroArtRight: { position: "absolute", top: 0, bottom: 0, right: 0, width: "62%" },
   railCard: {
-    height: 104,
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 14,
+    padding: 5,
     backgroundColor: "rgba(255,255,255,0.12)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.22)",
     overflow: "hidden",
   },
-  railNumber: { color: "#FFF", fontSize: 30, fontWeight: "800", letterSpacing: -1, lineHeight: 32 },
-  railLabel: { color: "#FFF", fontSize: 12.5, fontWeight: "700", marginTop: 10 },
-  railSub: { color: "rgba(255,255,255,0.6)", fontSize: 11.5, marginTop: 2 },
+  railThumb: { width: "100%", aspectRatio: 1.9, borderRadius: 10, overflow: "hidden", backgroundColor: "#16181C" },
+  railNumber: {
+    position: "absolute",
+    left: 10,
+    bottom: 6,
+    color: "#FFF",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
+  railPlay: {
+    position: "absolute",
+    right: 8,
+    top: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(20,21,24,0.55)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  railLabel: { color: "#FFF", fontSize: 12.5, fontWeight: "600", textAlign: "center", paddingTop: 8, paddingBottom: 6, paddingHorizontal: 6 },
+  railSub: { color: "rgba(255,255,255,0.55)", fontSize: 11.5, fontWeight: "500" },
   railProgress: { position: "absolute", left: 0, right: 0, bottom: 0, height: 3, backgroundColor: "rgba(255,255,255,0.18)" },
 
   // Side panel

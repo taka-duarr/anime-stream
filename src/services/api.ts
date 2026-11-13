@@ -381,6 +381,75 @@ export const getHomeData = async () => {
   });
 };
 
+// ============================================
+// HIGH-RES ARTWORK (AniList)
+// The anime API only ships small portrait posters (~225x315), which pixelate
+// when stretched across a full-width hero. AniList's public GraphQL API has a
+// wide banner (~1900x400) and a large cover for most titles, looked up by name.
+// ============================================
+
+export interface AnimeArtwork {
+  banner: string | null; // wide landscape art, best for desktop hero
+  cover: string | null; // large portrait cover, best for mobile hero
+}
+
+const artworkCache = new Map<string, Promise<AnimeArtwork | null>>();
+
+// Words that differ between sites for the same show ("Season 2" vs "2nd Season")
+// and so shouldn't count when checking that AniList found the right title.
+const TITLE_NOISE = new Set(["season", "2nd", "3rd", "4th", "part", "sub", "indo", "subtitle", "indonesia", "the", "no", "wa", "ga", "wo", "ni", "de", "to"]);
+
+const titleTokens = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter((w) => w.length > 1 && !TITLE_NOISE.has(w) && !/^\d+$/.test(w));
+
+/**
+ * GET ANIME ARTWORK
+ * Looks the title up on AniList and returns its banner/cover. Returns null when
+ * there is no confident match, so callers fall back to the API poster.
+ */
+export const getAnimeArtwork = (title: string): Promise<AnimeArtwork | null> => {
+  const key = title.trim().toLowerCase();
+  if (!key) return Promise.resolve(null);
+  const cached = artworkCache.get(key);
+  if (cached) return cached;
+
+  const query =
+    "query($s:String){Media(search:$s,type:ANIME){title{romaji english} synonyms bannerImage coverImage{extraLarge}}}";
+
+  const request = fetch("https://graphql.anilist.co", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ query, variables: { s: title } }),
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((json) => {
+      const media = json?.data?.Media;
+      if (!media) return null;
+
+      // Guard against AniList's fuzzy search returning a different show:
+      // at least half of our title's meaningful words must appear in theirs.
+      const ours = titleTokens(title);
+      const theirs = new Set(
+        titleTokens([media.title?.romaji, media.title?.english, ...(media.synonyms || [])].filter(Boolean).join(" ")),
+      );
+      const hits = ours.filter((w) => theirs.has(w)).length;
+      if (ours.length > 0 && hits / ours.length < 0.5) return null;
+
+      return {
+        banner: media.bannerImage || null,
+        cover: media.coverImage?.extraLarge || null,
+      };
+    })
+    .catch(() => null);
+
+  artworkCache.set(key, request);
+  return request;
+};
+
 /**
  * GET ANIME DETAIL
  * Endpoint: /anime/{animeId}

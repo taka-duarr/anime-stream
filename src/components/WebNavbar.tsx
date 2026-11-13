@@ -19,6 +19,9 @@ interface WebNavbarProps {
   onNavigate: (name: string) => void;
 }
 
+// Module-level: survives the navbar unmounting/remounting between pages.
+let navbarHasEntered = false;
+
 const hoverable = (base: any, hovered: any) => ({ hovered }: any) => [base, hovered && hovered];
 
 /**
@@ -28,9 +31,13 @@ export const WebNavbar: React.FC<WebNavbarProps> = ({ currentRoute, onNavigate }
   const { colors, isDark, toggleTheme } = useTheme();
   const { isAuthenticated, profilePicture } = useAuth();
 
-  // Drop in from the top on first paint
-  const enter = useRef(new Animated.Value(0)).current;
+  // Drop in from the top only the first time the app shows the navbar. It is
+  // unmounted on Search/Episode/Login, and replaying the drop-in every time it
+  // comes back made it blink on page changes.
+  const enter = useRef(new Animated.Value(navbarHasEntered ? 1 : 0)).current;
   useEffect(() => {
+    if (navbarHasEntered) return;
+    navbarHasEntered = true;
     Animated.timing(enter, {
       toValue: 1,
       duration: 700,
@@ -38,6 +45,53 @@ export const WebNavbar: React.FC<WebNavbarProps> = ({ currentRoute, onNavigate }
       easing: EASE_OUT,
       useNativeDriver: NATIVE_DRIVER,
     }).start();
+  }, []);
+
+  // Sliding active-tab pill: each menu item reports its own x/width on layout,
+  // and the pill springs to whichever one is active. Layout props (left/width)
+  // can't use the native driver, but this is one small element so it's cheap.
+  const itemLayouts = useRef<Record<string, { x: number; width: number }>>({}).current;
+  const itemRefs = useRef<Record<string, any>>({}).current;
+  const pillX = useRef(new Animated.Value(0)).current;
+  const pillW = useRef(new Animated.Value(0)).current;
+  const pillReady = useRef(false);
+
+  // On web, read the live position from the DOM. onLayout only fires when an
+  // item's own size changes, so when the web font loads and the items before it
+  // grow, an item's x shifts without any event and a cached x would be stale.
+  const measure = (name: string) => {
+    const el = itemRefs[name];
+    if (el && typeof el.offsetLeft === "number" && el.offsetWidth > 0) {
+      return { x: el.offsetLeft, width: el.offsetWidth };
+    }
+    return itemLayouts[name];
+  };
+
+  const movePillTo = (name: string) => {
+    const l = measure(name);
+    if (!l) return;
+    if (!pillReady.current) {
+      // First measurement: snap in place instead of sliding in from the corner.
+      pillX.setValue(l.x);
+      pillW.setValue(l.width);
+      pillReady.current = true;
+      return;
+    }
+    Animated.spring(pillX, { toValue: l.x, useNativeDriver: false, speed: 18, bounciness: 7 }).start();
+    Animated.spring(pillW, { toValue: l.width, useNativeDriver: false, speed: 18, bounciness: 7 }).start();
+  };
+
+  const routeRef = useRef(currentRoute);
+  routeRef.current = currentRoute;
+
+  useEffect(() => {
+    movePillTo(currentRoute);
+  }, [currentRoute]);
+
+  // Web fonts change text widths after first paint; re-place the pill once they're in.
+  useEffect(() => {
+    const fonts = (globalThis as any).document?.fonts;
+    fonts?.ready?.then(() => movePillTo(routeRef.current));
   }, []);
 
   return (
@@ -82,17 +136,36 @@ export const WebNavbar: React.FC<WebNavbarProps> = ({ currentRoute, onNavigate }
         </Pressable>
 
         {/* Menu */}
-        <View style={styles.menuContainer}>
+        <View style={styles.menuContainer} onLayout={() => movePillTo(routeRef.current)}>
+          {/* Pill that slides and resizes to sit behind whichever item is active */}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.activePill,
+              {
+                backgroundColor: colors.glassHover,
+                borderColor: colors.glassBorder,
+                left: pillX,
+                width: pillW,
+                opacity: pillW.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: "clamp" }),
+              },
+            ]}
+          />
           {MENU_ITEMS.map((item) => {
             const active = currentRoute === item.name;
             return (
               <Pressable
                 key={item.name}
                 onPress={() => onNavigate(item.name)}
-                style={hoverable(
-                  [styles.menuItem, active && { backgroundColor: colors.glassHover }],
-                  !active && { backgroundColor: colors.glass },
-                )}
+                ref={(el: any) => {
+                  itemRefs[item.name] = el;
+                }}
+                onLayout={(e) => {
+                  itemLayouts[item.name] = { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width };
+                  // Any item resizing can shift the active one, so always re-place the pill
+                  movePillTo(currentRoute);
+                }}
+                style={hoverable([styles.menuItem], !active && { backgroundColor: colors.glass })}
               >
                 <Text
                   style={[
@@ -198,10 +271,19 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
     marginRight: 6,
+    position: "relative",
+  },
+  activePill: {
+    position: "absolute",
+    top: 0,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
   },
   menuItem: {
     justifyContent: "center",
     paddingHorizontal: 15,
+    zIndex: 1,
     height: 38,
     borderRadius: 19,
     ...Platform.select({ web: { transition: "background-color 0.2s ease", cursor: "pointer" } as any }),

@@ -15,6 +15,9 @@ import {
   createNavigationContainerRef,
   NavigationState,
   CommonActions,
+  DarkTheme,
+  DefaultTheme,
+  Theme,
 } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -36,7 +39,7 @@ import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { WebNavbar } from "./src/components/WebNavbar";
 import { SplashIntro } from "./src/components/SplashIntro";
-import { glassWebStyle, NATIVE_DRIVER } from "./src/components/ui";
+import { glassWebStyle, NATIVE_DRIVER, PageTransition } from "./src/components/ui";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -116,6 +119,21 @@ if (isWeb) {
   }
 }
 
+// Navigation theme whose background matches the app. Without this React
+// Navigation paints its default light-gray (#F2F2F2) behind every screen, which
+// flashes through while a screen fades in during a page transition.
+const useNavTheme = (): Theme => {
+  const { colors, isDark } = useTheme();
+  const base = isDark ? DarkTheme : DefaultTheme;
+  return React.useMemo(
+    () => ({
+      ...base,
+      colors: { ...base.colors, background: colors.bg, card: colors.bg, border: colors.border, primary: colors.accent },
+    }),
+    [isDark, colors.bg],
+  );
+};
+
 // Helper: extract active leaf route name from nested nav state
 const getActiveRouteName = (state: NavigationState | undefined): string => {
   if (!state || state.index === undefined) return "HomeTab";
@@ -124,8 +142,10 @@ const getActiveRouteName = (state: NavigationState | undefined): string => {
   return route.name;
 };
 
-// One icon in the floating dock: the active one pops into a filled circle.
-const DockIcon = ({ name, focused, label, activeBg, activeFg, idleFg }: any) => {
+// One icon in the floating dock. The shared pill (rendered once by the dock
+// itself) slides underneath whichever icon is active; each icon just pops
+// slightly larger and swaps color when it becomes the active one.
+const DockIcon = ({ name, focused, label, activeFg, idleFg }: any) => {
   const v = React.useRef(new Animated.Value(focused ? 1 : 0)).current;
   React.useEffect(() => {
     Animated.spring(v, {
@@ -137,16 +157,17 @@ const DockIcon = ({ name, focused, label, activeBg, activeFg, idleFg }: any) => 
   }, [focused]);
   return (
     <View style={styles.dockIconWrap} accessibilityLabel={label}>
-      <Animated.View
-        style={[
-          styles.dockIconBg,
-          { backgroundColor: activeBg, opacity: v, transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] },
-        ]}
-      />
-      <Ionicons name={name as any} size={21} color={focused ? activeFg : idleFg} />
+      <Animated.View style={{ transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] }) }] }}>
+        <Ionicons name={name as any} size={21} color={focused ? activeFg : idleFg} />
+      </Animated.View>
     </View>
   );
 };
+
+const DOCK_BUTTON_WIDTH = 56;
+const DOCK_ITEM_WIDTH = 60; // 56 button + 4 gap
+const DOCK_PILL_SIZE = 46;
+const DOCK_PAD = 8;
 
 // Bottom Navbar khusus untuk Mode Mobile: dock kaca mengambang
 const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
@@ -154,6 +175,17 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
   const { colors, isDark } = useTheme();
   const { isAuthenticated } = useAuth();
   const insets = useSafeAreaInsets();
+
+  // Sliding pill that moves behind the active tab
+  const dockIndex = React.useRef(new Animated.Value(state.index)).current;
+  React.useEffect(() => {
+    Animated.spring(dockIndex, {
+      toValue: state.index,
+      useNativeDriver: NATIVE_DRIVER,
+      speed: 18,
+      bounciness: 9,
+    }).start();
+  }, [state.index]);
 
   // Kembalikan kotak kosong jika layer mode WebNavbar sedang mengudara di PC/Desktop
   if (width >= 768) return <View style={{ height: 0 }} />;
@@ -170,6 +202,23 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
         glassWebStyle(24),
       ]}
     >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.dockPill,
+          {
+            backgroundColor: colors.buttonPrimaryBg,
+            transform: [
+              {
+                translateX: Animated.add(
+                  DOCK_PAD + (DOCK_BUTTON_WIDTH - DOCK_PILL_SIZE) / 2,
+                  Animated.multiply(dockIndex, DOCK_ITEM_WIDTH),
+                ),
+              },
+            ],
+          },
+        ]}
+      />
       {state.routes.map((route: any, index: number) => {
         const { options } = descriptors[route.key];
         const isFocused = state.index === index;
@@ -245,7 +294,6 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
               name={iconName}
               focused={isFocused}
               label={label}
-              activeBg={colors.buttonPrimaryBg}
               activeFg={colors.buttonPrimaryText}
               idleFg={colors.textSecondary}
             />
@@ -257,55 +305,70 @@ const ElegantTabBar = ({ state, descriptors, navigation }: any) => {
   );
 };
 
+// Wraps a screen component so every navigation into it (tab switch or stack
+// push) replays the same fade + rise transition — see PageTransition in ui.tsx.
+const withTransition = (Component: React.ComponentType<any>) => (props: any) => (
+  <PageTransition>
+    <Component {...props} />
+  </PageTransition>
+);
+
 const MainTabNavigator = () => (
   <Tab.Navigator
     tabBar={(props) => <ElegantTabBar {...props} />}
-    screenOptions={{ headerShown: false }}
+    screenOptions={({ theme }: any) => ({ headerShown: false, sceneStyle: { backgroundColor: theme.colors.background } })}
   >
-    <Tab.Screen name="HomeTab" component={HomeScreen} />
-    <Tab.Screen name="GenreTab" component={GenreListScreen} />
-    <Tab.Screen name="SearchTab" component={SearchScreen} />
-    <Tab.Screen name="MyListTab" component={MyListScreen} />
-    <Tab.Screen name="ProfileTab" component={ProfileScreen} />
+    <Tab.Screen name="HomeTab">{withTransition(HomeScreen)}</Tab.Screen>
+    <Tab.Screen name="GenreTab">{withTransition(GenreListScreen)}</Tab.Screen>
+    <Tab.Screen name="SearchTab">{withTransition(SearchScreen)}</Tab.Screen>
+    <Tab.Screen name="MyListTab">{withTransition(MyListScreen)}</Tab.Screen>
+    <Tab.Screen name="ProfileTab">{withTransition(ProfileScreen)}</Tab.Screen>
   </Tab.Navigator>
 );
 
 // The stack navigator (shared between web/mobile)
 const AppNavigator = ({ showOnboarding = false }: { showOnboarding?: boolean }) => (
   <Stack.Navigator
-    screenOptions={{ headerShown: false }}
+    screenOptions={({ theme }: any) => ({
+      headerShown: false,
+      animation: "fade_from_bottom",
+      contentStyle: { backgroundColor: theme.colors.background },
+    })}
     initialRouteName={showOnboarding ? "Onboarding" : "Main"}
   >
     <Stack.Screen name="Onboarding" component={OnboardingScreen} />
     <Stack.Screen name="Main" component={MainTabNavigator} />
     <Stack.Screen
       name="Login"
-      component={LoginScreen}
       options={{
         presentation: "transparentModal",
         animation: "fade",
       }}
-    />
+    >
+      {withTransition(LoginScreen)}
+    </Stack.Screen>
     <Stack.Screen
       name="Register"
-      component={RegisterScreen}
       options={{
         presentation: "transparentModal",
         animation: "fade",
       }}
-    />
-    <Stack.Screen name="Search" component={SearchScreen} />
-    <Stack.Screen name="AnimeList" component={AnimeListScreen} />
-    <Stack.Screen name="GenreList" component={GenreListScreen} />
-    <Stack.Screen name="GenreAnime" component={GenreAnimeScreen} />
-    <Stack.Screen name="Episode" component={EpisodeScreen} />
-    <Stack.Screen name="Video" component={VideoScreen} />
+    >
+      {withTransition(RegisterScreen)}
+    </Stack.Screen>
+    <Stack.Screen name="Search">{withTransition(SearchScreen)}</Stack.Screen>
+    <Stack.Screen name="AnimeList">{withTransition(AnimeListScreen)}</Stack.Screen>
+    <Stack.Screen name="GenreList">{withTransition(GenreListScreen)}</Stack.Screen>
+    <Stack.Screen name="GenreAnime">{withTransition(GenreAnimeScreen)}</Stack.Screen>
+    <Stack.Screen name="Episode">{withTransition(EpisodeScreen)}</Stack.Screen>
+    <Stack.Screen name="Video">{withTransition(VideoScreen)}</Stack.Screen>
   </Stack.Navigator>
 );
 
 // Web layout: persistent navbar + content
 const WebLayout = () => {
   const { colors } = useTheme();
+  const navTheme = useNavTheme();
   const [currentRoute, setCurrentRoute] = useState("HomeTab");
   const [activeRoute, setActiveRoute] = useState("HomeTab");
   const { width } = useWindowDimensions();
@@ -347,6 +410,7 @@ const WebLayout = () => {
       <View style={{ flex: 1, overflow: "hidden" }}>
         <NavigationContainer
           ref={navigationRef}
+          theme={navTheme}
           onReady={() => {
             if (navigationRef.isReady()) {
               const state = navigationRef.getRootState();
@@ -382,6 +446,7 @@ const WebLayout = () => {
 // Mobile layout: normal NavigationContainer (BurgerMenu inside screens)
 const MobileLayout = () => {
   const { colors } = useTheme();
+  const navTheme = useNavTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -410,7 +475,7 @@ const MobileLayout = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navTheme}>
       <AppNavigator showOnboarding={showOnboarding} />
     </NavigationContainer>
   );
@@ -456,8 +521,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  dockIconBg: {
+  dockPill: {
     position: "absolute",
+    left: 0,
+    top: (60 - 46) / 2,
     width: 46,
     height: 46,
     borderRadius: 23,

@@ -11,6 +11,7 @@ import {
   ViewStyle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useIsFocused } from "@react-navigation/native";
 import { useTheme } from "../context/ThemeContext";
 
 const isWeb = Platform.OS === "web";
@@ -95,6 +96,50 @@ export const FadeIn: React.FC<{
           ],
         },
       ]}
+    >
+      {children}
+    </Animated.View>
+  );
+};
+
+// ------------------------------------------------------------------
+// PageTransition: wraps a screen's content and fades + rises it in every time
+// the screen gains focus — covers both stack pushes (new screen) and tab
+// switches (same screens stay mounted, so a plain on-mount fade wouldn't
+// replay). Put it around the rendered screen, not inside each screen itself,
+// so every screen gets the same transition for free.
+// ------------------------------------------------------------------
+export const PageTransition: React.FC<{
+  children?: React.ReactNode;
+  distance?: number;
+  duration?: number;
+}> = ({ children, distance = 12, duration = 380 }) => {
+  const isFocused = useIsFocused();
+  const v = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
+  const everFocused = useRef(isFocused);
+  useEffect(() => {
+    if (isFocused) {
+      v.setValue(0);
+      Animated.timing(v, {
+        toValue: 1,
+        duration,
+        easing: EASE_OUT,
+        useNativeDriver: NATIVE_DRIVER,
+      }).start();
+      everFocused.current = true;
+    }
+  }, [isFocused]);
+  return (
+    <Animated.View
+      style={{
+        flex: 1,
+        // Start partly visible rather than fully transparent: a fade from zero
+        // reads as a blink between pages; this just settles the new page in.
+        opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }),
+        transform: [
+          { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [distance, 0] }) },
+        ],
+      }}
     >
       {children}
     </Animated.View>
