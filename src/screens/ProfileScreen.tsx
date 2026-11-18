@@ -481,18 +481,6 @@ const ProfileScreen = ({ navigation }: any) => {
             title="Tentang Aplikasi"
             subtitle="Versi 1.0.0"
             onPress={() => setShowAboutModal(true)}
-          />
-          <SettingItem
-            icon="code-slash"
-            title="API Source"
-            subtitle="Anime Streaming API"
-            onPress={() => openURL("https://www.sankavollerei.com/anime")}
-          />
-          <SettingItem
-            icon="logo-github"
-            title="GitHub Repository"
-            subtitle="View source code"
-            onPress={() => openURL("https://github.com/taka-duarr/anime-stream")}
             isLast={true}
           />
         </Glass>
@@ -502,16 +490,6 @@ const ProfileScreen = ({ navigation }: any) => {
         <FadeIn delay={260} style={isDesktop ? styles.groupCol : undefined}>
         <SectionHeader title="SUPPORT" />
         <Glass radius={24} style={styles.sectionCard}>
-          <SettingItem
-            icon="bug"
-            title="Laporkan Bug"
-            subtitle="Bantu kami memperbaiki aplikasi"
-            onPress={() =>
-              openURL(
-                "https://wa.me/6281357398265?text=Halo,%20saya%20ingin%20melaporkan%20bug%20di%20aplikasi%20anime%20streaming",
-              )
-            }
-          />
           <SettingItem
             icon="star"
             title="Beri Rating"

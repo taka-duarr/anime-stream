@@ -45,9 +45,6 @@ export const WebFooter = () => {
           </Text>
           {/* Social Icons */}
           <View style={styles.footerSocialsRow}>
-            <TouchableOpacity onPress={() => Linking.openURL("https://github.com/taka-duarr/anime-stream")} style={[styles.socialIconCircle, { backgroundColor: colors.card }]}>
-              <Ionicons name="logo-github" size={18} color={colors.text} />
-            </TouchableOpacity>
             <TouchableOpacity onPress={() => Linking.openURL("https://wa.me/6281357398265")} style={[styles.socialIconCircle, { backgroundColor: colors.card }]}>
               <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
             </TouchableOpacity>
