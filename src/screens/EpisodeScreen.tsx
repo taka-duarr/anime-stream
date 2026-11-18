@@ -31,6 +31,7 @@ import EpisodeList from "../components/EpisodeList";
 import CommentSection from "../components/CommentSection";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FadeIn, Glass, Lift, Rating, Shimmer, StatusPill, glassWebStyle, webAnim } from "../components/ui";
+import { trackEvent } from "../services/analytics";
 
 const isWeb = Platform.OS === "web";
 
@@ -448,17 +449,37 @@ export default function EpisodeScreen({ route, navigation }: any) {
     setIsPlayingWeb(false);
     loadStreamingUrl(ep.chapterId);
     markWatched(ep.chapterId);
+    trackEvent("watch_episode", {
+      anime_id: bookId,
+      anime_title: detail?.title || title,
+      episode_id: ep.chapterId,
+      episode_title: ep.chapterName,
+    });
   };
 
   // Desktop: start the inline player for the active episode
   const startPlaying = () => {
     setIsPlayingWeb(true);
-    if (activeEpisode?.chapterId) markWatched(activeEpisode.chapterId);
+    if (activeEpisode?.chapterId) {
+      markWatched(activeEpisode.chapterId);
+      trackEvent("watch_episode", {
+        anime_id: bookId,
+        anime_title: detail?.title || title,
+        episode_id: activeEpisode.chapterId,
+        episode_title: activeEpisode.chapterName,
+      });
+    }
   };
 
   // Mobile: open an episode in the full-screen player
   const openInPlayer = (ep: Episode) => {
     markWatched(ep.chapterId);
+    trackEvent("watch_episode", {
+      anime_id: bookId,
+      anime_title: detail?.title || title,
+      episode_id: ep.chapterId,
+      episode_title: ep.chapterName,
+    });
     navigation.navigate("Video", { episode: ep, episodes, animeId: bookId });
   };
 

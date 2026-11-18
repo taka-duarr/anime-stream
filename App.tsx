@@ -40,6 +40,7 @@ import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { WebNavbar } from "./src/components/WebNavbar";
 import { SplashIntro } from "./src/components/SplashIntro";
 import { glassWebStyle, NATIVE_DRIVER, PageTransition } from "./src/components/ui";
+import { initAnalytics, getRoutePageInfo, trackScreenView } from "./src/services/analytics";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -371,8 +372,13 @@ const WebLayout = () => {
   const navTheme = useNavTheme();
   const [currentRoute, setCurrentRoute] = useState("HomeTab");
   const [activeRoute, setActiveRoute] = useState("HomeTab");
+  const lastTrackedPathRef = React.useRef<string | null>(null);
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
+
+  React.useEffect(() => {
+    initAnalytics();
+  }, []);
 
   const handleNavigate = (name: string) => {
     if (navigationRef.isReady()) {
@@ -414,12 +420,37 @@ const WebLayout = () => {
           onReady={() => {
             if (navigationRef.isReady()) {
               const state = navigationRef.getRootState();
-              setActiveRoute(getActiveRouteName(state));
+              const name = getActiveRouteName(state);
+              setActiveRoute(name);
+              const route = navigationRef.getCurrentRoute();
+              if (route) {
+                lastTrackedPathRef.current = getRoutePageInfo(
+                  route.name,
+                  route.params as any,
+                ).path;
+              }
             }
           }}
           onStateChange={(state) => {
             const name = getActiveRouteName(state as NavigationState);
             setActiveRoute(name);
+
+            const currentNavRoute = navigationRef.isReady()
+              ? navigationRef.getCurrentRoute()
+              : null;
+            if (currentNavRoute) {
+              const info = getRoutePageInfo(
+                currentNavRoute.name,
+                currentNavRoute.params as any,
+              );
+              if (info.path !== lastTrackedPathRef.current) {
+                lastTrackedPathRef.current = info.path;
+                trackScreenView(
+                  currentNavRoute.name,
+                  currentNavRoute.params as any,
+                );
+              }
+            }
 
             if (name === "AnimeList") {
               const params = navigationRef.isReady() ? (navigationRef.getCurrentRoute()?.params as any) : null;
